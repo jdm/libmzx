@@ -1,41 +1,42 @@
 #![feature(slice_patterns)]
 
 extern crate byteorder;
+extern crate itertools;
 
 use byteorder::{ByteOrder, LittleEndian};
-use std::ptr;
+use itertools::Zip;
 use std::str;
 
 pub struct World {
-    title: String,
-    charset: Charset,
-    palette: Palette,
-    boards: Vec<Board>,
+    pub title: String,
+    pub charset: Charset,
+    pub palette: Palette,
+    pub boards: Vec<Board>,
 }
 
 pub struct Board {
-    title: String,
-    width: u8,
-    height: u8,
-    overlay: Option<(OverlayMode, Vec<u8>)>,
-    level: Vec<(u8, u8, u8)>,
-    under: Vec<(u8, u8, u8)>,
-    mod_file: String,
-    upper_left_viewport: (u8, u8),
-    viewport_size: (u8, u8),
-    can_shoot: bool,
-    can_bomb: bool,
-    fire_burns_brown: bool,
-    fire_burns_space: bool,
-    fire_burns_fakes: bool,
-    fire_burns_trees: bool,
-    explosion_result: ExplosionResult,
-    save_restriction: SaveRestriction,
-    collect_bombs: bool,
-    fire_burns_forever: bool,
-    exits: (Option<u8>, Option<u8>, Option<u8>, Option<u8>),
-    restart_when_zapped: bool,
-    time_limit: u16,    
+    pub title: String,
+    pub width: usize,
+    pub height: usize,
+    pub overlay: Option<(OverlayMode, Vec<(u8, u8)>)>,
+    pub level: Vec<(u8, u8, u8)>,
+    pub under: Vec<(u8, u8, u8)>,
+    pub mod_file: String,
+    pub upper_left_viewport: (u8, u8),
+    pub viewport_size: (u8, u8),
+    pub can_shoot: bool,
+    pub can_bomb: bool,
+    pub fire_burns_brown: bool,
+    pub fire_burns_space: bool,
+    pub fire_burns_fakes: bool,
+    pub fire_burns_trees: bool,
+    pub explosion_result: ExplosionResult,
+    pub save_restriction: SaveRestriction,
+    pub collect_bombs: bool,
+    pub fire_burns_forever: bool,
+    pub exits: (Option<u8>, Option<u8>, Option<u8>, Option<u8>),
+    pub restart_when_zapped: bool,
+    pub time_limit: u16,
 }
 
 pub enum OverlayMode {
@@ -75,7 +76,7 @@ pub struct Color {
 }
 
 pub struct Palette {
-    colors: Vec<Color>,
+    pub colors: Vec<Color>,
 }
 
 #[derive(Debug)]
@@ -94,6 +95,8 @@ pub enum WorldError<'a> {
 pub enum BoardError {
     InvalidUTF8Title,
     NoNullInTitle,
+    UnexpectedSize(u8),
+    UnknownOverlayMode(u8),
 }
 
 impl<'a> From<BoardError> for WorldError<'a> {
@@ -102,22 +105,87 @@ impl<'a> From<BoardError> for WorldError<'a> {
     }
 }
 
-fn load_board<'a>(buffer: &'a [u8]) -> Result<(Board, &'a [u8]), BoardError> {
-    let (title, buffer) = buffer.split_at(25);
-    let title_end = title.iter().position(|b| *b == 0);
-    let title = match title_end {
-        Some(idx) => try!(str::from_utf8(&title[0..idx]).map_err(|_| BoardError::InvalidUTF8Title)),
-        None => return Err(BoardError::NoNullInTitle),
+fn decode_runs(buffer: &[u8]) -> (Vec<u8>, &[u8]) {
+    let mut consumed = 0;
+    let mut result = vec![];
+    let mut num_bytes: Option<u8> = None;
+
+    let (max_w, buffer) = buffer.split_at(2);
+    let (max_h, buffer) = buffer.split_at(2);
+    let max_w = LittleEndian::read_u16(max_w) as usize;
+    let max_h = LittleEndian::read_u16(max_h) as usize;
+    let max = max_w * max_h;
+
+    while result.len() < max {
+        let byte = buffer[consumed];
+        consumed += 1;
+        if num_bytes.is_none() && byte & 0x80 == 0 {
+            num_bytes = Some(1);
+        }
+        if let Some(bytes) = num_bytes {
+            for _ in 0..bytes as usize {
+                result.push(byte);
+            }
+            num_bytes = None;
+        } else {
+            num_bytes = Some(byte & 0x7F);
+        }
+    }
+
+    assert_eq!(result.len(), max);
+    (result, &buffer[consumed..])
+}
+
+fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
+    println!("loading {}", title);
+
+    let (sizing, mut buffer) = buffer.split_at(1);
+    let (width, height) = match sizing[0] {
+        0 => (60, 166),
+        1 => (80, 125),
+        2 => (100, 100),
+        3 => (200, 50),
+        4 => (400, 25),
+        _ => return Err(BoardError::UnexpectedSize(sizing[0])),
     };
-    
-    
-    Ok((Board {
+
+    let overlay = if buffer[0] == 0 {
+        let (overlay_mode, new_buffer) = buffer[1..].split_at(1);
+        let overlay_mode = match overlay_mode[0] {
+            1 => OverlayMode::Normal,
+            2 => OverlayMode::Static,
+            3 => OverlayMode::Transparent,
+            c => return Err(BoardError::UnknownOverlayMode(c)),
+        };
+        println!("reading overlay chars");
+        let (chars, new_buffer) = decode_runs(new_buffer);
+        println!("reading overlay colors");
+        let (colors, new_buffer) = decode_runs(new_buffer);
+        buffer = new_buffer;
+        Some((overlay_mode, Zip::new((chars.into_iter(), colors.into_iter())).collect()))
+    } else {
+        None
+    };
+
+    let (ids, buffer) = decode_runs(buffer);
+    let (colors, buffer) = decode_runs(buffer);
+    let (params, buffer) = decode_runs(buffer);
+    assert_eq!(ids.len(), colors.len());
+    assert_eq!(ids.len(), params.len());
+
+    let (under_ids, buffer) = decode_runs(buffer);
+    let (under_colors, buffer) = decode_runs(buffer);
+    let (under_params, _buffer) = decode_runs(buffer);
+    assert_eq!(under_ids.len(), under_colors.len());
+    assert_eq!(under_ids.len(), under_params.len());
+
+    Ok(Board {
         title: title.into(),
-        width: 0,
-        height: 0,
-        overlay: None,
-        level: vec![],
-        under: vec![],
+        width: width,
+        height: height,
+        overlay: overlay,
+        level: Zip::new((ids.into_iter(), colors.into_iter(), params.into_iter())).collect(),
+        under: Zip::new((under_ids.into_iter(), under_colors.into_iter(), under_params.into_iter())).collect(),
         mod_file: "".into(),
         upper_left_viewport: (0, 0),
         viewport_size: (0, 0),
@@ -134,7 +202,7 @@ fn load_board<'a>(buffer: &'a [u8]) -> Result<(Board, &'a [u8]), BoardError> {
         exits: (None, None, None, None),
         restart_when_zapped: false,
         time_limit: 0,
-    }, buffer))
+    })
 }
 
 fn is_bool(byte: &[u8]) -> bool {
@@ -142,6 +210,8 @@ fn is_bool(byte: &[u8]) -> bool {
 }
 
 pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
+    let original_buffer = buffer;
+
     let (title, buffer) = buffer.split_at(25);
     let title_end = title.iter().position(|b| *b == 0);
     let title = match title_end {
@@ -216,9 +286,37 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         sfx[0]
     };
 
+    let mut titles = vec![];
     let mut boards = vec![];
     for _ in 0..num_boards {
-        let (board, new_buffer) = try!(load_board(buffer));
+        let (title, new_buffer) = buffer.split_at(25);
+        let title_end = title.iter().position(|b| *b == 0);
+        let title = match title_end {
+            Some(idx) => try!(str::from_utf8(&title[0..idx]).map_err(|_| WorldError::InvalidUTF8Title)),
+            None => return Err(WorldError::NoNullInTitle),
+        };
+        buffer = new_buffer;
+
+        println!("{}" ,title);
+        titles.push(title.to_owned());
+    }
+
+    for title in titles {
+        let (byte_length, new_buffer) = buffer.split_at(4);
+        let byte_length = LittleEndian::read_u32(byte_length) as usize;
+
+        let (board_pos, new_buffer) = new_buffer.split_at(4);
+        let board_pos = LittleEndian::read_u32(board_pos) as usize;
+
+        println!("{} {}", byte_length, board_pos);
+
+        if byte_length == 0 {
+            continue;
+        }
+
+        let end_board_pos = board_pos + byte_length;
+        let board = try!(load_board(title,
+                                    &original_buffer[board_pos..end_board_pos]));
         boards.push(board);
         buffer = new_buffer;
     }

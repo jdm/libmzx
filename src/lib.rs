@@ -65,7 +65,7 @@ pub struct Charset {
 
 impl Charset {
     pub fn nth(&self, n: u8) -> &[u8] {
-        &self.data[(n*14) as usize..((n+1)*14) as usize]
+        &self.data[(n as usize * 14)..((n+1) as usize * 14)]
     }
 }
 
@@ -105,7 +105,7 @@ impl<'a> From<BoardError> for WorldError<'a> {
     }
 }
 
-fn decode_runs(buffer: &[u8]) -> (Vec<u8>, &[u8]) {
+fn decode_runs(buffer: &[u8]) -> (Vec<u8>, &[u8], usize, usize) {
     let mut consumed = 0;
     let mut result = vec![];
     let mut num_bytes: Option<u8> = None;
@@ -133,14 +133,12 @@ fn decode_runs(buffer: &[u8]) -> (Vec<u8>, &[u8]) {
     }
 
     assert_eq!(result.len(), max);
-    (result, &buffer[consumed..])
+    (result, &buffer[consumed..], max_w, max_h)
 }
 
 fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
-    println!("loading {}", title);
-
     let (sizing, mut buffer) = buffer.split_at(1);
-    let (width, height) = match sizing[0] {
+    let (_width, _height) = match sizing[0] {
         0 => (60, 166),
         1 => (80, 125),
         2 => (100, 100),
@@ -157,25 +155,24 @@ fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
             3 => OverlayMode::Transparent,
             c => return Err(BoardError::UnknownOverlayMode(c)),
         };
-        println!("reading overlay chars");
-        let (chars, new_buffer) = decode_runs(new_buffer);
-        println!("reading overlay colors");
-        let (colors, new_buffer) = decode_runs(new_buffer);
+        let (chars, new_buffer, _, _) = decode_runs(new_buffer);
+        let (colors, new_buffer, _, _) = decode_runs(new_buffer);
         buffer = new_buffer;
         Some((overlay_mode, Zip::new((chars.into_iter(), colors.into_iter())).collect()))
     } else {
         None
     };
 
-    let (ids, buffer) = decode_runs(buffer);
-    let (colors, buffer) = decode_runs(buffer);
-    let (params, buffer) = decode_runs(buffer);
+    let (ids, buffer, width, height) = decode_runs(buffer);
+    let (colors, buffer, _, _) = decode_runs(buffer);
+    let (params, buffer, _, _) = decode_runs(buffer);
     assert_eq!(ids.len(), colors.len());
     assert_eq!(ids.len(), params.len());
 
-    let (under_ids, buffer) = decode_runs(buffer);
-    let (under_colors, buffer) = decode_runs(buffer);
-    let (under_params, _buffer) = decode_runs(buffer);
+    let (under_ids, buffer, _, _) = decode_runs(buffer);
+    let (under_colors, buffer, _, _) = decode_runs(buffer);
+    let (under_params, _buffer, _, _) = decode_runs(buffer);
+    assert_eq!(under_ids.len(), ids.len());
     assert_eq!(under_ids.len(), under_colors.len());
     assert_eq!(under_ids.len(), under_params.len());
 
@@ -297,7 +294,6 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         };
         buffer = new_buffer;
 
-        println!("{}" ,title);
         titles.push(title.to_owned());
     }
 
@@ -307,8 +303,6 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
 
         let (board_pos, new_buffer) = new_buffer.split_at(4);
         let board_pos = LittleEndian::read_u32(board_pos) as usize;
-
-        println!("{} {}", byte_length, board_pos);
 
         if byte_length == 0 {
             continue;

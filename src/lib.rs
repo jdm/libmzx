@@ -65,7 +65,8 @@ pub struct Charset {
 
 impl Charset {
     pub fn nth(&self, n: u8) -> &[u8] {
-        &self.data[(n as usize * 14)..((n+1) as usize * 14)]
+        let n = n as usize;
+        &self.data[(n * 14)..((n + 1) * 14)]
     }
 }
 

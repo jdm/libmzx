@@ -98,6 +98,7 @@ pub enum BoardError {
     NoNullInTitle,
     UnexpectedSize(u8),
     UnknownOverlayMode(u8),
+    InvalidModFile,
 }
 
 impl<'a> From<BoardError> for WorldError<'a> {
@@ -106,15 +107,45 @@ impl<'a> From<BoardError> for WorldError<'a> {
     }
 }
 
+fn get_null_terminated_string(buffer: &[u8], max_length: usize) -> Result<(String, &[u8]), ()> {
+    let (s, buffer) = buffer.split_at(max_length);
+    let end = s.iter().position(|b| *b == 0);
+    match end {
+        Some(idx) => Ok((try!(str::from_utf8(&s[0..idx]).map_err(|_| ())).into(), buffer)),
+        None => Err(()),
+    }
+}
+
+fn get_bool(buffer: &[u8]) -> (bool, &[u8]) {
+    let (byte, buffer) = get_byte(buffer);
+    assert!(byte == 0 || byte == 1);
+    (byte == 1, buffer)
+}
+
+fn get_byte(buffer: &[u8]) -> (u8, &[u8]) {
+    let (byte, buffer) = buffer.split_at(1);
+    (byte[0], buffer)
+}
+
+fn get_word(buffer: &[u8]) -> (u16, &[u8]) {
+    let (word, buffer) = buffer.split_at(2);
+    (LittleEndian::read_u16(word), buffer)
+}
+
+fn get_dword(buffer: &[u8]) -> (u32, &[u8]) {
+    let (dword, buffer) = buffer.split_at(4);
+    (LittleEndian::read_u32(dword), buffer)
+}
+
 fn decode_runs(buffer: &[u8]) -> (Vec<u8>, &[u8], usize, usize) {
     let mut consumed = 0;
     let mut result = vec![];
     let mut num_bytes: Option<u8> = None;
 
-    let (max_w, buffer) = buffer.split_at(2);
-    let (max_h, buffer) = buffer.split_at(2);
-    let max_w = LittleEndian::read_u16(max_w) as usize;
-    let max_h = LittleEndian::read_u16(max_h) as usize;
+    let (max_w, buffer) = get_word(buffer);
+    let max_w = max_w as usize;
+    let (max_h, buffer) = get_word(buffer);
+    let max_h = max_h as usize;
     let max = max_w * max_h;
 
     while result.len() < max {
@@ -138,19 +169,19 @@ fn decode_runs(buffer: &[u8]) -> (Vec<u8>, &[u8], usize, usize) {
 }
 
 fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
-    let (sizing, mut buffer) = buffer.split_at(1);
-    let (_width, _height) = match sizing[0] {
+    let (sizing, mut buffer) = get_byte(buffer);
+    let (_width, _height) = match sizing {
         0 => (60, 166),
         1 => (80, 125),
         2 => (100, 100),
         3 => (200, 50),
         4 => (400, 25),
-        _ => return Err(BoardError::UnexpectedSize(sizing[0])),
+        _ => return Err(BoardError::UnexpectedSize(sizing)),
     };
 
     let overlay = if buffer[0] == 0 {
-        let (overlay_mode, new_buffer) = buffer[1..].split_at(1);
-        let overlay_mode = match overlay_mode[0] {
+        let (overlay_mode, new_buffer) = get_byte(&buffer[1..]);
+        let overlay_mode = match overlay_mode {
             1 => OverlayMode::Normal,
             2 => OverlayMode::Static,
             3 => OverlayMode::Transparent,
@@ -172,19 +203,21 @@ fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
 
     let (under_ids, buffer, _, _) = decode_runs(buffer);
     let (under_colors, buffer, _, _) = decode_runs(buffer);
-    let (under_params, _buffer, _, _) = decode_runs(buffer);
+    let (under_params, buffer, _, _) = decode_runs(buffer);
     assert_eq!(under_ids.len(), ids.len());
     assert_eq!(under_ids.len(), under_colors.len());
     assert_eq!(under_ids.len(), under_params.len());
 
+    let (mod_file, _buffer) = try!(get_null_terminated_string(buffer, 13).map_err(|_| BoardError::InvalidModFile));
+
     Ok(Board {
-        title: title.into(),
+        title: title,
         width: width,
         height: height,
         overlay: overlay,
         level: Zip::new((ids.into_iter(), colors.into_iter(), params.into_iter())).collect(),
         under: Zip::new((under_ids.into_iter(), under_colors.into_iter(), under_params.into_iter())).collect(),
-        mod_file: "".into(),
+        mod_file: mod_file,
         upper_left_viewport: (0, 0),
         viewport_size: (0, 0),
         can_shoot: false,
@@ -203,23 +236,13 @@ fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
     })
 }
 
-fn is_bool(byte: &[u8]) -> bool {
-    byte.len() == 1 && (byte[0] == 0 || byte[0] == 1)
-}
-
 pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
     let original_buffer = buffer;
 
-    let (title, buffer) = buffer.split_at(25);
-    let title_end = title.iter().position(|b| *b == 0);
-    let title = match title_end {
-        Some(idx) => try!(str::from_utf8(&title[0..idx]).map_err(|_| WorldError::InvalidUTF8Title)),
-        None => return Err(WorldError::NoNullInTitle),
-    };
+    let (title, buffer) = try!(get_null_terminated_string(buffer, 25).map_err(|_| WorldError::InvalidUTF8Title));
 
-    let (protection, buffer) = buffer.split_at(1);
-    assert!(is_bool(protection));
-    if protection != &[0] {
+    let (protection, buffer) = get_bool(buffer);
+    if protection {
         return Err(WorldError::Protected);
     }
 
@@ -240,26 +263,22 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
 
     let (_status_counters, buffer) = buffer.split_at(6 * 15);
 
-    let (_edge_border, buffer) = buffer.split_at(1);
-    let (_starting_board_number, buffer) = buffer.split_at(1);
-    let (_end_game_board, buffer) = buffer.split_at(1);
-    let (_death_board, buffer) = buffer.split_at(1);
-    let (_end_game_x, buffer) = buffer.split_at(2);
-    let (_end_game_y, buffer) = buffer.split_at(2);
-    let (game_over_sfx, buffer) = buffer.split_at(1);
-    assert!(is_bool(game_over_sfx));
-    let (_death_x, buffer) = buffer.split_at(2);
-    let (_death_y, buffer) = buffer.split_at(2);
-    let (_starting_lives, buffer) = buffer.split_at(2);
-    let (_limit_lives, buffer) = buffer.split_at(2);
-    let (_starting_health, buffer) = buffer.split_at(2);
-    let (_limit_health, buffer) = buffer.split_at(2);
-    let (enemies_hurt_enemies, buffer) = buffer.split_at(1);
-    assert!(is_bool(enemies_hurt_enemies));
-    let (clear_messages_and_projectiles, buffer) = buffer.split_at(1);
-    assert!(is_bool(clear_messages_and_projectiles));
-    let (only_play_via_swap_world, buffer) = buffer.split_at(1);
-    assert!(is_bool(only_play_via_swap_world));
+    let (_edge_border, buffer) = get_byte(buffer);
+    let (_starting_board_number, buffer) = get_byte(buffer);
+    let (_end_game_board, buffer) = get_byte(buffer);
+    let (_death_board, buffer) = get_byte(buffer);
+    let (_end_game_x, buffer) = get_word(buffer);
+    let (_end_game_y, buffer) = get_word(buffer);
+    let (_game_over_sfx, buffer) = get_byte(buffer);
+    let (_death_x, buffer) = get_word(buffer);
+    let (_death_y, buffer) = get_word(buffer);
+    let (_starting_lives, buffer) = get_word(buffer);
+    let (_limit_lives, buffer) = get_word(buffer);
+    let (_starting_health, buffer) = get_word(buffer);
+    let (_limit_health, buffer) = get_word(buffer);
+    let (_enemies_hurt_enemies, buffer) = get_bool(buffer);
+    let (_clear_messages_and_projectiles, buffer) = get_bool(buffer);
+    let (_only_play_via_swap_world, buffer) = get_bool(buffer);
 
     let (palette_color_data, buffer) = buffer.split_at(16 * 3);
     let mut colors = vec![];
@@ -269,41 +288,36 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
     }
     assert_eq!(colors.len(), 16);
 
-    let (_global_robot_pos, buffer) = buffer.split_at(4);
-    let (sfx, mut buffer) = buffer.split_at(1);
-    let num_boards = if sfx[0] == 0 {
-        let (len, new_buffer) = buffer.split_at(2);
-        let (_sfx, new_buffer) = new_buffer.split_at(LittleEndian::read_u16(len) as usize);
-        let (num_boards, new_buffer) = new_buffer.split_at(1);
+    let (_global_robot_pos, buffer) = get_dword(buffer);
+    let (sfx, mut buffer) = get_byte(buffer);
+    let num_boards = if sfx == 0 {
+        let (len, new_buffer) = get_word(buffer);
+        let (_sfx, new_buffer) = new_buffer.split_at(len as usize);
+        let (num_boards, new_buffer) = get_byte(new_buffer);
         buffer = new_buffer;
-        num_boards[0]
+        num_boards
     } else {
-        if sfx[0] > 150 {
-            return Err(WorldError::TooManyBoards(sfx[0]));
+        if sfx > 150 {
+            return Err(WorldError::TooManyBoards(sfx));
         }
-        sfx[0]
+        sfx
     };
 
     let mut titles = vec![];
     let mut boards = vec![];
     for _ in 0..num_boards {
-        let (title, new_buffer) = buffer.split_at(25);
-        let title_end = title.iter().position(|b| *b == 0);
-        let title = match title_end {
-            Some(idx) => try!(str::from_utf8(&title[0..idx]).map_err(|_| WorldError::InvalidUTF8Title)),
-            None => return Err(WorldError::NoNullInTitle),
-        };
+        let (title, new_buffer) = try!(get_null_terminated_string(buffer, 25).map_err(|_| WorldError::InvalidUTF8Title));
         buffer = new_buffer;
 
-        titles.push(title.to_owned());
+        titles.push(title);
     }
 
     for title in titles {
-        let (byte_length, new_buffer) = buffer.split_at(4);
-        let byte_length = LittleEndian::read_u32(byte_length) as usize;
+        let (byte_length, new_buffer) = get_dword(buffer);
+        let byte_length = byte_length as usize;
 
-        let (board_pos, new_buffer) = new_buffer.split_at(4);
-        let board_pos = LittleEndian::read_u32(board_pos) as usize;
+        let (board_pos, new_buffer) = get_dword(new_buffer);
+        let board_pos = board_pos as usize;
 
         if byte_length == 0 {
             continue;
@@ -317,7 +331,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
     }
 
     Ok(World {
-        title: title.into(),
+        title: title,
         charset: charset,
         palette: Palette { colors: colors },
         boards: boards,

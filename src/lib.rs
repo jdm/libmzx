@@ -7,11 +7,29 @@ use byteorder::{ByteOrder, LittleEndian};
 use itertools::Zip;
 use std::str;
 
+pub struct BoardId(pub u8);
+pub struct ColorValue(pub u8);
+pub struct Coordinate(pub (u16, u16));
+
 pub struct World {
     pub title: String,
     pub charset: Charset,
     pub palette: Palette,
     pub boards: Vec<Board>,
+    pub edge_border: ColorValue,
+    pub starting_board_number: BoardId,
+    pub end_game_board: BoardId,
+    pub death_board: BoardId,
+    pub end_game_pos: Coordinate,
+    pub game_over_sfx: bool,
+    pub death_pos: Coordinate,
+    pub starting_lives: u16,
+    pub limit_lives: u16,
+    pub starting_health: u16,
+    pub limit_health: u16,
+    pub enemies_hurt_enemies: bool,
+    pub clear_messages_and_projectiles: bool,
+    pub only_play_via_swap_world: bool,
 }
 
 pub struct Board {
@@ -263,22 +281,22 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
 
     let (_status_counters, buffer) = buffer.split_at(6 * 15);
 
-    let (_edge_border, buffer) = get_byte(buffer);
-    let (_starting_board_number, buffer) = get_byte(buffer);
-    let (_end_game_board, buffer) = get_byte(buffer);
-    let (_death_board, buffer) = get_byte(buffer);
-    let (_end_game_x, buffer) = get_word(buffer);
-    let (_end_game_y, buffer) = get_word(buffer);
-    let (_game_over_sfx, buffer) = get_byte(buffer);
-    let (_death_x, buffer) = get_word(buffer);
-    let (_death_y, buffer) = get_word(buffer);
-    let (_starting_lives, buffer) = get_word(buffer);
-    let (_limit_lives, buffer) = get_word(buffer);
-    let (_starting_health, buffer) = get_word(buffer);
-    let (_limit_health, buffer) = get_word(buffer);
-    let (_enemies_hurt_enemies, buffer) = get_bool(buffer);
-    let (_clear_messages_and_projectiles, buffer) = get_bool(buffer);
-    let (_only_play_via_swap_world, buffer) = get_bool(buffer);
+    let (edge_border, buffer) = get_byte(buffer);
+    let (starting_board_number, buffer) = get_byte(buffer);
+    let (end_game_board, buffer) = get_byte(buffer);
+    let (death_board, buffer) = get_byte(buffer);
+    let (end_game_x, buffer) = get_word(buffer);
+    let (end_game_y, buffer) = get_word(buffer);
+    let (game_over_sfx, buffer) = get_bool(buffer);
+    let (death_x, buffer) = get_word(buffer);
+    let (death_y, buffer) = get_word(buffer);
+    let (starting_lives, buffer) = get_word(buffer);
+    let (limit_lives, buffer) = get_word(buffer);
+    let (starting_health, buffer) = get_word(buffer);
+    let (limit_health, buffer) = get_word(buffer);
+    let (enemies_hurt_enemies, buffer) = get_bool(buffer);
+    let (clear_messages_and_projectiles, buffer) = get_bool(buffer);
+    let (only_play_via_swap_world, buffer) = get_bool(buffer);
 
     let (palette_color_data, buffer) = buffer.split_at(16 * 3);
     let mut colors = vec![];
@@ -335,6 +353,20 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         charset: charset,
         palette: Palette { colors: colors },
         boards: boards,
+        edge_border: ColorValue(edge_border),
+        starting_board_number: BoardId(starting_board_number),
+        end_game_board: BoardId(end_game_board),
+        death_board: BoardId(death_board),
+        end_game_pos: Coordinate((end_game_x, end_game_y)),
+        game_over_sfx: game_over_sfx,
+        death_pos: Coordinate((death_x, death_y)),
+        starting_lives: starting_lives,
+        limit_lives: limit_lives,
+        starting_health: starting_health,
+        limit_health: limit_health,
+        enemies_hurt_enemies: enemies_hurt_enemies,
+        clear_messages_and_projectiles: clear_messages_and_projectiles,
+        only_play_via_swap_world: only_play_via_swap_world,
     })
 }
 

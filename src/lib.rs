@@ -9,7 +9,8 @@ use std::str;
 
 pub struct BoardId(pub u8);
 pub struct ColorValue(pub u8);
-pub struct Coordinate(pub (u16, u16));
+pub struct Coordinate<T>(pub (T, T));
+pub struct Size<T>(pub (T, T));
 
 pub struct World {
     pub title: String,
@@ -20,9 +21,9 @@ pub struct World {
     pub starting_board_number: BoardId,
     pub end_game_board: BoardId,
     pub death_board: BoardId,
-    pub end_game_pos: Coordinate,
+    pub end_game_pos: Coordinate<u16>,
     pub game_over_sfx: bool,
-    pub death_pos: Coordinate,
+    pub death_pos: Coordinate<u16>,
     pub starting_lives: u16,
     pub limit_lives: u16,
     pub starting_health: u16,
@@ -40,8 +41,8 @@ pub struct Board {
     pub level: Vec<(u8, u8, u8)>,
     pub under: Vec<(u8, u8, u8)>,
     pub mod_file: String,
-    pub upper_left_viewport: (u8, u8),
-    pub viewport_size: (u8, u8),
+    pub upper_left_viewport: Coordinate<u8>,
+    pub viewport_size: Size<u8>,
     pub can_shoot: bool,
     pub can_bomb: bool,
     pub fire_burns_brown: bool,
@@ -49,10 +50,11 @@ pub struct Board {
     pub fire_burns_fakes: bool,
     pub fire_burns_trees: bool,
     pub explosion_result: ExplosionResult,
+    pub forest_becomes_floor: bool,
     pub save_restriction: SaveRestriction,
     pub collect_bombs: bool,
     pub fire_burns_forever: bool,
-    pub exits: (Option<u8>, Option<u8>, Option<u8>, Option<u8>),
+    pub exits: (Option<BoardId>, Option<BoardId>, Option<BoardId>, Option<BoardId>),
     pub restart_when_zapped: bool,
     pub time_limit: u16,
 }
@@ -70,9 +72,9 @@ pub enum ExplosionResult {
 }
 
 pub enum SaveRestriction {
+    Unrestricted,
     NoSave,
     OnlyOnSensor,
-    Unrestricted,
 }
 
 const CHARSET_BUFFER_SIZE: usize = 14 * 256;
@@ -117,6 +119,8 @@ pub enum BoardError {
     UnexpectedSize(u8),
     UnknownOverlayMode(u8),
     InvalidModFile,
+    UnknownExplosionResult(u8),
+    UnknownSaveRestriction(u8),
 }
 
 impl<'a> From<BoardError> for WorldError<'a> {
@@ -136,7 +140,9 @@ fn get_null_terminated_string(buffer: &[u8], max_length: usize) -> Result<(Strin
 
 fn get_bool(buffer: &[u8]) -> (bool, &[u8]) {
     let (byte, buffer) = get_byte(buffer);
-    assert!(byte == 0 || byte == 1);
+    if byte != 0 && byte != 1 {
+        assert_eq!(byte, 0);
+    }
     (byte == 1, buffer)
 }
 
@@ -153,6 +159,15 @@ fn get_word(buffer: &[u8]) -> (u16, &[u8]) {
 fn get_dword(buffer: &[u8]) -> (u32, &[u8]) {
     let (dword, buffer) = buffer.split_at(4);
     (LittleEndian::read_u32(dword), buffer)
+}
+
+fn maybe_get_board(buffer: &[u8]) -> (Option<BoardId>, &[u8]) {
+    let (board, buffer) = get_byte(buffer);
+    (if board == 255 {
+        None
+    } else {
+        Some(BoardId(board))
+    }, buffer)
 }
 
 fn decode_runs(buffer: &[u8]) -> (Vec<u8>, &[u8], usize, usize) {
@@ -226,7 +241,41 @@ fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
     assert_eq!(under_ids.len(), under_colors.len());
     assert_eq!(under_ids.len(), under_params.len());
 
-    let (mod_file, _buffer) = try!(get_null_terminated_string(buffer, 13).map_err(|_| BoardError::InvalidModFile));
+    let (mod_file, buffer) = try!(get_null_terminated_string(buffer, 13).map_err(|_| BoardError::InvalidModFile));
+
+    let (upper_view_x, buffer) = get_byte(buffer);
+    let (upper_view_y, buffer) = get_byte(buffer);
+    let (view_width, buffer) = get_byte(buffer);
+    let (view_height, buffer) = get_byte(buffer);
+    let (can_shoot, buffer) = get_bool(buffer);
+    let (can_bomb, buffer) = get_bool(buffer);
+    let (fire_burns_brown, buffer) = get_bool(buffer);
+    let (fire_burns_space, buffer) = get_bool(buffer);
+    let (fire_burns_fakes, buffer) = get_bool(buffer);
+    let (fire_burns_trees, buffer) = get_bool(buffer);
+    let (explosion_result, buffer) = get_byte(buffer);
+    let explosion_result = match explosion_result {
+        0 => ExplosionResult::Nothing,
+        1 => ExplosionResult::Ash,
+        2 => ExplosionResult::Fire,
+        _ => return Err(BoardError::UnknownExplosionResult(explosion_result)),
+    };
+    let (save_restriction, buffer) = get_byte(buffer);
+    let save_restriction = match save_restriction {
+        0 => SaveRestriction::Unrestricted,
+        1 => SaveRestriction::NoSave,
+        2 => SaveRestriction::OnlyOnSensor,
+        _ => return Err(BoardError::UnknownSaveRestriction(save_restriction)),
+    };
+    let (forest_becomes_floor, buffer) = get_bool(buffer);
+    let (collect_bombs, buffer) = get_bool(buffer);
+    let (fire_burns_forever, buffer) = get_bool(buffer);
+    let (north_board, buffer) = maybe_get_board(buffer);
+    let (south_board, buffer) = maybe_get_board(buffer);
+    let (east_board, buffer) = maybe_get_board(buffer);
+    let (west_board, buffer) = maybe_get_board(buffer);
+    let (restart_when_zapped, buffer) = get_bool(buffer);
+    let (time_limit, _buffer) = get_word(buffer);
 
     Ok(Board {
         title: title,
@@ -236,21 +285,22 @@ fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
         level: Zip::new((ids.into_iter(), colors.into_iter(), params.into_iter())).collect(),
         under: Zip::new((under_ids.into_iter(), under_colors.into_iter(), under_params.into_iter())).collect(),
         mod_file: mod_file,
-        upper_left_viewport: (0, 0),
-        viewport_size: (0, 0),
-        can_shoot: false,
-        can_bomb: false,
-        fire_burns_brown: false,
-        fire_burns_space: false,
-        fire_burns_fakes: false,
-        fire_burns_trees: false,
-        explosion_result: ExplosionResult::Nothing,
-        save_restriction: SaveRestriction::NoSave,
-        collect_bombs: false,
-        fire_burns_forever: false,
-        exits: (None, None, None, None),
-        restart_when_zapped: false,
-        time_limit: 0,
+        upper_left_viewport: Coordinate((upper_view_x, upper_view_y)),
+        viewport_size: Size((view_width, view_height)),
+        can_shoot: can_shoot,
+        can_bomb: can_bomb,
+        fire_burns_brown: fire_burns_brown,
+        fire_burns_space: fire_burns_space,
+        fire_burns_fakes: fire_burns_fakes,
+        fire_burns_trees: fire_burns_trees,
+        explosion_result: explosion_result,
+        save_restriction: save_restriction,
+        forest_becomes_floor: forest_becomes_floor,
+        collect_bombs: collect_bombs,
+        fire_burns_forever: fire_burns_forever,
+        exits: (north_board, south_board, east_board, west_board),
+        restart_when_zapped: restart_when_zapped,
+        time_limit: time_limit,
     })
 }
 

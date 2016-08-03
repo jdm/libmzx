@@ -57,20 +57,40 @@ pub struct Board {
     pub exits: (Option<BoardId>, Option<BoardId>, Option<BoardId>, Option<BoardId>),
     pub restart_when_zapped: bool,
     pub time_limit: u16,
+    pub robots: Vec<Robot>,
 }
 
+#[derive(Debug)]
+pub enum Direction {
+    Idle = 0,
+    North = 1,
+    South = 2,
+    East = 3,
+    West = 4,
+}
+
+#[derive(Debug)]
+pub enum BulletType {
+    Player,
+    Neutral,
+    Enemy,
+}
+
+#[derive(Debug)]
 pub enum OverlayMode {
     Normal,
     Static,
     Transparent,
 }
 
+#[derive(Debug)]
 pub enum ExplosionResult {
     Nothing,
     Ash,
     Fire,
 }
 
+#[derive(Debug)]
 pub enum SaveRestriction {
     Unrestricted,
     NoSave,
@@ -100,6 +120,26 @@ pub struct Palette {
     pub colors: Vec<Color>,
 }
 
+pub struct Robot {
+    pub name: String,
+    pub ch: u8,
+    pub current_line: u16,
+    pub current_loc: u8,
+    pub cycle: u8,
+    pub cycle_count: u8,
+    pub bullet_type: BulletType,
+    pub locked: bool,
+    pub lavawalking: bool,
+    pub walk: Direction,
+    pub last_touched: Direction,
+    pub last_shot: Direction,
+    pub position: Coordinate<u16>,
+    pub reserved: [u8; 3],
+    pub onscreen: bool,
+    pub loop_count: u16,
+    pub program: Vec<u8>,
+}
+
 #[derive(Debug)]
 pub enum WorldError<'a> {
     NoNullInTitle,
@@ -121,6 +161,8 @@ pub enum BoardError {
     InvalidModFile,
     UnknownExplosionResult(u8),
     UnknownSaveRestriction(u8),
+    InvalidInputString,
+    InvalidMessage,
 }
 
 impl<'a> From<BoardError> for WorldError<'a> {
@@ -159,6 +201,19 @@ fn get_word(buffer: &[u8]) -> (u16, &[u8]) {
 fn get_dword(buffer: &[u8]) -> (u32, &[u8]) {
     let (dword, buffer) = buffer.split_at(4);
     (LittleEndian::read_u32(dword), buffer)
+}
+
+fn get_direction(buffer: &[u8]) -> (Direction, &[u8]) {
+    let (byte, buffer) = get_byte(buffer);
+    let dir = match byte {
+        0 => Direction::Idle,
+        1 => Direction::North,
+        2 => Direction::South,
+        3 => Direction::East,
+        4 => Direction::West,
+        n => panic!("found non-direction value ({})", n),
+    };
+    (dir, buffer)
 }
 
 fn maybe_get_board(buffer: &[u8]) -> (Option<BoardId>, &[u8]) {
@@ -201,6 +256,56 @@ fn decode_runs(buffer: &[u8]) -> (Vec<u8>, &[u8], usize, usize) {
     (result, &buffer[consumed..], max_w, max_h)
 }
 
+fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
+    let (program_length, buffer) = get_word(buffer);
+    let (_, buffer) = get_word(buffer);
+    let (name, buffer) = get_null_terminated_string(buffer, 15).unwrap();
+    let (ch, buffer) = get_byte(buffer);
+    let (current_line, buffer) = get_word(buffer);
+    let (current_loc, buffer) = get_byte(buffer);
+    let (cycle, buffer) = get_byte(buffer);
+    let (cycle_count, buffer) = get_byte(buffer);
+    let (bullet_type, buffer) = get_byte(buffer);
+    let bullet_type = match bullet_type {
+        0 => BulletType::Player,
+        1 => BulletType::Neutral,
+        2 => BulletType::Enemy,
+        _ => panic!(),
+    };
+    let (locked, buffer) = get_bool(buffer);
+    let (lavawalking, buffer) = get_bool(buffer);
+    let (walk, buffer) = get_direction(buffer);
+    let (last_touched, buffer) = get_direction(buffer);
+    let (last_shot, buffer) = get_direction(buffer);
+    let (x_pos, buffer) = get_word(buffer);
+    let (y_pos, buffer) = get_word(buffer);
+    let (_reserved, buffer) = buffer.split_at(3);
+    let (onscreen, buffer) = get_bool(buffer);
+    let (loop_count, buffer) = get_word(buffer);
+    let (program, buffer) = buffer.split_at(program_length as usize);
+
+    let robot = Robot {
+        name: name,
+        ch: ch,
+        current_line: current_line,
+        current_loc: current_loc,
+        cycle: cycle,
+        cycle_count: cycle_count,
+        bullet_type: bullet_type,
+        locked: locked,
+        lavawalking: lavawalking,
+        walk: walk,
+        last_touched: last_touched,
+        last_shot: last_shot,
+        position: Coordinate((x_pos, y_pos)),
+        reserved: [0, 0, 0],
+        onscreen: onscreen,
+        loop_count: loop_count,
+        program: program.into(),
+    };
+    (robot, buffer)
+}
+
 fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
     let (sizing, mut buffer) = get_byte(buffer);
     let (_width, _height) = match sizing {
@@ -220,8 +325,10 @@ fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
             3 => OverlayMode::Transparent,
             c => return Err(BoardError::UnknownOverlayMode(c)),
         };
-        let (chars, new_buffer, _, _) = decode_runs(new_buffer);
-        let (colors, new_buffer, _, _) = decode_runs(new_buffer);
+        let (chars, new_buffer, w, h) = decode_runs(new_buffer);
+        let (colors, new_buffer, w2, h2) = decode_runs(new_buffer);
+        assert_eq!(w, w2);
+        assert_eq!(h, h2);
         buffer = new_buffer;
         Some((overlay_mode, Zip::new((chars.into_iter(), colors.into_iter())).collect()))
     } else {
@@ -275,7 +382,36 @@ fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
     let (east_board, buffer) = maybe_get_board(buffer);
     let (west_board, buffer) = maybe_get_board(buffer);
     let (restart_when_zapped, buffer) = get_bool(buffer);
-    let (time_limit, _buffer) = get_word(buffer);
+    let (time_limit, buffer) = get_word(buffer);
+
+    let (_last_key, buffer) = get_byte(buffer);
+    let (_last_input, buffer) = get_word(buffer);
+    let (_last_input_length, buffer) = get_byte(buffer);
+    let (_last_input_string, buffer) = try!(get_null_terminated_string(buffer, 81).map_err(|_| BoardError::InvalidInputString));
+    let (_last_player_dir, buffer) = get_byte(buffer);
+    let (_current_message, buffer) = try!(get_null_terminated_string(buffer, 81).map_err(|_| BoardError::InvalidMessage));
+    let (_cycles_until_disappear, buffer) = get_byte(buffer);
+    let (_lazer_wall_timer, buffer) = get_byte(buffer);
+    let (_message_row, buffer) = get_byte(buffer);
+    let (_message_col, buffer) = get_byte(buffer);
+    let (_x_scroll, buffer) = get_word(buffer);
+    let (_y_scroll, buffer) = get_word(buffer);
+    let (_x_screen_pos, buffer) = get_word(buffer);
+    let (_y_screen_pos, buffer) = get_word(buffer);
+    let (_player_locked_ns, buffer) = get_byte(buffer);
+    let (_player_locked_ew, buffer) = get_byte(buffer);
+    let (_player_locked_attack, buffer) = get_byte(buffer);
+    let (_mod_volume, buffer) = get_byte(buffer);
+    let (_mod_volume_change, buffer) = get_byte(buffer);
+    let (_mod_volume_target, buffer) = get_byte(buffer);
+    let (num_robots, mut buffer) = get_byte(buffer);
+
+    let mut robots = vec![];
+    for _ in 0..num_robots {
+        let (robot, new_buffer) = load_robot(buffer);
+        robots.push(robot);
+        buffer = new_buffer;
+    }
 
     Ok(Board {
         title: title,
@@ -301,6 +437,7 @@ fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
         exits: (north_board, south_board, east_board, west_board),
         restart_when_zapped: restart_when_zapped,
         time_limit: time_limit,
+        robots: robots,
     })
 }
 

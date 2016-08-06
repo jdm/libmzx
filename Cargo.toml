@@ -1,8 +1,11 @@
 [package]
 name = "libmzx"
 version = "0.1.0"
+license = "MIT"
 authors = ["Josh Matthews <josh@joshmatthews.net>"]
 
 [dependencies]
 byteorder = "0.5"
+env_logger = "0.3"
+log = "0.3"
 itertools = "0.4"

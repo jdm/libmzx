@@ -1,6 +1,7 @@
-#![feature(slice_patterns)]
-
 extern crate byteorder;
+extern crate env_logger;
+#[macro_use]
+extern crate log;
 extern crate itertools;
 
 use byteorder::{ByteOrder, LittleEndian};
@@ -13,6 +14,7 @@ pub struct Coordinate<T>(pub (T, T));
 pub struct Size<T>(pub (T, T));
 
 pub struct World {
+    pub version: u32,
     pub title: String,
     pub charset: Charset,
     pub palette: Palette,
@@ -171,6 +173,13 @@ impl<'a> From<BoardError> for WorldError<'a> {
     }
 }
 
+fn get_string_with_preceding_length(buffer: &[u8]) -> Result<(String, &[u8]), ()> {
+    let (length, buffer) = get_word(buffer);
+    let length = length as usize;
+    let (s, buffer) = buffer.split_at(length);
+    Ok((try!(str::from_utf8(&s[0..length]).map_err(|_| ())).into(), buffer))
+}
+
 fn get_null_terminated_string(buffer: &[u8], max_length: usize) -> Result<(String, &[u8]), ()> {
     let (s, buffer) = buffer.split_at(max_length);
     let end = s.iter().position(|b| *b == 0);
@@ -306,7 +315,8 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
     (robot, buffer)
 }
 
-fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
+fn load_board(title: String, version: u32, buffer: &[u8]) -> Result<Board, BoardError> {
+    debug!("loading {}", title);
     let (sizing, mut buffer) = get_byte(buffer);
     let (_width, _height) = match sizing {
         0 => (60, 166),
@@ -348,7 +358,12 @@ fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
     assert_eq!(under_ids.len(), under_colors.len());
     assert_eq!(under_ids.len(), under_params.len());
 
-    let (mod_file, buffer) = try!(get_null_terminated_string(buffer, 13).map_err(|_| BoardError::InvalidModFile));
+    let string = if version < 0x253 {
+        get_null_terminated_string(buffer, 13)
+    } else {
+        get_string_with_preceding_length(buffer)
+    };
+    let (mod_file, buffer) = try!(string.map_err(|_| BoardError::InvalidModFile));
 
     let (upper_view_x, buffer) = get_byte(buffer);
     let (upper_view_y, buffer) = get_byte(buffer);
@@ -382,28 +397,35 @@ fn load_board(title: String, buffer: &[u8]) -> Result<Board, BoardError> {
     let (east_board, buffer) = maybe_get_board(buffer);
     let (west_board, buffer) = maybe_get_board(buffer);
     let (restart_when_zapped, buffer) = get_bool(buffer);
-    let (time_limit, buffer) = get_word(buffer);
+    let (time_limit, mut buffer) = get_word(buffer);
 
-    let (_last_key, buffer) = get_byte(buffer);
-    let (_last_input, buffer) = get_word(buffer);
-    let (_last_input_length, buffer) = get_byte(buffer);
-    let (_last_input_string, buffer) = try!(get_null_terminated_string(buffer, 81).map_err(|_| BoardError::InvalidInputString));
-    let (_last_player_dir, buffer) = get_byte(buffer);
-    let (_current_message, buffer) = try!(get_null_terminated_string(buffer, 81).map_err(|_| BoardError::InvalidMessage));
-    let (_cycles_until_disappear, buffer) = get_byte(buffer);
-    let (_lazer_wall_timer, buffer) = get_byte(buffer);
-    let (_message_row, buffer) = get_byte(buffer);
-    let (_message_col, buffer) = get_byte(buffer);
-    let (_x_scroll, buffer) = get_word(buffer);
-    let (_y_scroll, buffer) = get_word(buffer);
-    let (_x_screen_pos, buffer) = get_word(buffer);
-    let (_y_screen_pos, buffer) = get_word(buffer);
+    if version < 0x253 {
+        let (_last_key, new_buffer) = get_byte(buffer);
+        let (_last_input, new_buffer) = get_word(new_buffer);
+        let (_last_input_length, new_buffer) = get_byte(new_buffer);
+        let (_last_input_string, new_buffer) = try!(get_null_terminated_string(new_buffer, 81).map_err(|_| BoardError::InvalidInputString));
+        let (_last_player_dir, new_buffer) = get_byte(new_buffer);
+        let (_current_message, new_buffer) = try!(get_null_terminated_string(new_buffer, 81).map_err(|_| BoardError::InvalidMessage));
+        let (_cycles_until_disappear, new_buffer) = get_byte(new_buffer);
+        let (_lazer_wall_timer, new_buffer) = get_byte(new_buffer);
+        let (_message_row, new_buffer) = get_byte(new_buffer);
+        let (_message_col, new_buffer) = get_byte(new_buffer);
+        let (_x_scroll, new_buffer) = get_word(new_buffer);
+        let (_y_scroll, new_buffer) = get_word(new_buffer);
+        let (_x_screen_pos, new_buffer) = get_word(new_buffer);
+        let (_y_screen_pos, new_buffer) = get_word(new_buffer);
+        buffer = new_buffer;
+    }
+
     let (_player_locked_ns, buffer) = get_byte(buffer);
     let (_player_locked_ew, buffer) = get_byte(buffer);
-    let (_player_locked_attack, buffer) = get_byte(buffer);
-    let (_mod_volume, buffer) = get_byte(buffer);
-    let (_mod_volume_change, buffer) = get_byte(buffer);
-    let (_mod_volume_target, buffer) = get_byte(buffer);
+    let (_player_locked_attack, mut buffer) = get_byte(buffer);
+    if version < 0x253 {
+        let (_mod_volume, new_buffer) = get_byte(buffer);
+        let (_mod_volume_change, new_buffer) = get_byte(new_buffer);
+        let (_mod_volume_target, new_buffer) = get_byte(new_buffer);
+        buffer = new_buffer;
+    }
     let (num_robots, mut buffer) = get_byte(buffer);
 
     let mut robots = vec![];
@@ -451,11 +473,14 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         return Err(WorldError::Protected);
     }
 
-    let (_signature, buffer) = buffer.split_at(3);
-    /*match signature {
-        [b'M', b'Z', b'X'] | [b'M', b'Z', b'2'] => (),
+    let (signature, buffer) = buffer.split_at(3);
+    let version = match (signature[0], signature[1], signature[2]) {
+        (b'M', b'Z', b'X') => 0x0100,
+        (b'M', b'Z', b'2') => 0x0205,
+        (b'M', b'Z', b'A') => 0x0208,
+        (b'M', a, b) if a > 1 && a < 10 => ((a as u32) << 8) + (b as u32),
         _ => return Err(WorldError::UnrecognizedVersion(signature)),
-    }*/
+    };
 
     let (charset_data, buffer) = buffer.split_at(14 * 256);
     if charset_data.len() < CHARSET_BUFFER_SIZE {
@@ -529,13 +554,14 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         }
 
         let end_board_pos = board_pos + byte_length;
-        let board = try!(load_board(title,
+        let board = try!(load_board(title, version,
                                     &original_buffer[board_pos..end_board_pos]));
         boards.push(board);
         buffer = new_buffer;
     }
 
     Ok(World {
+        version: version,
         title: title,
         charset: charset,
         palette: Palette { colors: colors },

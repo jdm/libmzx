@@ -62,6 +62,21 @@ pub struct Board {
     pub restart_when_zapped: bool,
     pub time_limit: u16,
     pub robots: Vec<Robot>,
+    pub scrolls: Vec<Scroll>,
+    pub sensors: Vec<Sensor>,
+}
+
+pub struct Scroll {
+    pub num_lines: u16,
+    pub text: ByteString,
+    pub used: bool,
+}
+
+pub struct Sensor {
+    pub name: ByteString,
+    pub ch: u8,
+    pub target: ByteString,
+    pub used: bool,
 }
 
 pub struct ByteString(Vec<u8>);
@@ -183,8 +198,6 @@ pub struct Robot {
 
 #[derive(Debug)]
 pub enum WorldError<'a> {
-    NoNullInTitle,
-    InvalidUTF8Title,
     Protected,
     UnrecognizedVersion(&'a [u8]),
     CharsetTooSmall,
@@ -195,15 +208,10 @@ pub enum WorldError<'a> {
 
 #[derive(Debug)]
 pub enum BoardError {
-    InvalidUTF8Title,
-    NoNullInTitle,
     UnexpectedSize(u8),
     UnknownOverlayMode(u8),
-    InvalidModFile,
     UnknownExplosionResult(u8),
     UnknownSaveRestriction(u8),
-    InvalidInputString,
-    InvalidMessage,
 }
 
 impl<'a> From<BoardError> for WorldError<'a> {
@@ -212,20 +220,35 @@ impl<'a> From<BoardError> for WorldError<'a> {
     }
 }
 
-fn get_string_with_preceding_length(buffer: &[u8]) -> (ByteString, &[u8]) {
-    let (length, buffer) = get_word(buffer);
-    let length = length as usize;
-    let (s, buffer) = buffer.split_at(length);
-    (ByteString(s[0..length].to_vec()), buffer)
+fn get_objects<T, F>(buffer: &[u8], loader: F) -> (Vec<T>, &[u8])
+    where F: Fn(&[u8]) -> (T, &[u8])
+{
+    let (num_objects, mut buffer) = get_byte(buffer);
+    debug!("loading {} objects", num_objects);
+    let mut objects = vec![];
+    for _ in 0..num_objects {
+        let (object, new_buffer) = loader(buffer);
+        objects.push(object);
+        buffer = new_buffer;
+    }
+    (objects, buffer)
 }
 
-fn get_null_terminated_string(buffer: &[u8], max_length: usize) -> Result<(ByteString, &[u8]), ()> {
+fn get_string_with_preceding_length(buffer: &[u8]) -> (ByteString, &[u8]) {
+    let (length, buffer) = get_word(buffer);
+    get_string_with_length(buffer, length)
+}
+
+fn get_string_with_length(buffer: &[u8], length: u16) -> (ByteString, &[u8]) {
+    let (s, buffer) = buffer.split_at(length as usize);
+    (ByteString(s.to_vec()), buffer)
+}
+
+fn get_null_terminated_string(buffer: &[u8], max_length: usize) -> (ByteString, &[u8]) {
     let (s, buffer) = buffer.split_at(max_length);
+    assert_eq!(s.len(), max_length);
     let end = s.iter().position(|b| *b == 0);
-    match end {
-        Some(idx) => Ok((ByteString(s[0..idx].to_vec()), buffer)),
-        None => Err(()),
-    }
+    (ByteString(s[0..end.unwrap_or(max_length)].to_vec()), buffer)
 }
 
 fn get_bool(buffer: &[u8]) -> (bool, &[u8]) {
@@ -300,7 +323,7 @@ fn decode_runs(buffer: &[u8]) -> (Vec<u8>, &[u8], usize, usize) {
 fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
     let (program_length, buffer) = get_word(buffer);
     let (_, buffer) = get_word(buffer);
-    let (name, buffer) = get_null_terminated_string(buffer, 15).unwrap();
+    let (name, buffer) = get_null_terminated_string(buffer, 15);
     debug!("loading robot {:?}", name);
     let (ch, buffer) = get_byte(buffer);
     let (current_line, buffer) = get_word(buffer);
@@ -325,6 +348,7 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
     let (onscreen, buffer) = get_bool(buffer);
     let (loop_count, buffer) = get_word(buffer);
     let (program, buffer) = buffer.split_at(program_length as usize);
+    assert_eq!(program.len(), program_length as usize);
     // TODO: parse program
 
     let robot = Robot {
@@ -349,8 +373,33 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
     (robot, buffer)
 }
 
+fn load_scroll(buffer: &[u8]) -> (Scroll, &[u8]) {
+    let (num_lines, buffer) = get_word(buffer);
+    let (_junk, buffer) = get_word(buffer);
+    let (chars, buffer) = get_word(buffer);
+    let (used, buffer) = get_bool(buffer);
+    let (text, buffer) = get_string_with_length(buffer, chars);
+    debug!("{:?}", text);
+    assert_eq!(text.len(), chars as usize);
+    (
+        Scroll { num_lines, text, used },
+        buffer
+    )
+}
+
+fn load_sensor(buffer: &[u8]) -> (Sensor, &[u8]) {
+    let (name, buffer) = get_null_terminated_string(buffer, 15);
+    let (ch, buffer) = get_byte(buffer);
+    let (target, buffer) = get_null_terminated_string(buffer, 15);
+    let (used, buffer) = get_bool(buffer);
+    (
+        Sensor { name, ch, target, used },
+        buffer
+    )
+}
+
 fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<Board, BoardError> {
-    debug!("loading {:?}", title);
+    debug!("loading board {:?}", title);
     let (sizing, mut buffer) = get_byte(buffer);
     let (_width, _height) = match sizing {
         0 => (60, 166),
@@ -393,10 +442,11 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<Board, B
     assert_eq!(under_ids.len(), under_params.len());
 
     let (mod_file, buffer) = if version < 0x253 {
-        get_null_terminated_string(buffer, 13).map_err(|_| BoardError::InvalidModFile)?
+        get_null_terminated_string(buffer, 13)
     } else {
         get_string_with_preceding_length(buffer)
     };
+    debug!("mod file: {:?}", mod_file);
 
     let (upper_view_x, buffer) = get_byte(buffer);
     let (upper_view_y, buffer) = get_byte(buffer);
@@ -436,9 +486,9 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<Board, B
         let (_last_key, new_buffer) = get_byte(buffer);
         let (_last_input, new_buffer) = get_word(new_buffer);
         let (_last_input_length, new_buffer) = get_byte(new_buffer);
-        let (_last_input_string, new_buffer) = try!(get_null_terminated_string(new_buffer, 81).map_err(|_| BoardError::InvalidInputString));
+        let (_last_input_string, new_buffer) = get_null_terminated_string(new_buffer, 81);
         let (_last_player_dir, new_buffer) = get_byte(new_buffer);
-        let (_current_message, new_buffer) = try!(get_null_terminated_string(new_buffer, 81).map_err(|_| BoardError::InvalidMessage));
+        let (_current_message, new_buffer) = get_null_terminated_string(new_buffer, 81);
         let (_cycles_until_disappear, new_buffer) = get_byte(new_buffer);
         let (_lazer_wall_timer, new_buffer) = get_byte(new_buffer);
         let (_message_row, new_buffer) = get_byte(new_buffer);
@@ -459,17 +509,13 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<Board, B
         let (_mod_volume_target, new_buffer) = get_byte(new_buffer);
         buffer = new_buffer;
     }
-    let (num_robots, mut buffer) = get_byte(buffer);
 
-    let mut robots = vec![];
-    for _ in 0..num_robots {
-        let (robot, new_buffer) = load_robot(buffer);
-        robots.push(robot);
-        buffer = new_buffer;
-    }
-
-    // TODO: load scrolls
-    // TODO: load sensors
+    let (robots, buffer) = get_objects(buffer, load_robot);
+    debug!("loading scrolls");
+    let (scrolls, buffer) = get_objects(buffer, load_scroll);
+    debug!("loading sensors");
+    let (sensors, _buffer) = get_objects(buffer, load_sensor);
+    assert_eq!(_buffer.len(), 0);
 
     Ok(Board {
         title: title,
@@ -496,13 +542,16 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<Board, B
         restart_when_zapped: restart_when_zapped,
         time_limit: time_limit,
         robots: robots,
+        scrolls: scrolls,
+        sensors: sensors,
     })
 }
 
 pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
     let original_buffer = buffer;
 
-    let (title, buffer) = try!(get_null_terminated_string(buffer, 25).map_err(|_| WorldError::InvalidUTF8Title));
+    let (title, buffer) = get_null_terminated_string(buffer, 25);
+    debug!("loading world {:?}", title);
 
     let (protection, buffer) = get_bool(buffer);
     if protection {
@@ -573,7 +622,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
     let mut titles = vec![];
     let mut boards = vec![];
     for _ in 0..num_boards {
-        let (title, new_buffer) = try!(get_null_terminated_string(buffer, 25).map_err(|_| WorldError::InvalidUTF8Title));
+        let (title, new_buffer) = get_null_terminated_string(buffer, 25);
         buffer = new_buffer;
 
         titles.push(title);

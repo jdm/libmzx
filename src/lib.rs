@@ -6,7 +6,8 @@ extern crate itertools;
 
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Zip;
-use std::str;
+use std::fmt;
+use std::ops::Deref;
 
 pub struct BoardId(pub u8);
 pub struct ColorValue(pub u8);
@@ -15,7 +16,7 @@ pub struct Size<T>(pub (T, T));
 
 pub struct World {
     pub version: u32,
-    pub title: String,
+    pub title: ByteString,
     pub charset: Charset,
     pub palette: Palette,
     pub boards: Vec<Board>,
@@ -36,7 +37,7 @@ pub struct World {
 }
 
 pub struct Board {
-    pub title: String,
+    pub title: ByteString,
     pub width: usize,
     pub height: usize,
     pub overlay: Option<(OverlayMode, Vec<(u8, u8)>)>,
@@ -60,6 +61,27 @@ pub struct Board {
     pub restart_when_zapped: bool,
     pub time_limit: u16,
     pub robots: Vec<Robot>,
+}
+
+pub struct ByteString(Vec<u8>);
+
+impl ByteString {
+    fn to_string(self) -> String {
+        String::from_utf8(self.0).expect("Invalid UTF8 string")
+    }
+}
+
+impl Deref for ByteString {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl fmt::Debug for ByteString {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", String::from_utf8_lossy(&self.0))
+    }
 }
 
 #[derive(Debug)]
@@ -123,7 +145,7 @@ pub struct Palette {
 }
 
 pub struct Robot {
-    pub name: String,
+    pub name: ByteString,
     pub ch: u8,
     pub current_line: u16,
     pub current_loc: u8,
@@ -173,18 +195,18 @@ impl<'a> From<BoardError> for WorldError<'a> {
     }
 }
 
-fn get_string_with_preceding_length(buffer: &[u8]) -> Result<(String, &[u8]), ()> {
+fn get_string_with_preceding_length(buffer: &[u8]) -> (ByteString, &[u8]) {
     let (length, buffer) = get_word(buffer);
     let length = length as usize;
     let (s, buffer) = buffer.split_at(length);
-    Ok((try!(str::from_utf8(&s[0..length]).map_err(|_| ())).into(), buffer))
+    (ByteString(s[0..length].to_vec()), buffer)
 }
 
-fn get_null_terminated_string(buffer: &[u8], max_length: usize) -> Result<(String, &[u8]), ()> {
+fn get_null_terminated_string(buffer: &[u8], max_length: usize) -> Result<(ByteString, &[u8]), ()> {
     let (s, buffer) = buffer.split_at(max_length);
     let end = s.iter().position(|b| *b == 0);
     match end {
-        Some(idx) => Ok((try!(str::from_utf8(&s[0..idx]).map_err(|_| ())).into(), buffer)),
+        Some(idx) => Ok((ByteString(s[0..idx].to_vec()), buffer)),
         None => Err(()),
     }
 }
@@ -315,8 +337,8 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
     (robot, buffer)
 }
 
-fn load_board(title: String, version: u32, buffer: &[u8]) -> Result<Board, BoardError> {
-    debug!("loading {}", title);
+fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<Board, BoardError> {
+    debug!("loading {:?}", title);
     let (sizing, mut buffer) = get_byte(buffer);
     let (_width, _height) = match sizing {
         0 => (60, 166),
@@ -358,12 +380,11 @@ fn load_board(title: String, version: u32, buffer: &[u8]) -> Result<Board, Board
     assert_eq!(under_ids.len(), under_colors.len());
     assert_eq!(under_ids.len(), under_params.len());
 
-    let string = if version < 0x253 {
-        get_null_terminated_string(buffer, 13)
+    let (mod_file, buffer) = if version < 0x253 {
+        get_null_terminated_string(buffer, 13).map_err(|_| BoardError::InvalidModFile)?
     } else {
         get_string_with_preceding_length(buffer)
     };
-    let (mod_file, buffer) = try!(string.map_err(|_| BoardError::InvalidModFile));
 
     let (upper_view_x, buffer) = get_byte(buffer);
     let (upper_view_y, buffer) = get_byte(buffer);
@@ -442,7 +463,7 @@ fn load_board(title: String, version: u32, buffer: &[u8]) -> Result<Board, Board
         overlay: overlay,
         level: Zip::new((ids.into_iter(), colors.into_iter(), params.into_iter())).collect(),
         under: Zip::new((under_ids.into_iter(), under_colors.into_iter(), under_params.into_iter())).collect(),
-        mod_file: mod_file,
+        mod_file: mod_file.to_string(),
         upper_left_viewport: Coordinate((upper_view_x, upper_view_y)),
         viewport_size: Size((view_width, view_height)),
         can_shoot: can_shoot,

@@ -1,5 +1,7 @@
 extern crate byteorder;
 #[macro_use]
+extern crate enum_ordinalize;
+#[macro_use]
 extern crate log;
 extern crate itertools;
 
@@ -83,14 +85,30 @@ impl fmt::Debug for ByteString {
     }
 }
 
-#[derive(Debug)]
-pub enum Direction {
+create_ordinalized_enum!(
+    pub Direction,
+    u8,
     Idle = 0,
     North = 1,
     South = 2,
     East = 3,
     West = 4,
-}
+    RandNs = 5,
+    RandEw = 6,
+    RandNe = 7,
+    RandNb = 8,
+    Seek = 9,
+    RandAny = 10,
+    Beneath = 11,
+    Anydir = 12,
+    Flow = 13,
+    NoDir = 14,
+    RandB = 15,
+    RandP = 16,
+    Cw = 32,
+    Opp = 64,
+    RandNot = 128,
+);
 
 #[derive(Debug)]
 pub enum BulletType {
@@ -235,15 +253,8 @@ fn get_dword(buffer: &[u8]) -> (u32, &[u8]) {
 
 fn get_direction(buffer: &[u8]) -> (Direction, &[u8]) {
     let (byte, buffer) = get_byte(buffer);
-    let dir = match byte {
-        0 => Direction::Idle,
-        1 => Direction::North,
-        2 => Direction::South,
-        3 => Direction::East,
-        4 => Direction::West,
-        n => panic!("found non-direction value ({})", n),
-    };
-    (dir, buffer)
+    let dir = Direction::from_ordinal(byte);
+    (dir.expect("invalid direction value"), buffer)
 }
 
 fn maybe_get_board(buffer: &[u8]) -> (Option<BoardId>, &[u8]) {
@@ -290,6 +301,7 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
     let (program_length, buffer) = get_word(buffer);
     let (_, buffer) = get_word(buffer);
     let (name, buffer) = get_null_terminated_string(buffer, 15).unwrap();
+    debug!("loading robot {:?}", name);
     let (ch, buffer) = get_byte(buffer);
     let (current_line, buffer) = get_word(buffer);
     let (current_loc, buffer) = get_byte(buffer);

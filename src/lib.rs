@@ -325,6 +325,7 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
     let (onscreen, buffer) = get_bool(buffer);
     let (loop_count, buffer) = get_word(buffer);
     let (program, buffer) = buffer.split_at(program_length as usize);
+    // TODO: parse program
 
     let robot = Robot {
         name: name,
@@ -467,6 +468,9 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<Board, B
         buffer = new_buffer;
     }
 
+    // TODO: load scrolls
+    // TODO: load sensors
+
     Ok(Board {
         title: title,
         width: width,
@@ -504,6 +508,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
     if protection {
         return Err(WorldError::Protected);
     }
+    // TODO: decrypt protected worlds
 
     let (signature, buffer) = buffer.split_at(3);
     let version = match (signature[0], signature[1], signature[2]) {

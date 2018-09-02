@@ -15,6 +15,8 @@ pub struct ColorValue(pub u8);
 pub struct Coordinate<T>(pub (T, T));
 pub struct Size<T>(pub (T, T));
 
+const LEGACY_WORLD_VERSION: u32 = 0x0254;
+
 pub struct World {
     pub version: u32,
     pub title: ByteString,
@@ -199,6 +201,7 @@ pub struct Robot {
 #[derive(Debug)]
 pub enum WorldError<'a> {
     Protected,
+    TooNewVersion,
     UnrecognizedVersion(&'a [u8]),
     CharsetTooSmall,
     UnhandledSFX,
@@ -567,6 +570,10 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         (b'M', a, b) if a > 1 && a < 10 => ((a as u32) << 8) + (b as u32),
         _ => return Err(WorldError::UnrecognizedVersion(signature)),
     };
+
+    if version > LEGACY_WORLD_VERSION {
+        return Err(WorldError::TooNewVersion);
+    }
 
     let (charset_data, buffer) = buffer.split_at(14 * 256);
     if charset_data.len() < CHARSET_BUFFER_SIZE {

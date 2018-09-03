@@ -5,13 +5,21 @@ extern crate enum_ordinalize;
 extern crate log;
 extern crate itertools;
 
+mod robotic;
+
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Zip;
+use self::robotic::{Command, parse_program};
+use std::default::Default;
 use std::fmt;
 use std::ops::Deref;
 
+#[derive(Debug)]
 pub struct BoardId(pub u8);
+#[derive(Debug)]
 pub struct ColorValue(pub u8);
+#[derive(Debug)]
+pub struct ParamValue(pub u8);
 pub struct Coordinate<T>(pub (T, T));
 pub struct Size<T>(pub (T, T));
 
@@ -83,6 +91,12 @@ pub struct Sensor {
 
 pub struct ByteString(Vec<u8>);
 
+impl Default for ByteString {
+    fn default() -> ByteString {
+        ByteString(vec![])
+    }
+}
+
 impl ByteString {
     fn to_string(self) -> String {
         String::from_utf8(self.0).expect("Invalid UTF8 string")
@@ -121,10 +135,121 @@ create_ordinalized_enum!(
     Flow = 13,
     NoDir = 14,
     RandB = 15,
-    RandP = 16,
+    /*RandP = 16,
     Cw = 32,
     Opp = 64,
-    RandNot = 128,
+    RandNot = 128,*/
+);
+
+create_ordinalized_enum!(
+    pub Thing,
+    u8,
+    Space = 0,
+    Normal = 1,
+    Solid = 2,
+    Tree = 3,
+    Line = 4,
+    CustomBlock = 5,
+    Breakaway = 6,
+    CustomBreak = 7,
+    Boulder = 8 ,
+    Crate = 9,
+    CustomPush = 10,
+    Box = 11,
+    CustomBox = 12,
+    Fake = 13,
+    Carpet = 14,
+    Floor = 15,
+    Tiles = 16,
+    CustomFloor = 17,
+    Web = 18,
+    ThickWeb = 19,
+    StillWater = 20,
+    NWater = 21,
+    SWater = 22,
+    EWater = 23,
+    WWater = 24,
+    Ice = 25,
+    Lava = 26,
+    Chest = 27,
+    Gem = 28,
+    MagicGem = 29,
+    Health = 30,
+    Ring = 31,
+    Potion = 32,
+    Energizer = 33,
+    Goop = 34,
+    Ammo = 35,
+    Bomb = 36,
+    LitBomb = 37,
+    Explosion = 38,
+    Key = 39,
+    Lock = 40,
+    Door = 41,
+    OpenDoor = 42,
+    Stairs = 43,
+    Cave = 44,
+    CWRotate = 45,
+    CCWRotate = 46,
+    Gate = 47,
+    OpenGate = 48,
+    Transport = 49,
+    Coin = 50,
+    NMovingWall = 51,
+    SMovingWall = 52,
+    EMovingWall = 53,
+    WMovingWall = 54,
+    Pouch = 55,
+    Pusher = 56,
+    SliderNS = 57,
+    SliderEW = 58,
+    Lazer = 59,
+    LazerGun = 60,
+    Bullet = 61,
+    Missile = 62,
+    Fire = 63,
+    Forest = 65,
+    Life = 66,
+    Whirlpool1 = 67,
+    Whirlpool2 = 68,
+    Whirlpool3 = 69,
+    Whirlpool4 = 70,
+    InvisibleWall = 71,
+    RicochetPanel = 72,
+    Ricochet = 73,
+    Mine = 74,
+    Spike = 75,
+    CustomHurt = 76,
+    Text = 77,
+    ShootingFire = 78,
+    Seeker = 79,
+    Snake = 80,
+    Eye = 81,
+    Thief = 82,
+    SlimeBlob = 83,
+    Runner = 84,
+    Ghost = 85,
+    Dragon = 86,
+    Fish = 87,
+    Shark = 88,
+    Spider = 89,
+    Goblin = 90,
+    SpittingTiger = 91,
+    BulletGun = 92,
+    SpinningGun = 93,
+    Bear = 94,
+    BearCub = 95,
+    MissileGun = 97,
+    Sprite = 98,
+    SpriteCollision = 99,
+    ImageFile = 100,
+    Sensor = 122,
+    RobotPushable = 123,
+    Robot = 124,
+    Sign = 125,
+    Scroll = 126,
+    Player = 127,
+    NoId = 255,
 );
 
 #[derive(Debug)]
@@ -195,7 +320,7 @@ pub struct Robot {
     pub reserved: [u8; 3],
     pub onscreen: bool,
     pub loop_count: u16,
-    pub program: Vec<u8>,
+    pub program: Vec<Command>,
 }
 
 #[derive(Debug)]
@@ -352,7 +477,7 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
     let (loop_count, buffer) = get_word(buffer);
     let (program, buffer) = buffer.split_at(program_length as usize);
     assert_eq!(program.len(), program_length as usize);
-    // TODO: parse program
+    let program = parse_program(&program);
 
     let robot = Robot {
         name: name,

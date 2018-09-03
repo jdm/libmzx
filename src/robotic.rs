@@ -150,7 +150,7 @@ create_ordinalized_enum!(
     UnlockPlayer,
     LockPlayerNS,
     LockPlayerEW,
-    LockPlayerAttak,
+    LockPlayerAttack,
     MovePlayerDir,
     MovePlayerDirOr,
     PutPlayerXY,
@@ -460,7 +460,7 @@ pub enum Command {
     UnlockPlayer,
     LockPlayerNS,
     LockPlayerEW,
-    LockPlayerAttak,
+    LockPlayerAttack,
     MovePlayerDir(ModifiedDirection, Option<ByteString>),
     PutPlayerXY(SignedNumeric),
     ObsoleteIfPlayerDir(ModifiedDirection, ByteString, bool),
@@ -917,6 +917,44 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
                 param1.into(),
                 param2.into(),
                 param3.map(|p| p.into()),
+            )
+        }
+        CommandOp::EndGame => Command::EndGame,
+        CommandOp::EndLife => Command::EndLife,
+        CommandOp::Mod => one_arg(buffer, Command::Mod),
+        CommandOp::Sam => two_args(buffer, Command::Sam),
+        CommandOp::Volume => one_arg(buffer, Command::Volume),
+        CommandOp::EndMod => Command::EndMod,
+        CommandOp::EndSam => Command::EndSam,
+        CommandOp::Play => one_arg(buffer, Command::Play),
+        CommandOp::EndPlay => Command::EndPlay,
+        CommandOp::WaitThenPlay => one_arg(buffer, Command::WaitThenPlay),
+        CommandOp::WaitPlay => Command::WaitPlay,
+        CommandOp::BlankLine => Command::BlankLine,
+        CommandOp::Sfx => one_arg(buffer, Command::Sfx),
+        CommandOp::PlayIfSilent => one_arg(buffer, Command::PlayIfSilent),
+        CommandOp::Open => one_arg(buffer, Command::Open),
+        CommandOp::LockSelf => Command::LockSelf,
+        CommandOp::UnlockSelf => Command::UnlockSelf,
+        CommandOp::SendDir => two_args(buffer, Command::SendDir),
+        CommandOp::Zap => two_args(buffer, Command::Zap),
+        CommandOp::Restore => two_args(buffer, Command::Restore),
+        CommandOp::LockPlayer => Command::LockPlayer,
+        CommandOp::UnlockPlayer => Command::UnlockPlayer,
+        CommandOp::LockPlayerNS => Command::LockPlayerNS,
+        CommandOp::LockPlayerEW => Command::LockPlayerEW,
+        CommandOp::LockPlayerAttack => Command::LockPlayerAttack,
+        CommandOp::MovePlayerDir | CommandOp::MovePlayerDirOr => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let param2 = if op == CommandOp::MovePlayerDirOr {
+                let (param, _buffer) = get_robotic_parameter(buffer);
+                Some(param)
+            } else {
+                None
+            };
+            Command::MovePlayerDir(
+                param1.into(),
+                param2.map(|p| p.into()),
             )
         }
         _ => return None,

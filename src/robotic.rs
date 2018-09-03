@@ -411,7 +411,7 @@ pub enum Command {
     If(ByteString, Operator, Numeric, ByteString),
     IfCondition(Condition, ByteString, bool),
     IfAny(Color, Thing, ParamValue, ByteString, bool),
-    IfThingDir(Color, Thing, ModifiedDirection, ByteString, bool),
+    IfThingDir(Color, Thing, ParamValue, ModifiedDirection, ByteString, bool),
     IfThingXY(Color, Thing, SignedNumeric, SignedNumeric, ByteString),
     IfAt(SignedNumeric, SignedNumeric, ByteString),
     IfDirOfPlayer(ModifiedDirection, Color, Thing, ByteString),
@@ -822,6 +822,21 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
                 param3.into(),
                 param4.into(),
                 op == CommandOp::IfNo,
+            )
+        }
+        CommandOp::IfThingDir | CommandOp::IfNotThingDir => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, buffer) = get_robotic_parameter(buffer);
+            let (param3, buffer) = get_robotic_parameter(buffer);
+            let (param4, buffer) = get_robotic_parameter(buffer);
+            let (param5, _buffer) = get_robotic_parameter(buffer);
+            Command::IfThingDir(
+                param1.into(),
+                param2.into(),
+                param3.into(),
+                param4.into(),
+                param5.into(),
+                op == CommandOp::IfNotThingDir,
             )
         }
         _ => return None,

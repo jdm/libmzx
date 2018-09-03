@@ -891,6 +891,11 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::IfThingXY => six_args(buffer, Command::IfThingXY),
         CommandOp::IfAt => three_args(buffer, Command::IfAt),
         CommandOp::IfDirOfPlayer => five_args(buffer, Command::IfDirOfPlayer),
+        CommandOp::Double => one_arg(buffer, Command::Double),
+        CommandOp::Half => one_arg(buffer, Command::Half),
+        CommandOp::Goto => one_arg(buffer, Command::Goto),
+        CommandOp::Send => two_args(buffer, Command::Send),
+        CommandOp::Explode => one_arg(buffer, Command::Explode),
         _ => return None,
     };
     Some(cmd)

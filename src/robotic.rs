@@ -25,6 +25,12 @@ impl From<Parameter> for Operator {
 }
 
 #[derive(Debug)]
+pub enum Param {
+    Counter(ByteString),
+    Literal(ParamValue),
+}
+
+#[derive(Debug)]
 pub struct ModifiedDirection {
     dir: Direction,
     randp: bool,
@@ -108,6 +114,7 @@ create_ordinalized_enum!(
     IfNo,
     IfThingDir,
     IfNotThingDir,
+    IfThingXY,
     IfAt,
     IfDirOfPlayer,
     Double,
@@ -401,7 +408,7 @@ pub enum Command {
     Cycle(Numeric),
     Go(ModifiedDirection, Numeric),
     Walk(ModifiedDirection),
-    Become(Color, Thing, ParamValue),
+    Become(Color, Thing, Param),
     Char(Character),
     Color(Color),
     GotoXY(SignedNumeric, SignedNumeric),
@@ -410,17 +417,17 @@ pub enum Command {
     Dec(ByteString, Numeric),
     If(ByteString, Operator, Numeric, ByteString),
     IfCondition(Condition, ByteString, bool),
-    IfAny(Color, Thing, ParamValue, ByteString, bool),
-    IfThingDir(Color, Thing, ParamValue, ModifiedDirection, ByteString, bool),
-    IfThingXY(Color, Thing, SignedNumeric, SignedNumeric, ByteString),
+    IfAny(Color, Thing, Param, ByteString, bool),
+    IfThingDir(Color, Thing, Param, ModifiedDirection, ByteString, bool),
+    IfThingXY(Color, Thing, Param, SignedNumeric, SignedNumeric, ByteString),
     IfAt(SignedNumeric, SignedNumeric, ByteString),
-    IfDirOfPlayer(ModifiedDirection, Color, Thing, ByteString),
+    IfDirOfPlayer(ModifiedDirection, Color, Thing, Param, ByteString),
     Double(ByteString),
     Half(ByteString),
     Goto(ByteString),
     Send(ByteString, ByteString),
     Explode(Numeric),
-    PutDir(Color, Thing, ParamValue, ModifiedDirection),
+    PutDir(Color, Thing, Param, ModifiedDirection),
     Give(Numeric, Item),
     Take(Numeric, Item, Option<ByteString>),
     EndGame,
@@ -463,7 +470,7 @@ pub enum Command {
     ShootSeeker(ModifiedDirection),
     SpitFire(ModifiedDirection),
     LazerWall(ModifiedDirection, Numeric),
-    PutXY(Color, Thing, ParamValue, SignedNumeric, SignedNumeric),
+    PutXY(Color, Thing, Param, SignedNumeric, SignedNumeric),
     DieItem,
     SendXY(SignedNumeric, SignedNumeric, ByteString),
     CopyRobotNamed(ByteString),
@@ -482,7 +489,7 @@ pub enum Command {
     SetRandom(ByteString, Numeric, Numeric),
     Trade(Numeric, Item, Numeric, Item, ByteString),
     SendDirPlayer(ModifiedDirection, ByteString),
-    PutDirPlayer(Color, Thing, ParamValue, ModifiedDirection),
+    PutDirPlayer(Color, Thing, Param, ModifiedDirection),
     Slash(ByteString),
     MessageLine(ByteString),
     MessageBoxLine(ByteString),
@@ -515,7 +522,7 @@ pub enum Command {
     CopyDir(ModifiedDirection, ModifiedDirection),
     BecomeLavaWalker,
     BecomeNonLavaWalker,
-    Change(Color, Thing, Color, Thing, ParamValue),
+    Change(Color, Thing, Color, Thing, Param),
     PlayerColor(Color),
     BulletColor(Color),
     MissileColor(Color),
@@ -694,9 +701,12 @@ impl From<Parameter> for Color {
     }
 }
 
-impl From<Parameter> for ParamValue {
-    fn from(val: Parameter) -> ParamValue {
-        ParamValue(val.as_word() as u8)
+impl From<Parameter> for Param {
+    fn from(val: Parameter) -> Param {
+        match val {
+            Parameter::String(s) => Param::Counter(s),
+            Parameter::Word(w) => Param::Literal(ParamValue(w as u8)),
+        }
     }
 }
 
@@ -787,6 +797,40 @@ fn four_args<F, T, U, V, W>(buffer: &[u8], cmd: F) -> Command
     cmd(param1.into(), param2.into(), param3.into(), param4.into())
 }
 
+fn five_args<F, T, U, V, W, X>(buffer: &[u8], cmd: F) -> Command
+    where F: Fn(T, U, V, W, X) -> Command,
+          T: From<Parameter>,
+          U: From<Parameter>,
+          V: From<Parameter>,
+          W: From<Parameter>,
+          X: From<Parameter>,
+{
+    let (param1, buffer) = get_robotic_parameter(buffer);
+    let (param2, buffer) = get_robotic_parameter(buffer);
+    let (param3, buffer) = get_robotic_parameter(buffer);
+    let (param4, buffer) = get_robotic_parameter(buffer);
+    let (param5, _buffer) = get_robotic_parameter(buffer);
+    cmd(param1.into(), param2.into(), param3.into(), param4.into(), param5.into())
+}
+
+fn six_args<F, T, U, V, W, X, Y>(buffer: &[u8], cmd: F) -> Command
+    where F: Fn(T, U, V, W, X, Y) -> Command,
+          T: From<Parameter>,
+          U: From<Parameter>,
+          V: From<Parameter>,
+          W: From<Parameter>,
+          X: From<Parameter>,
+          Y: From<Parameter>,
+{
+    let (param1, buffer) = get_robotic_parameter(buffer);
+    let (param2, buffer) = get_robotic_parameter(buffer);
+    let (param3, buffer) = get_robotic_parameter(buffer);
+    let (param4, buffer) = get_robotic_parameter(buffer);
+    let (param5, buffer) = get_robotic_parameter(buffer);
+    let (param6, _buffer) = get_robotic_parameter(buffer);
+    cmd(param1.into(), param2.into(), param3.into(), param4.into(), param5.into(), param6.into())
+}
+
 fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
     debug!("parsing {:?}", op);
     let cmd = match op {
@@ -844,6 +888,9 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
                 op == CommandOp::IfNotThingDir,
             )
         }
+        CommandOp::IfThingXY => six_args(buffer, Command::IfThingXY),
+        CommandOp::IfAt => three_args(buffer, Command::IfAt),
+        CommandOp::IfDirOfPlayer => five_args(buffer, Command::IfDirOfPlayer),
         _ => return None,
     };
     Some(cmd)

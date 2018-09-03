@@ -724,17 +724,22 @@ fn get_robotic_parameter(buffer: &[u8]) -> (Parameter, &[u8]) {
             (Parameter::Word(word), buffer)
         }
         1 => {
-            let (_, buffer) = get_word(buffer);
+            let (first, buffer) = get_byte(buffer);
+            assert_eq!(first, 0);
             (Parameter::String(Default::default()), buffer)
         }
         2 => {
             let (first, buffer) = get_byte(buffer);
-            let (_second, buffer) = get_byte(buffer);
+            let (second, buffer) = get_byte(buffer);
+            assert_eq!(second, 0);
             (Parameter::String(ByteString(vec![first])), buffer)
         }
         n => {
-            let (contents, remainder) = buffer.split_at(n as usize);
-            (Parameter::String(ByteString(contents.to_vec())), remainder)
+            // Don't include the null byte.
+            let (contents, remainder) = buffer.split_at(n as usize - 1);
+            assert_ne!(contents.last(), Some(&b'\0'));
+            // Skip the ignored null byte.
+            (Parameter::String(ByteString(contents.to_vec())), &remainder[1..])
         }
     }
 }

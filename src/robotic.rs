@@ -484,10 +484,7 @@ pub enum Command {
     CopyRobotDir(ModifiedDirection),
     DuplicateSelfDir(ModifiedDirection),
     DuplicateSelfXY(SignedNumeric, SignedNumeric),
-    BulletN(Character),
-    BulletS(Character),
-    BulletE(Character),
-    BulletW(Character),
+    Bullet(Character, CardinalDirection),
     GiveKey(Color, Option<ByteString>),
     TakeKey(Color, Option<ByteString>),
     IncRandom(ByteString, Numeric, Numeric),
@@ -953,6 +950,80 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
                 None
             };
             Command::MovePlayerDir(
+                param1.into(),
+                param2.map(|p| p.into()),
+            )
+        }
+        CommandOp::PutPlayerXY => one_arg(buffer, Command::PutPlayerXY),
+        CommandOp::ObsoleteIfPlayerDir | CommandOp::ObsoleteIfNotPlayerDir => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, _buffer) = get_robotic_parameter(buffer);
+            Command::ObsoleteIfPlayerDir(
+                param1.into(),
+                param2.into(),
+                op == CommandOp::ObsoleteIfNotPlayerDir,
+            )
+        }
+        CommandOp::IfPlayerXY => three_args(buffer, Command::IfPlayerXY),
+        CommandOp::PutPlayerDir => one_arg(buffer, Command::PutPlayerDir),
+        CommandOp::TryDir => two_args(buffer, Command::TryDir),
+        CommandOp::RotateCW => Command::RotateCW,
+        CommandOp::RotateCCW => Command::RotateCCW,
+        CommandOp::Switch => two_args(buffer, Command::Switch),
+        CommandOp::LayBomb | CommandOp::LayBombHigh => {
+            let (param1, _buffer) = get_robotic_parameter(buffer);
+            Command::LayBomb(
+                param1.into(),
+                op == CommandOp::LayBombHigh,
+            )
+        }
+        CommandOp::ShootMissile => one_arg(buffer, Command::ShootMissile),
+        CommandOp::ShootSeeker => one_arg(buffer, Command::ShootSeeker),
+        CommandOp::SpitFire => one_arg(buffer, Command::SpitFire),
+        CommandOp::LazerWall => two_args(buffer, Command::LazerWall),
+        CommandOp::PutXY => five_args(buffer, Command::PutXY),
+        CommandOp::DieItem => Command::DieItem,
+        CommandOp::SendXY => three_args(buffer, Command::SendXY),
+        CommandOp::CopyRobotNamed => one_arg(buffer, Command::CopyRobotNamed),
+        CommandOp::CopyRobotXY => two_args(buffer, Command::CopyRobotXY),
+        CommandOp::CopyRobotDir => one_arg(buffer, Command::CopyRobotDir),
+        CommandOp::DuplicateSelfDir => one_arg(buffer, Command::DuplicateSelfDir),
+        CommandOp::DuplicateSelfXY => two_args(buffer, Command::DuplicateSelfXY),
+        CommandOp::BulletN | CommandOp::BulletS | CommandOp::BulletE | CommandOp::BulletW => {
+            let (param1, _buffer) = get_robotic_parameter(buffer);
+            Command::Bullet(
+                param1.into(),
+                match op {
+                    CommandOp::BulletN => CardinalDirection::North,
+                    CommandOp::BulletS => CardinalDirection::South,
+                    CommandOp::BulletE => CardinalDirection::East,
+                    CommandOp::BulletW => CardinalDirection::West,
+                    _ => unreachable!(),
+                },
+            )
+        }
+        CommandOp::GiveKey | CommandOp::GiveKeyOr => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let param2 = if op == CommandOp::GiveKeyOr {
+                let (param, _buffer) = get_robotic_parameter(buffer);
+                Some(param)
+            } else {
+                None
+            };
+            Command::GiveKey(
+                param1.into(),
+                param2.map(|p| p.into()),
+            )
+        }
+        CommandOp::TakeKey | CommandOp::TakeKeyOr => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let param2 = if op == CommandOp::TakeKeyOr {
+                let (param, _buffer) = get_robotic_parameter(buffer);
+                Some(param)
+            } else {
+                None
+            };
+            Command::TakeKey(
                 param1.into(),
                 param2.map(|p| p.into()),
             )

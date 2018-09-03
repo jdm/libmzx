@@ -801,7 +801,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::Unused13 => two_args(buffer, Command::Set),
         CommandOp::Unused14 => two_args(buffer, Command::Inc),
         CommandOp::Unused15 => two_args(buffer, Command::Dec),
-        CommandOp::If => four_args(buffer, Command::If),
+        CommandOp::If | CommandOp::Unused17 => four_args(buffer, Command::If),
         CommandOp::IfCondition | CommandOp::IfNotCondition => {
             let (param1, buffer) = get_robotic_parameter(buffer);
             let (param2, _buffer) = get_robotic_parameter(buffer);

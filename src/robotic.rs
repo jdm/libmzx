@@ -81,7 +81,6 @@ impl From<Parameter> for Condition {
     }
 }
 
-
 create_ordinalized_enum!(
     pub CommandOp,
     u8,
@@ -411,7 +410,7 @@ pub enum Command {
     Dec(ByteString, Numeric),
     If(ByteString, Operator, Numeric, ByteString),
     IfCondition(Condition, ByteString, bool),
-    IfAny(Color, Thing, ByteString, bool),
+    IfAny(Color, Thing, ParamValue, ByteString, bool),
     IfThingDir(Color, Thing, ModifiedDirection, ByteString, bool),
     IfThingXY(Color, Thing, SignedNumeric, SignedNumeric, ByteString),
     IfAt(SignedNumeric, SignedNumeric, ByteString),
@@ -809,7 +808,20 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             Command::IfCondition(
                 param1.into(),
                 param2.into(),
-                op == CommandOp::IfNotCondition
+                op == CommandOp::IfNotCondition,
+            )
+        }
+        CommandOp::IfAny | CommandOp::IfNo => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, buffer) = get_robotic_parameter(buffer);
+            let (param3, buffer) = get_robotic_parameter(buffer);
+            let (param4, _buffer) = get_robotic_parameter(buffer);
+            Command::IfAny(
+                param1.into(),
+                param2.into(),
+                param3.into(),
+                param4.into(),
+                op == CommandOp::IfNo,
             )
         }
         _ => return None,

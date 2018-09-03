@@ -362,6 +362,12 @@ create_ordinalized_enum!(
     Coins,
 );
 
+impl From<Parameter> for Item {
+    fn from(val: Parameter) -> Item {
+        Item::from_ordinal(val.as_word() as u8).expect("unexpected item value")
+    }
+}
+
 #[derive(Debug)]
 pub enum CardinalDirection {
     North,
@@ -896,6 +902,23 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::Goto => one_arg(buffer, Command::Goto),
         CommandOp::Send => two_args(buffer, Command::Send),
         CommandOp::Explode => one_arg(buffer, Command::Explode),
+        CommandOp::PutDir => four_args(buffer, Command::PutDir),
+        CommandOp::Give => two_args(buffer, Command::Give),
+        CommandOp::Take | CommandOp::TakeOr => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, buffer) = get_robotic_parameter(buffer);
+            let param3 = if op == CommandOp::TakeOr {
+                let (param, _buffer) = get_robotic_parameter(buffer);
+                Some(param)
+            } else {
+                None
+            };
+            Command::Take(
+                param1.into(),
+                param2.into(),
+                param3.map(|p| p.into()),
+            )
+        }
         _ => return None,
     };
     Some(cmd)

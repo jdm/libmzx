@@ -16,13 +16,15 @@ use std::default::Default;
 use std::fmt;
 use std::ops::Deref;
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct BoardId(pub u8);
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct ColorValue(pub u8);
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct ParamValue(pub u8);
-pub struct Coordinate<T>(pub (T, T));
+#[derive(Copy, Clone, Debug)]
+pub struct Coordinate<T>(pub T, pub T);
+#[derive(Copy, Clone, Debug)]
 pub struct Size<T>(pub (T, T));
 
 const LEGACY_WORLD_VERSION: u32 = 0x0254;
@@ -499,7 +501,7 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
         walk: walk,
         last_touched: last_touched,
         last_shot: last_shot,
-        position: Coordinate((x_pos, y_pos)),
+        position: Coordinate(x_pos, y_pos),
         reserved: [0, 0, 0],
         onscreen: onscreen,
         loop_count: loop_count,
@@ -660,7 +662,7 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<Board, B
         level: Zip::new((ids.into_iter(), colors.into_iter(), params.into_iter())).collect(),
         under: Zip::new((under_ids.into_iter(), under_colors.into_iter(), under_params.into_iter())).collect(),
         mod_file: mod_file.to_string(),
-        upper_left_viewport: Coordinate((upper_view_x, upper_view_y)),
+        upper_left_viewport: Coordinate(upper_view_x, upper_view_y),
         viewport_size: Size((view_width, view_height)),
         can_shoot: can_shoot,
         can_bomb: can_bomb,
@@ -795,9 +797,9 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         starting_board_number: BoardId(starting_board_number),
         end_game_board: BoardId(end_game_board),
         death_board: BoardId(death_board),
-        end_game_pos: Coordinate((end_game_x, end_game_y)),
+        end_game_pos: Coordinate(end_game_x, end_game_y),
         game_over_sfx: game_over_sfx,
-        death_pos: Coordinate((death_x, death_y)),
+        death_pos: Coordinate(death_x, death_y),
         starting_lives: starting_lives,
         limit_lives: limit_lives,
         starting_health: starting_health,

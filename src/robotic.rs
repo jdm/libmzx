@@ -604,7 +604,7 @@ pub enum Command {
     OverlayOn,
     OverlayStatic,
     OverlayTransparent,
-    OverlayPutOverlay(Color, Character, SignedNumeric, SignedNumeric),
+    OverlayPutrOverlay(Color, Character, SignedNumeric, SignedNumeric),
     CopyOverlayBlock(SignedNumeric, SignedNumeric, Numeric, Numeric, SignedNumeric, SignedNumeric),
     ChangeOverlay(Color, Color, Option<(Character, Character)>),
     WriteOverlay(Color, ByteString, SignedNumeric, SignedNumeric),
@@ -1233,6 +1233,53 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             };
             Command::EnemyBullet(param1.into(), dir)
         }
+        CommandOp::PlayerBulletColor => one_arg(buffer, Command::PlayerBulletColor),
+        CommandOp::NeutralBulletColor => one_arg(buffer, Command::NeutralBulletColor),
+        CommandOp::EnemyBulletColor => one_arg(buffer, Command::EnemyBulletColor),
+        CommandOp::Unused188 |
+        CommandOp::Unused189 |
+        CommandOp::Unused190 |
+        CommandOp::Unused191 |
+        CommandOp::Unused192 |
+        CommandOp::Unused207 |
+        CommandOp::Unused208 |
+        CommandOp::Unused209 => return None,
+        CommandOp::RelSelfFirst => Command::RelSelfFirst,
+        CommandOp::RelSelfLast => Command::RelSelfLast,
+        CommandOp::RelPlayerFirst => Command::RelPlayerFirst,
+        CommandOp::RelPlayerLast => Command::RelPlayerLast,
+        CommandOp::RelCountersFirst => Command::RelCountersFirst,
+        CommandOp::RelCountersLast => Command::RelCountersLast,
+        CommandOp::ModFadeOut => Command::ModFadeOut,
+        CommandOp::ModFadeIn => Command::ModFadeIn,
+        CommandOp::CopyBlock => six_args(buffer, Command::CopyBlock),
+        CommandOp::ClipInput => Command::ClipInput,
+        CommandOp::Push => one_arg(buffer, Command::Push),
+        CommandOp::ScrollChar => two_args(buffer, Command::ScrollChar),
+        CommandOp::FlipChar => two_args(buffer, Command::FlipChar),
+        CommandOp::CopyChar => two_args(buffer, Command::CopyChar),
+        CommandOp::ChangeSfx => two_args(buffer, Command::ChangeSfx),
+        CommandOp::ColorIntensityAll |
+        CommandOp::ColorIntensityN => {
+            let (param1, buffer) = if op == CommandOp::ColorIntensityN {
+                let (param, buffer) = get_robotic_parameter(buffer);
+                (Some(param), buffer)
+            } else {
+                (None, buffer)
+            };
+            let (param2, _buffer) = get_robotic_parameter(buffer);
+            Command::ColorIntensity(
+                param1.map(|p| p.into()),
+                param2.into(),
+            )
+        }
+        CommandOp::ColorFadeOut => Command::ColorFadeOut,
+        CommandOp::ColorFadeIn => Command::ColorFadeIn,
+        CommandOp::SetColor => four_args(buffer, Command::SetColor),
+        CommandOp::LoadCharSet => one_arg(buffer, Command::LoadCharSet),
+        CommandOp::Multiply => two_args(buffer, Command::Multiply),
+        CommandOp::Divide => two_args(buffer, Command::Divide),
+        CommandOp::Modulo => two_args(buffer, Command::Modulo),
         _ => return None,
     };
     Some(cmd)

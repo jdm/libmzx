@@ -1028,6 +1028,33 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
                 param2.map(|p| p.into()),
             )
         }
+        CommandOp::IncRandom => three_args(buffer, Command::IncRandom),
+        CommandOp::DecRandom => three_args(buffer, Command::DecRandom),
+        CommandOp::SetRandom => three_args(buffer, Command::SetRandom),
+        CommandOp::Trade => five_args(buffer, Command::Trade),
+        CommandOp::SendDirPlayer => two_args(buffer, Command::SendDirPlayer),
+        CommandOp::PutDirPlayer => four_args(buffer, Command::PutDirPlayer),
+        CommandOp::Slash => one_arg(buffer, Command::Slash),
+        CommandOp::MessageLine => one_arg(buffer, Command::MessageLine),
+        CommandOp::MessageBoxLine => one_arg(buffer, Command::MessageBoxLine),
+        CommandOp::MessageBoxOption => one_arg(buffer, Command::MessageBoxOption),
+        CommandOp::MessageBoxMaybeOption => one_arg(buffer, Command::MessageBoxMaybeOption),
+        CommandOp::Label => one_arg(buffer, Command::Label),
+        CommandOp::Comment => one_arg(buffer, Command::Comment),
+        CommandOp::ZappedLabel => one_arg(buffer, Command::ZappedLabel),
+        CommandOp::Teleport => three_args(buffer, Command::Teleport),
+        CommandOp::ScrollView => two_args(buffer, Command::ScrollView),
+        CommandOp::Input => one_arg(buffer, Command::Input),
+        CommandOp::IfInput | CommandOp::IfInputNot => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, _buffer) = get_robotic_parameter(buffer);
+            Command::IfInput(
+                param1.into(),
+                param2.into(),
+                op == CommandOp::IfInputNot,
+            )
+        }
+        CommandOp::IfInputMatches => two_args(buffer, Command::IfInputMatches),
         _ => return None,
     };
     Some(cmd)

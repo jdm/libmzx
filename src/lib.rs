@@ -1,9 +1,12 @@
 extern crate byteorder;
 #[macro_use]
-extern crate enum_ordinalize;
+extern crate enum_primitive;
+#[macro_use]
+extern crate enum_primitive_derive;
+extern crate itertools;
 #[macro_use]
 extern crate log;
-extern crate itertools;
+extern crate num_traits;
 
 mod robotic;
 
@@ -11,6 +14,7 @@ pub use self::robotic::{Command, Resolve};
 
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Zip;
+use num_traits::{ToPrimitive, FromPrimitive};
 use self::robotic::parse_program;
 use std::collections::HashMap;
 use std::default::Default;
@@ -89,12 +93,12 @@ pub struct Board {
 impl Board {
     fn init(&mut self, robots: &mut [Robot]) {
         for (idx, &(thing, _, param)) in self.level.iter().enumerate() {
-            if thing == Thing::Robot.ordinal() {
+            if thing == Thing::Robot.to_u8().unwrap() {
                 robots[param as usize - 1].position = Coordinate(
                     (idx % self.width) as u16,
                     (idx / self.width) as u16
                 );
-            } else if thing == Thing::Player.ordinal() {
+            } else if thing == Thing::Player.to_u8().unwrap() {
                 self.player_pos = Coordinate(
                     (idx % self.width) as u16,
                     (idx / self.width) as u16
@@ -174,9 +178,8 @@ impl fmt::Debug for ByteString {
     }
 }
 
-create_ordinalized_enum!(
-    pub Direction,
-    u8,
+#[derive(Debug, Primitive)]
+pub enum Direction {
     Idle = 0,
     North = 1,
     South = 2,
@@ -197,11 +200,10 @@ create_ordinalized_enum!(
     Cw = 32,
     Opp = 64,
     RandNot = 128,*/
-);
+}
 
-create_ordinalized_enum!(
-    pub Thing,
-    u8,
+#[derive(Debug, Primitive)]
+pub enum Thing {
     Space = 0,
     Normal = 1,
     Solid = 2,
@@ -308,7 +310,7 @@ create_ordinalized_enum!(
     Scroll = 126,
     Player = 127,
     NoId = 255,
-);
+}
 
 #[derive(Debug)]
 pub enum BulletType {
@@ -462,7 +464,7 @@ fn get_dword(buffer: &[u8]) -> (u32, &[u8]) {
 
 fn get_direction(buffer: &[u8]) -> (Direction, &[u8]) {
     let (byte, buffer) = get_byte(buffer);
-    let dir = Direction::from_ordinal(byte);
+    let dir = Direction::from_u8(byte);
     (dir.expect("invalid direction value"), buffer)
 }
 

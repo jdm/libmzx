@@ -8,4 +8,6 @@ authors = ["Josh Matthews <josh@joshmatthews.net>"]
 byteorder = "0.5"
 log = "0.4"
 itertools = "0.4"
-enum-ordinalize = "1.0"
+enum_primitive = "0.1"
+enum-primitive-derive = "0.1"
+num-traits = "0.2"

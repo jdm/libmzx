@@ -1120,6 +1120,119 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::BecomeLavaWalker | CommandOp::BecomeNonLavaWalker =>
             Command::BecomeLavaWalker(op == CommandOp::BecomeLavaWalker),
         CommandOp::Change => six_args(buffer, Command::Change),
+        CommandOp::PlayerColor => one_arg(buffer, Command::PlayerColor),
+        CommandOp::BulletColor => one_arg(buffer, Command::BulletColor),
+        CommandOp::MissileColor => one_arg(buffer, Command::MissileColor),
+        CommandOp::MessageRow | CommandOp::Unused167 => one_arg(buffer, Command::MessageRow),
+        CommandOp::RelSelf => Command::RelSelf,
+        CommandOp::RelPlayer => Command::RelPlayer,
+        CommandOp::RelCounters => Command::RelCounters,
+        CommandOp::SetIdChar => two_args(buffer, Command::SetIdChar),
+        CommandOp::JumpModOrder => one_arg(buffer, Command::JumpModOrder),
+        CommandOp::Ask => one_arg(buffer, Command::Ask),
+        CommandOp::FillHealth => Command::FillHealth,
+        CommandOp::ThickArrow | CommandOp::ThinArrow => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, _buffer) = get_robotic_parameter(buffer);
+            Command::ChangeArrowChar(
+                param1.into(),
+                param2.into(),
+                op == CommandOp::ThickArrow,
+            )
+        }
+        CommandOp::SetMaxHealth => one_arg(buffer, Command::SetMaxHealth),
+        CommandOp::SavePlayerPosition | CommandOp::SavePlayerPositionN => {
+            let param1 = if op == CommandOp::SavePlayerPositionN {
+                let (param, _buffer) = get_robotic_parameter(buffer);
+                Some(param)
+            } else {
+                None
+            };
+            Command::SavePlayerPosition(
+                param1.map(|p| p.into()),
+            )
+        }
+        CommandOp::RestorePlayerPosition | CommandOp::RestorePlayerPositionN => {
+            let param1 = if op == CommandOp::RestorePlayerPositionN {
+                let (param, _buffer) = get_robotic_parameter(buffer);
+                Some(param)
+            } else {
+                None
+            };
+            Command::RestorePlayerPosition(
+                param1.map(|p| p.into()),
+            )
+        }
+        CommandOp::ExchangePlayerPosition | CommandOp::ExchangePlayerPositionN => {
+            let param1 = if op == CommandOp::ExchangePlayerPositionN {
+                let (param, _buffer) = get_robotic_parameter(buffer);
+                Some(param)
+            } else {
+                None
+            };
+            Command::ExchangePlayerPosition(
+                param1.map(|p| p.into()),
+            )
+        }
+        CommandOp::MessageColumn | CommandOp::Unused166 => one_arg(buffer, Command::MessageColumn),
+        CommandOp::CenterMessage => Command::CenterMessage,
+        CommandOp::ClearMessage => Command::ClearMessage,
+        CommandOp::ResetView => Command::ResetView,
+        CommandOp::ModSam => two_args(buffer, Command::ModSam),
+        CommandOp::Volume2 => one_arg(buffer, Command::Volume2),
+        CommandOp::ScrollBase => one_arg(buffer, Command::ScrollBase),
+        CommandOp::ScrollCorner => one_arg(buffer, Command::ScrollCorner),
+        CommandOp::ScrollTitle => one_arg(buffer, Command::ScrollTitle),
+        CommandOp::ScrollPointer => one_arg(buffer, Command::ScrollPointer),
+        CommandOp::ScrollArrow => one_arg(buffer, Command::ScrollArrow),
+        CommandOp::Viewport => two_args(buffer, Command::Viewport),
+        CommandOp::ViewportWidth => two_args(buffer, Command::ViewportWidth),
+        CommandOp::RestorePlayerPositionNDuplicateSelf =>
+            one_arg(buffer, Command::RestorePlayerPositionDupSelf),
+        CommandOp::ExchangePlayerPositionNDuplicateSelf =>
+            one_arg(buffer, Command::ExchangePlayerPositionDupSelf),
+        CommandOp::PlayerBulletN |
+        CommandOp::PlayerBulletS |
+        CommandOp::PlayerBulletW |
+        CommandOp::PlayerBulletE => {
+            let (param1, _buffer) = get_robotic_parameter(buffer);
+            let dir = match op {
+                CommandOp::PlayerBulletN => CardinalDirection::North,
+                CommandOp::PlayerBulletS => CardinalDirection::South,
+                CommandOp::PlayerBulletE => CardinalDirection::East,
+                CommandOp::PlayerBulletW => CardinalDirection::South,
+                _ => unreachable!(),
+            };
+            Command::PlayerBullet(param1.into(), dir)
+        }
+        CommandOp::NeutralBulletN |
+        CommandOp::NeutralBulletS |
+        CommandOp::NeutralBulletW |
+        CommandOp::NeutralBulletE => {
+            let (param1, _buffer) = get_robotic_parameter(buffer);
+            let dir = match op {
+                CommandOp::NeutralBulletN => CardinalDirection::North,
+                CommandOp::NeutralBulletS => CardinalDirection::South,
+                CommandOp::NeutralBulletE => CardinalDirection::East,
+                CommandOp::NeutralBulletW => CardinalDirection::South,
+                _ => unreachable!(),
+            };
+            Command::NeutralBullet(param1.into(), dir)
+        }
+        CommandOp::EnemyBulletN |
+        CommandOp::EnemyBulletS |
+        CommandOp::EnemyBulletW |
+        CommandOp::EnemyBulletE => {
+            let (param1, _buffer) = get_robotic_parameter(buffer);
+            let dir = match op {
+                CommandOp::EnemyBulletN => CardinalDirection::North,
+                CommandOp::EnemyBulletS => CardinalDirection::South,
+                CommandOp::EnemyBulletE => CardinalDirection::East,
+                CommandOp::EnemyBulletW => CardinalDirection::South,
+                _ => unreachable!(),
+            };
+            Command::EnemyBullet(param1.into(), dir)
+        }
         _ => return None,
     };
     Some(cmd)

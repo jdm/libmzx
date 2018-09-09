@@ -7,9 +7,11 @@ extern crate itertools;
 
 mod robotic;
 
+pub use self::robotic::Command;
+
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Zip;
-use self::robotic::{Command, parse_program};
+use self::robotic::parse_program;
 use std::default::Default;
 use std::fmt;
 use std::ops::Deref;
@@ -89,6 +91,7 @@ pub struct Sensor {
     pub used: bool,
 }
 
+#[derive(Clone)]
 pub struct ByteString(Vec<u8>);
 
 impl Default for ByteString {
@@ -98,8 +101,12 @@ impl Default for ByteString {
 }
 
 impl ByteString {
-    fn to_string(self) -> String {
+    pub fn into_string(self) -> String {
         String::from_utf8(self.0).expect("Invalid UTF8 string")
+    }
+
+    pub fn to_string(&self) -> String {
+        self.clone().into_string()
     }
 }
 
@@ -283,7 +290,7 @@ pub enum SaveRestriction {
 const CHARSET_BUFFER_SIZE: usize = 14 * 256;
 
 pub struct Charset {
-    data: [u8; CHARSET_BUFFER_SIZE],
+    pub data: [u8; CHARSET_BUFFER_SIZE],
 }
 
 impl Charset {

@@ -83,13 +83,19 @@ pub struct Board {
     pub time_limit: u16,
     pub scrolls: Vec<Scroll>,
     pub sensors: Vec<Sensor>,
+    pub player_pos: Coordinate<u16>,
 }
 
 impl Board {
-    fn init(&self, robots: &mut [Robot]) {
+    fn init(&mut self, robots: &mut [Robot]) {
         for (idx, &(thing, _, param)) in self.level.iter().enumerate() {
             if thing == Thing::Robot.ordinal() {
                 robots[param as usize - 1].position = Coordinate(
+                    (idx % self.width) as u16,
+                    (idx / self.width) as u16
+                );
+            } else if thing == Thing::Player.ordinal() {
+                self.player_pos = Coordinate(
                     (idx % self.width) as u16,
                     (idx / self.width) as u16
                 );
@@ -723,6 +729,7 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<(Board, 
         time_limit: time_limit,
         scrolls: scrolls,
         sensors: sensors,
+        player_pos: Coordinate(0, 0),
     },
     robots))
 }
@@ -825,7 +832,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         }
 
         let end_board_pos = board_pos + byte_length;
-        let (board, mut robots) = try!(
+        let (mut board, mut robots) = try!(
             load_board(title, version, &original_buffer[board_pos..end_board_pos])
         );
         board.init(&mut robots);

@@ -1,5 +1,5 @@
 use std::mem;
-use super::{get_word, get_byte, ByteString, Direction, ColorValue, ParamValue, Thing};
+use super::{get_word, get_byte, ByteString, Direction, ColorValue, ParamValue, Thing, Counters};
 
 const CHAR_BYTES: usize = 14;
 
@@ -379,6 +379,11 @@ pub enum CardinalDirection {
     West,
 }
 
+pub trait Resolve {
+    type Output;
+    fn resolve(&self, counters: &Counters) -> Self::Output;
+}
+
 #[derive(Debug)]
 pub enum Byte {
     Counter(ByteString),
@@ -403,10 +408,30 @@ pub enum Character {
     Literal(u8),
 }
 
+impl Resolve for Character {
+    type Output = u8;
+    fn resolve(&self, counters: &Counters) -> Self::Output {
+        match *self {
+            Character::Counter(ref s) => counters.get(s) as u8,
+            Character::Literal(u) => u,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Color {
     Counter(ByteString),
     Literal(ColorValue),
+}
+
+impl Resolve for Color {
+    type Output = ColorValue;
+    fn resolve(&self, counters: &Counters) -> Self::Output {
+        match *self {
+            Color::Counter(ref s) => ColorValue(counters.get(s) as u8),
+            Color::Literal(c) => c,
+        }
+    }
 }
 
 #[derive(Debug)]

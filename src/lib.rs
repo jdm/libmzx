@@ -7,11 +7,12 @@ extern crate itertools;
 
 mod robotic;
 
-pub use self::robotic::Command;
+pub use self::robotic::{Command, Resolve};
 
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Zip;
 use self::robotic::parse_program;
+use std::collections::HashMap;
 use std::default::Default;
 use std::fmt;
 use std::ops::Deref;
@@ -32,9 +33,9 @@ const LEGACY_WORLD_VERSION: u32 = 0x0254;
 pub struct World {
     pub version: u32,
     pub title: ByteString,
-    pub charset: Charset,
-    pub palette: Palette,
+    pub state: WorldState,
     pub boards: Vec<Board>,
+    pub board_robots: Vec<Vec<Robot>>,
     pub edge_border: ColorValue,
     pub starting_board_number: BoardId,
     pub end_game_board: BoardId,
@@ -49,6 +50,11 @@ pub struct World {
     pub enemies_hurt_enemies: bool,
     pub clear_messages_and_projectiles: bool,
     pub only_play_via_swap_world: bool,
+}
+
+pub struct WorldState {
+    pub charset: Charset,
+    pub palette: Palette,
 }
 
 pub struct Board {
@@ -75,9 +81,46 @@ pub struct Board {
     pub exits: (Option<BoardId>, Option<BoardId>, Option<BoardId>, Option<BoardId>),
     pub restart_when_zapped: bool,
     pub time_limit: u16,
-    pub robots: Vec<Robot>,
     pub scrolls: Vec<Scroll>,
     pub sensors: Vec<Sensor>,
+}
+
+impl Board {
+    fn init(&self, robots: &mut [Robot]) {
+        for (idx, &(thing, _, param)) in self.level.iter().enumerate() {
+            if thing == Thing::Robot.ordinal() {
+                robots[param as usize - 1].position = Coordinate(
+                    (idx % self.width) as u16,
+                    (idx / self.width) as u16
+                );
+            }
+        }
+    }
+
+    pub fn level_at_mut(&mut self, pos: &Coordinate<u16>) -> &mut (u8, u8, u8) {
+        let idx = self.width * pos.1 as usize + pos.0 as usize;
+        &mut self.level[idx]
+    }
+}
+
+pub struct Counters {
+    counters: HashMap<ByteString, i16>,
+}
+
+impl Counters {
+    pub fn new() -> Counters {
+        Counters {
+            counters: HashMap::new(),
+        }
+    }
+
+    pub fn set(&mut self, name: ByteString, value: i16) {
+        self.counters.insert(name, value);
+    }
+
+    pub fn get(&self, name: &ByteString) -> i16 {
+        *self.counters.get(&name).unwrap_or(&0)
+    }
 }
 
 pub struct Scroll {
@@ -93,7 +136,7 @@ pub struct Sensor {
     pub used: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub struct ByteString(Vec<u8>);
 
 impl Default for ByteString {
@@ -535,7 +578,7 @@ fn load_sensor(buffer: &[u8]) -> (Sensor, &[u8]) {
     )
 }
 
-fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<Board, BoardError> {
+fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<(Board, Vec<Robot>), BoardError> {
     debug!("loading board {:?}", title);
     let (sizing, mut buffer) = get_byte(buffer);
     let (_width, _height) = match sizing {
@@ -654,7 +697,7 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<Board, B
     let (sensors, _buffer) = get_objects(buffer, load_sensor);
     assert_eq!(_buffer.len(), 0);
 
-    Ok(Board {
+    Ok((Board {
         title: title,
         width: width,
         height: height,
@@ -678,10 +721,10 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<Board, B
         exits: (north_board, south_board, east_board, west_board),
         restart_when_zapped: restart_when_zapped,
         time_limit: time_limit,
-        robots: robots,
         scrolls: scrolls,
         sensors: sensors,
-    })
+    },
+    robots))
 }
 
 pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
@@ -762,6 +805,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
 
     let mut titles = vec![];
     let mut boards = vec![];
+    let mut board_robots = vec![];
     for _ in 0..num_boards {
         let (title, new_buffer) = get_null_terminated_string(buffer, 25);
         buffer = new_buffer;
@@ -781,18 +825,24 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         }
 
         let end_board_pos = board_pos + byte_length;
-        let board = try!(load_board(title, version,
-                                    &original_buffer[board_pos..end_board_pos]));
+        let (board, mut robots) = try!(
+            load_board(title, version, &original_buffer[board_pos..end_board_pos])
+        );
+        board.init(&mut robots);
         boards.push(board);
+        board_robots.push(robots);
         buffer = new_buffer;
     }
 
     Ok(World {
         version: version,
         title: title,
-        charset: charset,
-        palette: Palette { colors: colors },
+        state: WorldState {
+            charset: charset,
+            palette: Palette { colors: colors },
+        },
         boards: boards,
+        board_robots: board_robots,
         edge_border: ColorValue(edge_border),
         starting_board_number: BoardId(starting_board_number),
         end_game_board: BoardId(end_game_board),

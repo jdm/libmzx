@@ -1,5 +1,7 @@
 use super::{get_word, get_byte, ByteString, Direction, ColorValue, ParamValue, Thing};
 
+const CHAR_BYTES: usize = 14;
+
 #[derive(Debug)]
 pub enum Operator {
     Equals,
@@ -513,9 +515,8 @@ pub enum Command {
     Copy(SignedNumeric, SignedNumeric, SignedNumeric, SignedNumeric),
     SetEdgeColor(Color),
     Board(ModifiedDirection, Option<ByteString>),
-    CharEdit(Character, [Byte; 14]),
-    BecomePushable,
-    BecomeNonpushable,
+    CharEdit(Character, [Byte; CHAR_BYTES]),
+    BecomePushable(bool),
     Blind(Numeric),
     FireWalker(Numeric),
     FreezeTime(Numeric),
@@ -523,9 +524,8 @@ pub enum Command {
     Wind(Numeric),
     Avalanche,
     CopyDir(ModifiedDirection, ModifiedDirection),
-    BecomeLavaWalker,
-    BecomeNonLavaWalker,
-    Change(Color, Thing, Color, Thing, Param),
+    BecomeLavaWalker(bool),
+    Change(Color, Thing, Param, Color, Thing, Param),
     PlayerColor(Color),
     BulletColor(Color),
     MissileColor(Color),
@@ -647,6 +647,15 @@ impl Parameter {
         match self {
             Parameter::Word(_) => panic!("unexpected word literal"),
             Parameter::String(s) => s,
+        }
+    }
+}
+
+impl From<Parameter> for Byte {
+    fn from(val: Parameter) -> Byte {
+        match val {
+            Parameter::Word(u) => Byte::Literal(u as u8),
+            Parameter::String(s) => Byte::Counter(s),
         }
     }
 }
@@ -1055,6 +1064,62 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             )
         }
         CommandOp::IfInputMatches => two_args(buffer, Command::IfInputMatches),
+        CommandOp::PlayerChar => one_arg(buffer, Command::PlayerChar),
+        CommandOp::MessageBoxColorLine => one_arg(buffer, Command::MessageBoxColorLine),
+        CommandOp::MessageBoxCenterLine => one_arg(buffer, Command::MessageBoxCenterLine),
+        CommandOp::MoveAll => three_args(buffer, Command::MoveAll),
+        CommandOp::Copy => four_args(buffer, Command::Copy),
+        CommandOp::SetEdgeColor => one_arg(buffer, Command::SetEdgeColor),
+        CommandOp::Board | CommandOp::BoardIsNone => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let param2 = if op == CommandOp::Board {
+                let (param, _buffer) = get_robotic_parameter(buffer);
+                Some(param)
+            } else {
+                None
+            };
+            Command::Board(
+                param1.into(),
+                param2.map(|p| p.into()),
+            )
+        }
+        CommandOp::CharEdit => {
+            let (param1, mut buffer) = get_robotic_parameter(buffer);
+            let mut bytes = [
+                Byte::Literal(0),
+                Byte::Literal(0),
+                Byte::Literal(0),
+                Byte::Literal(0),
+                Byte::Literal(0),
+                Byte::Literal(0),
+                Byte::Literal(0),
+                Byte::Literal(0),
+                Byte::Literal(0),
+                Byte::Literal(0),
+                Byte::Literal(0),
+                Byte::Literal(0),
+                Byte::Literal(0),
+                Byte::Literal(0),
+            ];
+            for byte in bytes.iter_mut() {
+                let (param, new_buffer) = get_robotic_parameter(buffer);
+                *byte = param.into();
+                buffer = new_buffer;
+            }
+            Command::CharEdit(param1.into(), bytes)
+        }
+        CommandOp::BecomePushable | CommandOp::BecomeNonpushable =>
+            Command::BecomePushable(op == CommandOp::BecomePushable),
+        CommandOp::Blind => one_arg(buffer, Command::Blind),
+        CommandOp::FireWalker => one_arg(buffer, Command::FireWalker),
+        CommandOp::FreezeTime => one_arg(buffer, Command::FreezeTime),
+        CommandOp::SlowTime => one_arg(buffer, Command::SlowTime),
+        CommandOp::Wind => one_arg(buffer, Command::Wind),
+        CommandOp::Avalanche => Command::Avalanche,
+        CommandOp::CopyDir => two_args(buffer, Command::CopyDir),
+        CommandOp::BecomeLavaWalker | CommandOp::BecomeNonLavaWalker =>
+            Command::BecomeLavaWalker(op == CommandOp::BecomeLavaWalker),
+        CommandOp::Change => six_args(buffer, Command::Change),
         _ => return None,
     };
     Some(cmd)

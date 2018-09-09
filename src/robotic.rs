@@ -1,3 +1,4 @@
+use std::mem;
 use super::{get_word, get_byte, ByteString, Direction, ColorValue, ParamValue, Thing};
 
 const CHAR_BYTES: usize = 14;
@@ -334,7 +335,7 @@ create_ordinalized_enum!(
     OverlayOn,
     OverlayStatic,
     OverlayTransparent,
-    OverlayPutOverlay,
+    PutOverlay,
     CopyOverlayBlock,
     Unused244,
     ChangeOverlay,
@@ -604,15 +605,14 @@ pub enum Command {
     OverlayOn,
     OverlayStatic,
     OverlayTransparent,
-    OverlayPutrOverlay(Color, Character, SignedNumeric, SignedNumeric),
+    PutOverlay(Color, Character, SignedNumeric, SignedNumeric),
     CopyOverlayBlock(SignedNumeric, SignedNumeric, Numeric, Numeric, SignedNumeric, SignedNumeric),
     ChangeOverlay(Color, Color, Option<(Character, Character)>),
     WriteOverlay(Color, ByteString, SignedNumeric, SignedNumeric),
     LoopStart,
     LoopFor(Numeric),
     AbortLoop,
-    DisableMesgEdge,
-    EnableMesgEdge,
+    MesgEdge(bool),
 }
 
 enum Parameter {
@@ -979,6 +979,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::RotateCW => Command::RotateCW,
         CommandOp::RotateCCW => Command::RotateCCW,
         CommandOp::Switch => two_args(buffer, Command::Switch),
+        CommandOp::Shoot => one_arg(buffer, Command::Shoot),
         CommandOp::LayBomb | CommandOp::LayBombHigh => {
             let (param1, _buffer) = get_robotic_parameter(buffer);
             Command::LayBomb(
@@ -1243,7 +1244,15 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::Unused192 |
         CommandOp::Unused207 |
         CommandOp::Unused208 |
-        CommandOp::Unused209 => return None,
+        CommandOp::Unused209 |
+        CommandOp::Unused221 |
+        CommandOp::Unused223 |
+        CommandOp::Unused228 |
+        CommandOp::Unused234 |
+        CommandOp::Unused244 |
+        CommandOp::Unused248 |
+        CommandOp::Unused249 |
+        CommandOp::Unused250 => return None,
         CommandOp::RelSelfFirst => Command::RelSelfFirst,
         CommandOp::RelSelfLast => Command::RelSelfLast,
         CommandOp::RelPlayerFirst => Command::RelPlayerFirst,
@@ -1280,7 +1289,49 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::Multiply => two_args(buffer, Command::Multiply),
         CommandOp::Divide => two_args(buffer, Command::Divide),
         CommandOp::Modulo => two_args(buffer, Command::Modulo),
-        _ => return None,
+        CommandOp::PlayerCharDir => two_args(buffer, Command::PlayerCharDir),
+        CommandOp::LoadPalette => one_arg(buffer, Command::LoadPalette),
+        CommandOp::ModFadeTo => two_args(buffer, Command::ModFadeTo),
+        CommandOp::ScrollViewXY => two_args(buffer, Command::ScrollViewXY),
+        CommandOp::SwapWorld => one_arg(buffer, Command::SwapWorld),
+        CommandOp::IfAlignedRobot => two_args(buffer, Command::IfAlignedRobot),
+        CommandOp::LockScroll => Command::LockScroll,
+        CommandOp::UnlockScroll => Command::UnlockScroll,
+        CommandOp::IfFirstInput => two_args(buffer, Command::IfFirstInput),
+        CommandOp::PersistentGo => one_arg(buffer, Command::PersistentGo),
+        CommandOp::WaitModFade => Command::WaitModFade,
+        CommandOp::EnableSaving => Command::EnableSaving,
+        CommandOp::DisableSaving => Command::DisableSaving,
+        CommandOp::EnableSensorOnlySaving => Command::EnableSensorOnlySaving,
+        CommandOp::StatusCounter => two_args(buffer, Command::StatusCounter),
+        CommandOp::OverlayOn => Command::OverlayOn,
+        CommandOp::OverlayStatic => Command::OverlayStatic,
+        CommandOp::OverlayTransparent => Command::OverlayTransparent,
+        CommandOp::PutOverlay => four_args(buffer, Command::PutOverlay),
+        CommandOp::CopyOverlayBlock => six_args(buffer, Command::CopyOverlayBlock),
+        CommandOp::ChangeOverlay | CommandOp::ChangeOverlayColor => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (mut param2, buffer) = get_robotic_parameter(buffer);
+            let opt_params = if op == CommandOp::ChangeOverlay {
+                let (mut param_a, buffer) = get_robotic_parameter(buffer);
+                let (param_b, _buffer) = get_robotic_parameter(buffer);
+                mem::swap(&mut param_a, &mut param2);
+                Some((param_a, param_b))
+            } else {
+                None
+            };
+            Command::ChangeOverlay(
+                param1.into(),
+                param2.into(),
+                opt_params.map(|(p3, p4)| (p3.into(), p4.into())),
+            )
+        }
+        CommandOp::WriteOverlay => four_args(buffer, Command::WriteOverlay),
+        CommandOp::LoopStart => Command::LoopStart,
+        CommandOp::LoopFor => one_arg(buffer, Command::LoopFor),
+        CommandOp::AbortLoop => Command::AbortLoop,
+        CommandOp::DisableMesgEdge | CommandOp::EnableMesgEdge =>
+            Command::MesgEdge(op == CommandOp::EnableMesgEdge),
     };
     Some(cmd)
 }

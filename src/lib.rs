@@ -8,8 +8,10 @@ extern crate itertools;
 extern crate log;
 extern crate num_traits;
 
+mod render;
 mod robotic;
 
+pub use self::render::{Renderer, render};
 pub use self::robotic::{Command, Resolve};
 
 use byteorder::{ByteOrder, LittleEndian};

@@ -1,6 +1,6 @@
 use num_traits::FromPrimitive;
 use std::mem;
-use super::{get_word, get_byte, ByteString, Direction, ColorValue, ParamValue, Thing, Counters};
+use super::{get_word, get_byte, ByteString, Direction, ColorValue, ParamValue, Thing, Counters, CardinalDirection};
 
 const CHAR_BYTES: usize = 14;
 
@@ -370,14 +370,6 @@ impl From<Parameter> for Item {
     fn from(val: Parameter) -> Item {
         Item::from_u16(val.as_word()).expect("unexpected item value")
     }
-}
-
-#[derive(Debug)]
-pub enum CardinalDirection {
-    North,
-    South,
-    East,
-    West,
 }
 
 pub trait Resolve {

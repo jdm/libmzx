@@ -29,7 +29,7 @@ pub struct BoardId(pub u8);
 pub struct ColorValue(pub u8);
 #[derive(Copy, Clone, Debug)]
 pub struct ParamValue(pub u8);
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Coordinate<T>(pub T, pub T);
 #[derive(Copy, Clone, Debug)]
 pub struct Size<T>(pub (T, T));
@@ -109,9 +109,25 @@ impl Board {
         }
     }
 
+    pub fn thing_at(&self, pos: &Coordinate<u16>) -> Thing {
+        Thing::from_u8(self.level_at(pos).0).expect("invalid thing value")
+    }
+
+    pub fn level_at(&self, pos: &Coordinate<u16>) -> &(u8, u8, u8) {
+        let idx = self.width * pos.1 as usize + pos.0 as usize;
+        &self.level[idx]
+    }
+
     pub fn level_at_mut(&mut self, pos: &Coordinate<u16>) -> &mut (u8, u8, u8) {
         let idx = self.width * pos.1 as usize + pos.0 as usize;
         &mut self.level[idx]
+    }
+
+    pub fn move_level(&mut self, pos: &Coordinate<u16>, xdiff: i8, ydiff: i8) {
+        let old_idx = pos.1 * self.width as u16 + pos.0;
+        let new_idx = (pos.1 as i16 + ydiff as i16) as u16 * self.width as u16 + (pos.0 as i16 + xdiff as i16) as u16;
+        self.level[new_idx as usize] = self.level[old_idx as usize];
+        self.level[old_idx as usize] = (0, 0x07, 0);
     }
 }
 
@@ -202,6 +218,14 @@ pub enum Direction {
     Cw = 32,
     Opp = 64,
     RandNot = 128,*/
+}
+
+#[derive(Debug)]
+pub enum CardinalDirection {
+    North,
+    South,
+    East,
+    West,
 }
 
 #[derive(Debug, Primitive)]
@@ -312,6 +336,75 @@ pub enum Thing {
     Scroll = 126,
     Player = 127,
     NoId = 255,
+}
+
+impl Thing {
+    pub fn is_solid(&self) -> bool {
+        match *self {
+            Thing::Solid |
+            Thing::Line |
+            Thing::CustomBlock |
+            Thing::Breakaway |
+            Thing::CustomBreak |
+            Thing::Boulder |
+            Thing::Crate |
+            Thing::CustomPush |
+            Thing::Box |
+            Thing::CustomBox |
+            Thing::Chest |
+            Thing::Gem |
+            Thing::MagicGem |
+            Thing::Health |
+            Thing::Ring |
+            Thing::Potion |
+            Thing::Energizer |
+            Thing::Goop |
+            Thing::Ammo |
+            Thing::Bomb |
+            Thing::LitBomb |
+            Thing::Key |
+            Thing::Lock |
+            Thing::Door |
+            Thing::Gate |
+            Thing::Transport |
+            Thing::Coin |
+            Thing::Pouch |
+            Thing::Pusher |
+            Thing::SliderNS |
+            Thing::SliderEW |
+            Thing::LazerGun |
+            Thing::Bullet |
+            Thing::Missile |
+            Thing::Life |
+            Thing::InvisibleWall |
+            Thing::Mine |
+            Thing::Spike |
+            Thing::CustomHurt |
+            Thing::Text |
+            Thing::Snake |
+            Thing::Eye |
+            Thing::Thief |
+            Thing::SlimeBlob |
+            Thing::Runner |
+            Thing::Ghost |
+            Thing::Dragon |
+            Thing::Fish |
+            Thing::Shark |
+            Thing::Spider |
+            Thing::Goblin |
+            Thing::SpittingTiger |
+            Thing::BulletGun |
+            Thing::SpinningGun |
+            Thing::Bear |
+            Thing::BearCub |
+            Thing::MissileGun |
+            Thing::RobotPushable |
+            Thing::Robot |
+            Thing::Sign |
+            Thing::Scroll => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug)]

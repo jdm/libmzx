@@ -90,6 +90,7 @@ pub struct Board {
     pub scrolls: Vec<Scroll>,
     pub sensors: Vec<Sensor>,
     pub player_pos: Coordinate<u16>,
+    pub scroll_offset: Coordinate<u16>,
 }
 
 impl Board {
@@ -765,7 +766,7 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<(Board, 
     let (restart_when_zapped, buffer) = get_bool(buffer);
     let (time_limit, mut buffer) = get_word(buffer);
 
-    if version < 0x253 {
+    let (scroll_x, scroll_y) = if version < 0x253 {
         let (_last_key, new_buffer) = get_byte(buffer);
         let (_last_input, new_buffer) = get_word(new_buffer);
         let (_last_input_length, new_buffer) = get_byte(new_buffer);
@@ -776,12 +777,15 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<(Board, 
         let (_lazer_wall_timer, new_buffer) = get_byte(new_buffer);
         let (_message_row, new_buffer) = get_byte(new_buffer);
         let (_message_col, new_buffer) = get_byte(new_buffer);
-        let (_x_scroll, new_buffer) = get_word(new_buffer);
-        let (_y_scroll, new_buffer) = get_word(new_buffer);
+        let (scroll_x, new_buffer) = get_word(new_buffer);
+        let (scroll_y, new_buffer) = get_word(new_buffer);
         let (_x_screen_pos, new_buffer) = get_word(new_buffer);
         let (_y_screen_pos, new_buffer) = get_word(new_buffer);
         buffer = new_buffer;
-    }
+        (scroll_x, scroll_y)
+    } else {
+        (0, 0)
+    };
 
     let (_player_locked_ns, buffer) = get_byte(buffer);
     let (_player_locked_ew, buffer) = get_byte(buffer);
@@ -827,6 +831,7 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<(Board, 
         scrolls: scrolls,
         sensors: sensors,
         player_pos: Coordinate(0, 0),
+        scroll_offset: Coordinate(scroll_x, scroll_y),
     },
     robots))
 }

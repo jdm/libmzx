@@ -12,7 +12,7 @@ mod render;
 mod robotic;
 
 pub use self::render::{Renderer, render};
-pub use self::robotic::{Command, Resolve};
+pub use self::robotic::{Command, Resolve, Operator};
 
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Zip;
@@ -23,11 +23,11 @@ use std::default::Default;
 use std::fmt;
 use std::ops::Deref;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct BoardId(pub u8);
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct ColorValue(pub u8);
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct ParamValue(pub u8);
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Coordinate<T>(pub T, pub T);
@@ -196,7 +196,7 @@ impl fmt::Debug for ByteString {
     }
 }
 
-#[derive(Debug, Primitive)]
+#[derive(Debug, Primitive, PartialEq)]
 pub enum Direction {
     Idle = 0,
     North = 1,
@@ -220,7 +220,7 @@ pub enum Direction {
     RandNot = 128,*/
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum CardinalDirection {
     North,
     South,
@@ -228,7 +228,7 @@ pub enum CardinalDirection {
     West,
 }
 
-#[derive(Debug, Primitive)]
+#[derive(Debug, Primitive, PartialEq)]
 pub enum Thing {
     Space = 0,
     Normal = 1,

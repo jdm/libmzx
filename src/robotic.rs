@@ -4,7 +4,7 @@ use super::{get_word, get_byte, ByteString, Direction, ColorValue, ParamValue, T
 
 const CHAR_BYTES: usize = 14;
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Operator {
     Equals,
     NotEquals,
@@ -28,22 +28,22 @@ impl From<Parameter> for Operator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Param {
     Counter(ByteString),
     Literal(ParamValue),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ModifiedDirection {
-    dir: Direction,
+    pub dir: Direction,
     randp: bool,
     cw: bool,
     opp: bool,
     randnot: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Condition {
     Walking,
     Swimming,
@@ -353,7 +353,7 @@ enum_from_primitive! {
     }
 }
 
-#[derive(Debug, Primitive)]
+#[derive(Debug, Primitive, PartialEq)]
 pub enum Item {
     Gems = 0,
     Ammo = 1,
@@ -377,13 +377,13 @@ pub trait Resolve {
     fn resolve(&self, counters: &Counters) -> Self::Output;
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Byte {
     Counter(ByteString),
     Literal(u8),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Numeric {
     Counter(ByteString),
     Literal(u16),
@@ -399,13 +399,13 @@ impl Resolve for Numeric {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum SignedNumeric {
     Counter(ByteString),
     Literal(i16),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Character {
     Counter(ByteString),
     Literal(u8),
@@ -421,7 +421,7 @@ impl Resolve for Character {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Color {
     Counter(ByteString),
     Literal(ColorValue),
@@ -437,7 +437,7 @@ impl Resolve for Color {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Command {
     End,
     Die,

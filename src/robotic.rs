@@ -643,6 +643,37 @@ pub enum Command {
     MesgEdge(bool),
 }
 
+impl Command {
+    pub fn is_cycle_ending(&self) -> bool {
+        match *self {
+            Command::End |
+            Command::Die |
+            Command::Wait(..) |
+            Command::Go(..) |
+            Command::Become(..) |
+            Command::GotoXY(..) |
+            Command::Explode(..) |
+            Command::MovePlayerDir(..) |
+            Command::TryDir(..) |
+            Command::DieItem |
+            Command::CopyRobotNamed(..) |
+            Command::CopyRobotXY(..) |
+            Command::CopyRobotDir(..) |
+            Command::Slash(..) |
+            Command::Teleport(..) |
+            Command::MoveAll(..) |
+            Command::Copy(..) |
+            Command::CopyDir(..) |
+            Command::CopyBlock(..) |
+            Command::ColorFadeIn |
+            Command::ColorFadeOut |
+            Command::SwapWorld(..) |
+            Command::CopyOverlayBlock(..) => true,
+            _ => false,
+        }
+    }
+}
+
 enum Parameter {
     Word(u16),
     String(ByteString),

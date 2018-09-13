@@ -32,7 +32,7 @@ pub struct ParamValue(pub u8);
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Coordinate<T>(pub T, pub T);
 #[derive(Copy, Clone, Debug)]
-pub struct Size<T>(pub (T, T));
+pub struct Size<T>(pub T, pub T);
 
 const LEGACY_WORLD_VERSION: u32 = 0x0254;
 
@@ -809,7 +809,7 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<(Board, 
         under: Zip::new((under_ids.into_iter(), under_colors.into_iter(), under_params.into_iter())).collect(),
         mod_file: mod_file.to_string(),
         upper_left_viewport: Coordinate(upper_view_x, upper_view_y),
-        viewport_size: Size((view_width, view_height)),
+        viewport_size: Size(view_width, view_height),
         can_shoot: can_shoot,
         can_bomb: can_bomb,
         fire_burns_brown: fire_burns_brown,

@@ -1,7 +1,9 @@
 use itertools::Zip;
 use num_traits::FromPrimitive;
 
-use super::{WorldState, Board, Robot, Charset, Palette, Sensor, Thing, OverlayMode};
+use super::{
+    WorldState, Board, Robot, Charset, Palette, Sensor, Thing, OverlayMode, Coordinate, Size
+};
 
 pub trait Renderer {
     fn put_pixel(
@@ -16,6 +18,8 @@ pub trait Renderer {
 
 pub fn render<R: Renderer>(
     w: &WorldState,
+    display: (Coordinate<u8>, Size<u8>),
+    viewport: Coordinate<u16>,
     board: &Board,
     robots: &[Robot],
     renderer: &mut R
@@ -42,6 +46,16 @@ pub fn render<R: Renderer>(
                &(overlay_char, overlay_color)))
         in Zip::new((&board.level, &board.under, overlay)).enumerate()
     {
+        let xpos = (pos % board.width) as u16;
+        let ypos = (pos / board.width) as u16;
+        if xpos < viewport.0 ||
+            xpos >= viewport.0 + (display.1).0 as u16 ||
+            ypos < viewport.1 ||
+            ypos >= viewport.1 + (display.1).1 as u16
+        {
+            continue;
+        }
+
         let overlay_visible = overlay_char != b' ';
         let overlay_see_through = overlay_color / num_colors == 0 && overlay_color != 0x00;
         let ch = if !overlay_visible {
@@ -63,8 +77,8 @@ pub fn render<R: Renderer>(
             ch,
             color % num_colors,
             color / num_colors,
-            pos % board.width,
-            pos / board.width,
+            ((display.0).0 as u16 + xpos - viewport.0) as usize,
+            ((display.0).1 as u16 + ypos - viewport.1) as usize,
             charset,
             palette,
             renderer

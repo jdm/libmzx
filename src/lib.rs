@@ -638,7 +638,7 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
     let robot = Robot {
         name: name,
         ch: ch,
-        current_line: current_line,
+        current_line: current_line.checked_sub(1).unwrap_or(0),
         current_loc: current_loc,
         cycle: cycle,
         cycle_count: cycle_count,

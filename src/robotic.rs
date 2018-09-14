@@ -28,7 +28,7 @@ impl From<Parameter> for Operator {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Param {
     Counter(ByteString),
     Literal(u16),
@@ -65,7 +65,7 @@ impl Resolve for Param {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct ModifiedDirection {
     pub dir: Direction,
     randp: bool,
@@ -74,7 +74,7 @@ pub struct ModifiedDirection {
     randnot: bool,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Condition {
     Walking,
     Swimming,
@@ -384,7 +384,7 @@ enum_from_primitive! {
     }
 }
 
-#[derive(Debug, Primitive, PartialEq)]
+#[derive(Copy, Clone, Debug, Primitive, PartialEq)]
 pub enum Item {
     Gems = 0,
     Ammo = 1,
@@ -408,13 +408,13 @@ pub trait Resolve {
     fn resolve(&self, counters: &Counters) -> Self::Output;
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Byte {
     Counter(ByteString),
     Literal(u8),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Numeric {
     Counter(ByteString),
     Literal(u16),
@@ -430,13 +430,13 @@ impl Resolve for Numeric {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SignedNumeric {
     Counter(ByteString),
     Literal(i16),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Character {
     Counter(ByteString),
     Literal(u8),
@@ -452,7 +452,7 @@ impl Resolve for Character {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ExtendedColor {
     Counter(ByteString),
     Literal(u16),
@@ -512,7 +512,7 @@ impl From<Parameter> for ExtendedColor {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Color {
     Counter(ByteString),
     Literal(ColorValue),
@@ -528,7 +528,7 @@ impl Resolve for Color {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Command {
     End,
     Die,

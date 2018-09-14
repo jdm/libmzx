@@ -197,7 +197,7 @@ impl fmt::Debug for ByteString {
     }
 }
 
-#[derive(Debug, Primitive, PartialEq)]
+#[derive(Copy, Clone, Debug, Primitive, PartialEq)]
 pub enum Direction {
     Idle = 0,
     North = 1,
@@ -221,7 +221,7 @@ pub enum Direction {
     RandNot = 128,*/
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum CardinalDirection {
     North,
     South,
@@ -229,7 +229,7 @@ pub enum CardinalDirection {
     West,
 }
 
-#[derive(Debug, Primitive, PartialEq)]
+#[derive(Copy, Clone, Debug, Primitive, PartialEq)]
 pub enum Thing {
     Space = 0,
     Normal = 1,

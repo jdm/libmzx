@@ -12,7 +12,7 @@ mod render;
 mod robotic;
 
 pub use self::render::{Renderer, render};
-pub use self::robotic::{Command, Resolve, Operator};
+pub use self::robotic::{Command, Resolve, Operator, ExtendedParam, ExtendedColorValue};
 
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Zip;

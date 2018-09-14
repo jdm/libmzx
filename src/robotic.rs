@@ -31,7 +31,38 @@ impl From<Parameter> for Operator {
 #[derive(Debug, PartialEq)]
 pub enum Param {
     Counter(ByteString),
-    Literal(ParamValue),
+    Literal(u16),
+}
+
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum ExtendedParam {
+    Specific(ParamValue),
+    Any,
+}
+
+impl ExtendedParam {
+    pub fn matches(&self, other: ParamValue) -> bool {
+        match *self {
+            ExtendedParam::Specific(p) => p == other,
+            ExtendedParam::Any => true,
+        }
+    }
+}
+
+impl Resolve for Param {
+    type Output = ExtendedParam;
+    fn resolve(&self, counters: &Counters) -> Self::Output {
+        let v = match *self {
+            Param::Counter(ref s) => counters.get(s) as u16,
+            Param::Literal(p) => p,
+        };
+        if v == 256 {
+            ExtendedParam::Any
+        } else {
+            ExtendedParam::Specific(ParamValue(v as u8))
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -422,6 +453,66 @@ impl Resolve for Character {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum ExtendedColor {
+    Counter(ByteString),
+    Literal(u16),
+}
+
+pub enum ExtendedColorValue {
+    Known(ColorValue),
+    Unknown(Option<ColorValue>, Option<ColorValue>),
+}
+
+impl ExtendedColorValue {
+    fn new(c: u16) -> ExtendedColorValue {
+        if c & 0xFF00 == 0 {
+            ExtendedColorValue::Known(ColorValue(c as u8))
+        } else {
+            match c & 0xFF {
+                v @ 0...15 => ExtendedColorValue::Unknown(None, Some(ColorValue(v as u8))),
+                v @ 16...31 => ExtendedColorValue::Unknown(Some(ColorValue(v as u8)), None),
+                32 => ExtendedColorValue::Unknown(None, None),
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    pub fn matches(&self, other: ColorValue) -> bool {
+        match *self {
+            ExtendedColorValue::Known(c) =>
+                c == other,
+            ExtendedColorValue::Unknown(Some(bg), None) =>
+                (other.0 & 0xF0) >> 4 == bg.0,
+            ExtendedColorValue::Unknown(None, Some(fg)) =>
+                (other.0 & 0x0F) == fg.0,
+            ExtendedColorValue::Unknown(None, None) =>
+                true,
+            ExtendedColorValue::Unknown(Some(_), Some(_)) =>
+                unreachable!(),
+        }
+    }
+}
+
+impl Resolve for ExtendedColor {
+    type Output = ExtendedColorValue;
+    fn resolve(&self, counters: &Counters) -> Self::Output {
+        match *self {
+            ExtendedColor::Counter(ref s) => ExtendedColorValue::new(counters.get(s) as u16),
+            ExtendedColor::Literal(c) => ExtendedColorValue::new(c),
+        }
+    }
+}
+
+impl From<Parameter> for ExtendedColor {
+    fn from(val: Parameter) -> ExtendedColor {
+        match val {
+            Parameter::Word(u) => ExtendedColor::Literal(u),
+            Parameter::String(s) => ExtendedColor::Counter(s),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Color {
     Counter(ByteString),
     Literal(ColorValue),
@@ -445,7 +536,7 @@ pub enum Command {
     Cycle(Numeric),
     Go(ModifiedDirection, Numeric),
     Walk(ModifiedDirection),
-    Become(Color, Thing, Param),
+    Become(ExtendedColor, Thing, Param),
     Char(Character),
     Color(Color),
     GotoXY(SignedNumeric, SignedNumeric),
@@ -454,17 +545,17 @@ pub enum Command {
     Dec(ByteString, Numeric),
     If(ByteString, Operator, Numeric, ByteString),
     IfCondition(Condition, ByteString, bool),
-    IfAny(Color, Thing, Param, ByteString, bool),
-    IfThingDir(Color, Thing, Param, ModifiedDirection, ByteString, bool),
-    IfThingXY(Color, Thing, Param, SignedNumeric, SignedNumeric, ByteString),
+    IfAny(ExtendedColor, Thing, Param, ByteString, bool),
+    IfThingDir(ExtendedColor, Thing, Param, ModifiedDirection, ByteString, bool),
+    IfThingXY(ExtendedColor, Thing, Param, SignedNumeric, SignedNumeric, ByteString),
     IfAt(SignedNumeric, SignedNumeric, ByteString),
-    IfDirOfPlayer(ModifiedDirection, Color, Thing, Param, ByteString),
+    IfDirOfPlayer(ModifiedDirection, ExtendedColor, Thing, Param, ByteString),
     Double(ByteString),
     Half(ByteString),
     Goto(ByteString),
     Send(ByteString, ByteString),
     Explode(Numeric),
-    PutDir(Color, Thing, Param, ModifiedDirection),
+    PutDir(ExtendedColor, Thing, Param, ModifiedDirection),
     Give(Numeric, Item),
     Take(Numeric, Item, Option<ByteString>),
     EndGame,
@@ -507,7 +598,7 @@ pub enum Command {
     ShootSeeker(ModifiedDirection),
     SpitFire(ModifiedDirection),
     LazerWall(ModifiedDirection, Numeric),
-    PutXY(Color, Thing, Param, SignedNumeric, SignedNumeric),
+    PutXY(ExtendedColor, Thing, Param, SignedNumeric, SignedNumeric),
     DieItem,
     SendXY(SignedNumeric, SignedNumeric, ByteString),
     CopyRobotNamed(ByteString),
@@ -523,7 +614,7 @@ pub enum Command {
     SetRandom(ByteString, Numeric, Numeric),
     Trade(Numeric, Item, Numeric, Item, ByteString),
     SendDirPlayer(ModifiedDirection, ByteString),
-    PutDirPlayer(Color, Thing, Param, ModifiedDirection),
+    PutDirPlayer(ExtendedColor, Thing, Param, ModifiedDirection),
     Slash(ByteString),
     MessageLine(ByteString),
     MessageBoxLine(ByteString),
@@ -540,7 +631,7 @@ pub enum Command {
     PlayerChar(Character),
     MessageBoxColorLine(ByteString),
     MessageBoxCenterLine(ByteString),
-    MoveAll(Color, Thing, ModifiedDirection),
+    MoveAll(ExtendedColor, Thing, ModifiedDirection),
     Copy(SignedNumeric, SignedNumeric, SignedNumeric, SignedNumeric),
     SetEdgeColor(Color),
     Board(ModifiedDirection, Option<ByteString>),
@@ -554,7 +645,7 @@ pub enum Command {
     Avalanche,
     CopyDir(ModifiedDirection, ModifiedDirection),
     BecomeLavaWalker(bool),
-    Change(Color, Thing, Param, Color, Thing, Param),
+    Change(ExtendedColor, Thing, Param, ExtendedColor, Thing, Param),
     PlayerColor(Color),
     BulletColor(Color),
     MissileColor(Color),
@@ -633,7 +724,7 @@ pub enum Command {
     OverlayOn,
     OverlayStatic,
     OverlayTransparent,
-    PutOverlay(Color, Character, SignedNumeric, SignedNumeric),
+    PutOverlay(ExtendedColor, Character, SignedNumeric, SignedNumeric),
     CopyOverlayBlock(SignedNumeric, SignedNumeric, Numeric, Numeric, SignedNumeric, SignedNumeric),
     ChangeOverlay(Color, Color, Option<(Character, Character)>),
     WriteOverlay(Color, ByteString, SignedNumeric, SignedNumeric),
@@ -776,7 +867,7 @@ impl From<Parameter> for Param {
     fn from(val: Parameter) -> Param {
         match val {
             Parameter::String(s) => Param::Counter(s),
-            Parameter::Word(w) => Param::Literal(ParamValue(w as u8)),
+            Parameter::Word(w) => Param::Literal(w),
         }
     }
 }

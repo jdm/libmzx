@@ -1,8 +1,9 @@
 use itertools::Zip;
-use num_traits::FromPrimitive;
+use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::{
-    WorldState, Board, Robot, Charset, Palette, Sensor, Thing, OverlayMode, Coordinate, Size
+    WorldState, Board, Robot, Charset, Palette, Sensor, Thing, OverlayMode, Coordinate, Size,
+    CharId
 };
 
 pub trait Renderer {
@@ -22,7 +23,8 @@ pub fn render<R: Renderer>(
     viewport: Coordinate<u16>,
     board: &Board,
     robots: &[Robot],
-    renderer: &mut R
+    renderer: &mut R,
+    is_title_screen: bool,
 ) {
     let charset = &w.charset;
     let palette = &w.palette;
@@ -56,10 +58,18 @@ pub fn render<R: Renderer>(
             continue;
         }
 
+        if Thing::from_u8(id).unwrap() == Thing::Player {
+            color = if is_title_screen {
+                0
+            } else {
+                w.char_id(CharId::PlayerColor)
+            };
+        }
+
         let overlay_visible = overlay_char != b' ';
         let overlay_see_through = overlay_color / num_colors == 0 && overlay_color != 0x00;
         let ch = if !overlay_visible {
-            char_from_id(id, param, &robots, &board.sensors)
+            char_from_id(id, param, &robots, &board.sensors, &w.idchars)
         } else {
             overlay_char
         };
@@ -115,7 +125,7 @@ fn draw_char<R: Renderer>(
     }
 }
 
-fn char_from_id(id: u8, param: u8, robots: &[Robot], sensors: &[Sensor]) -> u8 {
+fn char_from_id(id: u8, param: u8, robots: &[Robot], sensors: &[Sensor], idchars: &[u8]) -> u8 {
     match Thing::from_u8(id).expect("invalid thing") {
         Thing::Space => b' ',
         Thing::Normal => 178,
@@ -218,7 +228,7 @@ fn char_from_id(id: u8, param: u8, robots: &[Robot], sensors: &[Sensor]) -> u8 {
         Thing::RobotPushable | Thing::Robot => robots[param as usize - 1].ch,
         Thing::Sign => 226,
         Thing::Scroll => 232,
-        Thing::Player => 0x02,
+        Thing::Player => idchars[CharId::PlayerSouth.to_usize().unwrap()], //FIXME: use current playerdir
 
         _ => b'!',
     }

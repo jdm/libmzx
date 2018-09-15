@@ -61,6 +61,17 @@ pub struct World {
 pub struct WorldState {
     pub charset: Charset,
     pub palette: Palette,
+    pub idchars: Box<[u8]>,
+}
+
+impl WorldState {
+    pub fn set_char_id(&mut self, id: CharId, val: u8) {
+        self.idchars[id.to_usize().unwrap()] = val;
+    }
+
+    pub fn char_id(&self, id: CharId) -> u8 {
+        self.idchars[id.to_usize().unwrap()]
+    }
 }
 
 pub struct Board {
@@ -227,6 +238,15 @@ pub enum CardinalDirection {
     South,
     East,
     West,
+}
+
+#[derive(Copy, Clone, Debug, Primitive, PartialEq)]
+pub enum CharId {
+    PlayerNorth = 318,
+    PlayerSouth = 319,
+    PlayerEast = 320,
+    PlayerWest = 321,
+    PlayerColor = 322,
 }
 
 #[derive(Copy, Clone, Debug, Primitive, PartialEq)]
@@ -868,7 +888,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
     let mut charset = Charset { data: [0; CHARSET_BUFFER_SIZE] };
     charset.data.copy_from_slice(charset_data);
 
-    let (_idchars, buffer) = buffer.split_at(455);
+    let (idchars, buffer) = buffer.split_at(455);
 
     let (_status_counters, buffer) = buffer.split_at(6 * 15);
 
@@ -949,6 +969,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         state: WorldState {
             charset: charset,
             palette: Palette { colors: colors },
+            idchars: idchars.to_vec().into_boxed_slice(),
         },
         boards: boards,
         board_robots: board_robots,

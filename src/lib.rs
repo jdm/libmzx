@@ -192,7 +192,7 @@ pub struct Sensor {
     pub used: bool,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, Eq)]
 pub struct ByteString(Vec<u8>);
 
 impl Default for ByteString {
@@ -201,7 +201,33 @@ impl Default for ByteString {
     }
 }
 
+impl<'a> Into<ByteString> for &'a ByteString {
+    fn into(self) -> ByteString {
+        self.clone()
+    }
+}
+
+impl<'a> From<&'a str> for ByteString {
+    fn from(v: &'a str) -> ByteString {
+        ByteString(v.as_bytes().to_vec())
+    }
+}
+
+impl PartialEq for ByteString {
+    fn eq(&self, other: &ByteString) -> bool {
+        self.as_bytes().len() == other.as_bytes().len() &&
+        self.as_bytes()
+            .iter()
+            .zip(other.as_bytes().iter())
+            .all(|(a, b)| a.to_ascii_lowercase() == b.to_ascii_lowercase())
+    }
+}
+
 impl ByteString {
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+
     pub fn into_string(self) -> String {
         String::from_utf8(self.0).expect("Invalid UTF8 string")
     }

@@ -136,10 +136,26 @@ impl Board {
     }
 
     pub fn move_level(&mut self, pos: &Coordinate<u16>, xdiff: i8, ydiff: i8) {
+        self.move_level_to(
+            pos,
+            &Coordinate(
+                (pos.0 as i16 + xdiff as i16) as u16,
+                (pos.1 as i16 + ydiff as i16) as u16
+            )
+        );
+    }
+
+    pub fn move_level_to(&mut self, pos: &Coordinate<u16>, new_pos: &Coordinate<u16>) {
         let old_idx = pos.1 * self.width as u16 + pos.0;
-        let new_idx = (pos.1 as i16 + ydiff as i16) as u16 * self.width as u16 + (pos.0 as i16 + xdiff as i16) as u16;
+        let new_idx = new_pos.1 * self.width as u16 + new_pos.0;
+        self.under[new_idx as usize] = self.level[new_idx as usize];
         self.level[new_idx as usize] = self.level[old_idx as usize];
-        self.level[old_idx as usize] = (0, 0x07, 0);
+        self.level[old_idx as usize] = self.under[old_idx as usize];
+    }
+
+    pub fn remove_thing_at(&mut self, pos: &Coordinate<u16>) {
+        let idx = pos.1 * self.width as u16 + pos.0;
+        self.level[idx as usize] = self.under[idx as usize];
     }
 }
 

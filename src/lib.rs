@@ -539,6 +539,7 @@ pub struct Robot {
     pub onscreen: bool,
     pub loop_count: u16,
     pub program: Vec<Command>,
+    pub cycle_delay: u8,
 }
 
 #[derive(Debug)]
@@ -715,6 +716,7 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
         onscreen: onscreen,
         loop_count: loop_count,
         program: program.into(),
+        cycle_delay: 1,
     };
     (robot, buffer)
 }

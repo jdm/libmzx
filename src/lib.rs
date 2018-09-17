@@ -759,7 +759,7 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
         onscreen: onscreen,
         loop_count: loop_count,
         program: program.into(),
-        cycle_delay: 1,
+        cycle_delay: 0,
         alive: true,
     };
     (robot, buffer)

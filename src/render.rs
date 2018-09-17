@@ -3,7 +3,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::{
     WorldState, Board, Robot, Charset, Palette, Sensor, Thing, OverlayMode, Coordinate, Size,
-    CharId
+    CharId, Explosion,
 };
 
 pub trait Renderer {
@@ -43,7 +43,7 @@ pub fn render<R: Renderer>(
         }
     };
 
-    for (pos, (&(id, mut color, param),
+    for (pos, (&(id, color, param),
                &(_under_id, under_color, _under_param),
                &(overlay_char, overlay_color)))
         in Zip::new((&board.level, &board.under, overlay)).enumerate()
@@ -58,13 +58,19 @@ pub fn render<R: Renderer>(
             continue;
         }
 
-        if Thing::from_u8(id).unwrap() == Thing::Player {
-            color = if is_title_screen {
+        let mut color = match Thing::from_u8(id).unwrap() {
+            Thing::Player => if is_title_screen {
                 0
             } else {
                 w.char_id(CharId::PlayerColor)
-            };
-        }
+            },
+            Thing::Fire => w.char_id_offset(CharId::FireColor1, param),
+            Thing::Explosion => w.char_id_offset(
+                CharId::ExplosionStage1,
+                Explosion::from_param(param).stage
+            ),
+            _ => color,
+        };
 
         let overlay_visible = overlay_char != b' ';
         let overlay_see_through = overlay_color / num_colors == 0 && overlay_color != 0x00;
@@ -191,7 +197,7 @@ fn char_from_id(id: u8, param: u8, robots: &[Robot], sensors: &[Sensor], idchars
 
 
 
-
+        Thing::Fire => idchars[CharId::FireAnim1.to_usize().unwrap() + param as usize],
         Thing::Forest => 178,
 
         Thing::Whirlpool1 => 54,

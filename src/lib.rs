@@ -72,6 +72,10 @@ impl WorldState {
     pub fn char_id(&self, id: CharId) -> u8 {
         self.idchars[id.to_usize().unwrap()]
     }
+
+    pub fn char_id_offset(&self, id: CharId, offset: u8) -> u8 {
+        self.idchars[id.to_usize().unwrap() + offset as usize]
+    }
 }
 
 pub struct Board {
@@ -284,6 +288,22 @@ pub enum CardinalDirection {
 
 #[derive(Copy, Clone, Debug, Primitive, PartialEq)]
 pub enum CharId {
+    ExplosionStage1 = 184,
+    ExplosionStage2 = 185,
+    ExplosionStage3 = 186,
+    ExplosionStage4 = 187,
+    FireAnim1 = 266,
+    FireAnim2 = 267,
+    FireAnim3 = 268,
+    FireAnim4 = 269,
+    FireAnim5 = 270,
+    FireAnim6 = 271,
+    FireColor1 = 272,
+    FireColor2 = 273,
+    FireColor3 = 274,
+    FireColor4 = 275,
+    FireColor5 = 276,
+    FireColor6 = 277,
     PlayerNorth = 318,
     PlayerSouth = 319,
     PlayerEast = 320,
@@ -484,11 +504,33 @@ pub enum OverlayMode {
     Transparent,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ExplosionResult {
     Nothing,
     Ash,
     Fire,
+}
+
+pub struct Explosion {
+    pub stage: u8,
+    pub size: u8,
+}
+
+impl Explosion {
+    pub fn to_param(&self) -> u8 {
+        self.stage | (self.size << 4)
+    }
+
+    pub fn from_param(p: u8) -> Explosion {
+        let stage = p & 0x0F;
+        assert!(stage < 4);
+        let size = (p & 0xF0) >> 4;
+        assert!(size < 16);
+        Explosion {
+            stage,
+            size,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -540,6 +582,7 @@ pub struct Robot {
     pub loop_count: u16,
     pub program: Vec<Command>,
     pub cycle_delay: u8,
+    pub alive: bool,
 }
 
 #[derive(Debug)]
@@ -717,6 +760,7 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
         loop_count: loop_count,
         program: program.into(),
         cycle_delay: 1,
+        alive: true,
     };
     (robot, buffer)
 }

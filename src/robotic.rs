@@ -436,6 +436,16 @@ pub enum SignedNumeric {
     Literal(i16),
 }
 
+impl Resolve for SignedNumeric {
+    type Output = i16;
+    fn resolve(&self, counters: &Counters) -> Self::Output {
+        match *self {
+            SignedNumeric::Counter(ref s) => counters.get(s),
+            SignedNumeric::Literal(u) => u,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Character {
     Counter(ByteString),

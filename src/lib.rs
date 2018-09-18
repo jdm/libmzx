@@ -497,7 +497,7 @@ pub enum BulletType {
     Enemy,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum OverlayMode {
     Normal,
     Static,

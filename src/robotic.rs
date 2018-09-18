@@ -1,6 +1,6 @@
 use num_traits::FromPrimitive;
 use std::mem;
-use super::{get_word, get_byte, ByteString, Direction, ColorValue, ParamValue, Thing, Counters, CardinalDirection};
+use super::{get_word, get_byte, ByteString, Direction, ColorValue, ParamValue, Thing, Counters, CardinalDirection, OverlayMode};
 
 const CHAR_BYTES: usize = 14;
 
@@ -721,9 +721,7 @@ pub enum Command {
     DisableSaving,
     EnableSensorOnlySaving,
     StatusCounter(Numeric, ByteString),
-    OverlayOn,
-    OverlayStatic,
-    OverlayTransparent,
+    OverlayMode(OverlayMode),
     PutOverlay(ExtendedColor, Character, SignedNumeric, SignedNumeric),
     CopyOverlayBlock(SignedNumeric, SignedNumeric, Numeric, Numeric, SignedNumeric, SignedNumeric),
     ChangeOverlay(Color, Color, Option<(Character, Character)>),
@@ -1454,9 +1452,9 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::DisableSaving => Command::DisableSaving,
         CommandOp::EnableSensorOnlySaving => Command::EnableSensorOnlySaving,
         CommandOp::StatusCounter => two_args(buffer, Command::StatusCounter),
-        CommandOp::OverlayOn => Command::OverlayOn,
-        CommandOp::OverlayStatic => Command::OverlayStatic,
-        CommandOp::OverlayTransparent => Command::OverlayTransparent,
+        CommandOp::OverlayOn => Command::OverlayMode(OverlayMode::Normal),
+        CommandOp::OverlayStatic => Command::OverlayMode(OverlayMode::Static),
+        CommandOp::OverlayTransparent => Command::OverlayMode(OverlayMode::Transparent),
         CommandOp::PutOverlay => four_args(buffer, Command::PutOverlay),
         CommandOp::CopyOverlayBlock => six_args(buffer, Command::CopyOverlayBlock),
         CommandOp::ChangeOverlay | CommandOp::ChangeOverlayColor => {

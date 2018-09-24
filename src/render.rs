@@ -15,6 +15,7 @@ pub trait Renderer {
         g: u8,
         b: u8,
     );
+    fn clear(&mut self);
 }
 
 pub fn render<R: Renderer>(
@@ -29,6 +30,8 @@ pub fn render<R: Renderer>(
     let charset = &w.charset;
     let palette = &w.palette;
     let num_colors = palette.colors.len() as u8;
+
+    renderer.clear();
 
     let mut empty_overlay = vec![];
     let overlay = match board.overlay {

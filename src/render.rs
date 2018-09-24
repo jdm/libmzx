@@ -118,7 +118,7 @@ fn draw_char<R: Renderer>(
     let char_bytes = charset.nth(ch);
     for (y_off, byte) in char_bytes.iter().enumerate() {
         for bit in 1..9 {
-            let color = if byte & (1 << (bit - 1)) != 0 {
+            let &(ref color, ref intensity) = if byte & (1 << (bit - 1)) != 0 {
                 &palette.colors[fg_color as usize]
             } else {
                 &palette.colors[bg_color as usize]
@@ -126,9 +126,9 @@ fn draw_char<R: Renderer>(
             renderer.put_pixel(
                 (x + 1) * 8 - bit,
                 y * 14 + y_off,
-                color.r * 4,
-                color.g * 4,
-                color.b * 4,
+                ((color.r * 4) as f32 * intensity) as u8,
+                ((color.g * 4) as f32 * intensity) as u8,
+                ((color.b * 4) as f32 * intensity) as u8,
             );
         }
     }

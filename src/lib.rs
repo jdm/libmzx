@@ -568,7 +568,7 @@ pub struct Color {
 }
 
 pub struct Palette {
-    pub colors: Vec<Color>,
+    pub colors: Vec<(Color, f32)>,
 }
 
 pub struct Robot {
@@ -1007,7 +1007,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
     let mut colors = vec![];
     for rgb in palette_color_data.chunks(3) {
         assert!(rgb.iter().all(|&b| b < 64u8));
-        colors.push(Color { r: rgb[0], g: rgb[1], b: rgb[2] });
+        colors.push((Color { r: rgb[0], g: rgb[1], b: rgb[2] }, 1.0));
     }
     assert_eq!(colors.len(), 16);
 

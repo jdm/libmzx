@@ -2,7 +2,7 @@ use num_traits::FromPrimitive;
 use std::mem;
 use super::{
     get_word, get_byte, ByteString, Direction, ColorValue, ParamValue, Thing, Counters,
-    CardinalDirection, OverlayMode, CHAR_BYTES
+    CardinalDirection, OverlayMode, CHAR_BYTES, Robot
 };
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -53,9 +53,9 @@ impl ExtendedParam {
 
 impl Resolve for Param {
     type Output = ExtendedParam;
-    fn resolve(&self, counters: &Counters) -> Self::Output {
+    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
         let v = match *self {
-            Param::Counter(ref s) => counters.get(s) as u16,
+            Param::Counter(ref s) => counters.get(s, context) as u16,
             Param::Literal(p) => p,
         };
         if v == 256 {
@@ -406,7 +406,7 @@ impl From<Parameter> for Item {
 
 pub trait Resolve {
     type Output;
-    fn resolve(&self, counters: &Counters) -> Self::Output;
+    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output;
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -417,9 +417,9 @@ pub enum Byte {
 
 impl Resolve for Byte {
     type Output = u8;
-    fn resolve(&self, counters: &Counters) -> Self::Output {
+    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
         match *self {
-            Byte::Counter(ref s) => counters.get(s) as u8,
+            Byte::Counter(ref s) => counters.get(s, context) as u8,
             Byte::Literal(b) => b,
         }
     }
@@ -433,9 +433,9 @@ pub enum Numeric {
 
 impl Resolve for Numeric {
     type Output = u16;
-    fn resolve(&self, counters: &Counters) -> Self::Output {
+    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
         match *self {
-            Numeric::Counter(ref s) => counters.get(s) as u16,
+            Numeric::Counter(ref s) => counters.get(s, context) as u16,
             Numeric::Literal(u) => u,
         }
     }
@@ -449,9 +449,9 @@ pub enum SignedNumeric {
 
 impl Resolve for SignedNumeric {
     type Output = i16;
-    fn resolve(&self, counters: &Counters) -> Self::Output {
+    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
         match *self {
-            SignedNumeric::Counter(ref s) => counters.get(s),
+            SignedNumeric::Counter(ref s) => counters.get(s, context),
             SignedNumeric::Literal(u) => u,
         }
     }
@@ -465,9 +465,9 @@ pub enum Character {
 
 impl Resolve for Character {
     type Output = u8;
-    fn resolve(&self, counters: &Counters) -> Self::Output {
+    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
         match *self {
-            Character::Counter(ref s) => counters.get(s) as u8,
+            Character::Counter(ref s) => counters.get(s, context) as u8,
             Character::Literal(u) => u,
         }
     }
@@ -516,9 +516,9 @@ impl ExtendedColorValue {
 
 impl Resolve for ExtendedColor {
     type Output = ExtendedColorValue;
-    fn resolve(&self, counters: &Counters) -> Self::Output {
+    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
         match *self {
-            ExtendedColor::Counter(ref s) => ExtendedColorValue::new(counters.get(s) as u16),
+            ExtendedColor::Counter(ref s) => ExtendedColorValue::new(counters.get(s, context) as u16),
             ExtendedColor::Literal(c) => ExtendedColorValue::new(c),
         }
     }
@@ -541,9 +541,9 @@ pub enum Color {
 
 impl Resolve for Color {
     type Output = ColorValue;
-    fn resolve(&self, counters: &Counters) -> Self::Output {
+    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
         match *self {
-            Color::Counter(ref s) => ColorValue(counters.get(s) as u8),
+            Color::Counter(ref s) => ColorValue(counters.get(s, context) as u8),
             Color::Literal(c) => c,
         }
     }
@@ -803,13 +803,6 @@ impl Parameter {
             (w & 0x00FF) as u8,
             ((w & 0xFF00) >> 8) as u8,
         )
-    }
-
-    fn as_string(&self) -> &ByteString {
-        match *self {
-            Parameter::Word(_) => panic!("unexpected word literal"),
-            Parameter::String(ref s) => s,
-        }
     }
 
     fn into_string(self) -> ByteString {

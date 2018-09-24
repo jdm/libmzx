@@ -176,12 +176,23 @@ impl Counters {
         }
     }
 
-    pub fn set(&mut self, name: ByteString, value: i16) {
-        self.counters.insert(name, value);
+    pub fn set(&mut self, name: ByteString, context: &mut Robot, value: i16) {
+        // TODO: local, lavalwalking, etc.
+        if &name == "loopcount" {
+            context.loop_count = value as u16;
+        } else {
+            self.counters.insert(name, value);
+        }
     }
 
-    pub fn get(&self, name: &ByteString) -> i16 {
-        *self.counters.get(&name).unwrap_or(&0)
+    pub fn get(&self, name: &ByteString, context: &Robot) -> i16 {
+        // TODO: local, lavawalking, thisx, etc.
+        // TODO: respect command prefixes
+        if name == "loopcount" {
+            context.loop_count as i16
+        } else {
+            *self.counters.get(&name).unwrap_or(&0)
+        }
     }
 }
 
@@ -221,6 +232,16 @@ impl<'a> From<&'a str> for ByteString {
 
 impl PartialEq for ByteString {
     fn eq(&self, other: &ByteString) -> bool {
+        self.as_bytes().len() == other.as_bytes().len() &&
+        self.as_bytes()
+            .iter()
+            .zip(other.as_bytes().iter())
+            .all(|(a, b)| a.to_ascii_lowercase() == b.to_ascii_lowercase())
+    }
+}
+
+impl PartialEq<str> for ByteString {
+    fn eq(&self, other: &str) -> bool {
         self.as_bytes().len() == other.as_bytes().len() &&
         self.as_bytes()
             .iter()

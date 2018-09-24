@@ -414,6 +414,16 @@ pub enum Byte {
     Literal(u8),
 }
 
+impl Resolve for Byte {
+    type Output = u8;
+    fn resolve(&self, counters: &Counters) -> Self::Output {
+        match *self {
+            Byte::Counter(ref s) => counters.get(s) as u8,
+            Byte::Literal(b) => b,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Numeric {
     Counter(ByteString),

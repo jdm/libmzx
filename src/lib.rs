@@ -12,7 +12,9 @@ mod render;
 mod robotic;
 
 pub use self::render::{Renderer, render};
-pub use self::robotic::{Command, Resolve, Operator, ExtendedParam, ExtendedColorValue};
+pub use self::robotic::{
+    Command, Resolve, Operator, ExtendedParam, ExtendedColorValue, RelativePart, SignedNumeric,
+};
 
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Zip;
@@ -540,7 +542,8 @@ pub enum SaveRestriction {
     OnlyOnSensor,
 }
 
-const CHARSET_BUFFER_SIZE: usize = 14 * 256;
+pub const CHAR_BYTES: usize = 14;
+const CHARSET_BUFFER_SIZE: usize = CHAR_BYTES * 256;
 
 pub struct Charset {
     pub data: [u8; CHARSET_BUFFER_SIZE],
@@ -549,7 +552,12 @@ pub struct Charset {
 impl Charset {
     pub fn nth(&self, n: u8) -> &[u8] {
         let n = n as usize;
-        &self.data[(n * 14)..((n + 1) * 14)]
+        &self.data[(n * CHAR_BYTES)..((n + 1) * CHAR_BYTES)]
+    }
+
+    pub fn nth_mut(&mut self, n: u8) -> &mut [u8] {
+        let n = n as usize;
+        &mut self.data[(n * CHAR_BYTES)..((n + 1) * CHAR_BYTES)]
     }
 }
 

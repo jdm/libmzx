@@ -1,8 +1,9 @@
 use num_traits::FromPrimitive;
 use std::mem;
-use super::{get_word, get_byte, ByteString, Direction, ColorValue, ParamValue, Thing, Counters, CardinalDirection, OverlayMode};
-
-const CHAR_BYTES: usize = 14;
+use super::{
+    get_word, get_byte, ByteString, Direction, ColorValue, ParamValue, Thing, Counters,
+    CardinalDirection, OverlayMode, CHAR_BYTES
+};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Operator {

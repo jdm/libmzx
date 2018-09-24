@@ -538,6 +538,12 @@ impl Resolve for Color {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum RelativePart {
+    First,
+    Last,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Command {
     End,
@@ -660,9 +666,9 @@ pub enum Command {
     BulletColor(Color),
     MissileColor(Color),
     MessageRow(Numeric),
-    RelSelf,
-    RelPlayer,
-    RelCounters,
+    RelSelf(Option<RelativePart>),
+    RelPlayer(Option<RelativePart>),
+    RelCounters(Option<RelativePart>),
     SetIdChar(Numeric, Character),
     JumpModOrder(Numeric),
     Ask(ByteString),
@@ -693,12 +699,6 @@ pub enum Command {
     PlayerBulletColor(Color),
     NeutralBulletColor(Color),
     EnemyBulletColor(Color),
-    RelSelfFirst,
-    RelSelfLast,
-    RelPlayerFirst,
-    RelPlayerLast,
-    RelCountersFirst,
-    RelCountersLast,
     ModFadeOut,
     ModFadeIn,
     CopyBlock(SignedNumeric, SignedNumeric, Numeric, Numeric, SignedNumeric, SignedNumeric),
@@ -1283,9 +1283,9 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::BulletColor => one_arg(buffer, Command::BulletColor),
         CommandOp::MissileColor => one_arg(buffer, Command::MissileColor),
         CommandOp::MessageRow | CommandOp::Unused167 => one_arg(buffer, Command::MessageRow),
-        CommandOp::RelSelf => Command::RelSelf,
-        CommandOp::RelPlayer => Command::RelPlayer,
-        CommandOp::RelCounters => Command::RelCounters,
+        CommandOp::RelSelf => Command::RelSelf(None),
+        CommandOp::RelPlayer => Command::RelPlayer(None),
+        CommandOp::RelCounters => Command::RelCounters(None),
         CommandOp::SetIdChar => two_args(buffer, Command::SetIdChar),
         CommandOp::JumpModOrder => one_arg(buffer, Command::JumpModOrder),
         CommandOp::Ask => one_arg(buffer, Command::Ask),
@@ -1411,12 +1411,12 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::Unused248 |
         CommandOp::Unused249 |
         CommandOp::Unused250 => return None,
-        CommandOp::RelSelfFirst => Command::RelSelfFirst,
-        CommandOp::RelSelfLast => Command::RelSelfLast,
-        CommandOp::RelPlayerFirst => Command::RelPlayerFirst,
-        CommandOp::RelPlayerLast => Command::RelPlayerLast,
-        CommandOp::RelCountersFirst => Command::RelCountersFirst,
-        CommandOp::RelCountersLast => Command::RelCountersLast,
+        CommandOp::RelSelfFirst => Command::RelSelf(Some(RelativePart::First)),
+        CommandOp::RelSelfLast => Command::RelSelf(Some(RelativePart::Last)),
+        CommandOp::RelPlayerFirst => Command::RelPlayer(Some(RelativePart::First)),
+        CommandOp::RelPlayerLast => Command::RelPlayer(Some(RelativePart::Last)),
+        CommandOp::RelCountersFirst => Command::RelCounters(Some(RelativePart::First)),
+        CommandOp::RelCountersLast => Command::RelCounters(Some(RelativePart::Last)),
         CommandOp::ModFadeOut => Command::ModFadeOut,
         CommandOp::ModFadeIn => Command::ModFadeIn,
         CommandOp::CopyBlock => six_args(buffer, Command::CopyBlock),

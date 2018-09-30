@@ -745,7 +745,7 @@ pub enum Command {
     OverlayMode(OverlayMode),
     PutOverlay(ExtendedColor, Character, SignedNumeric, SignedNumeric),
     CopyOverlayBlock(SignedNumeric, SignedNumeric, Numeric, Numeric, SignedNumeric, SignedNumeric),
-    ChangeOverlay(Color, Color, Option<(Character, Character)>),
+    ChangeOverlay(ExtendedColor, ExtendedColor, Option<(Character, Character)>),
     WriteOverlay(Color, ByteString, SignedNumeric, SignedNumeric),
     LoopStart,
     LoopFor(Numeric),

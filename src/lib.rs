@@ -64,6 +64,7 @@ pub struct WorldState {
     pub charset: Charset,
     pub palette: Palette,
     pub idchars: Box<[u8]>,
+    pub saved_positions: [(usize, Coordinate<u16>); 10],
 }
 
 impl WorldState {
@@ -1085,6 +1086,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
             charset: charset,
             palette: Palette { colors: colors },
             idchars: idchars.to_vec().into_boxed_slice(),
+            saved_positions: [(0, Coordinate(0, 0)); 10],
         },
         boards: boards,
         board_robots: board_robots,

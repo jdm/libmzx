@@ -699,9 +699,9 @@ pub enum Command {
     ScrollArrow(Color),
     Viewport(Numeric, Numeric),
     ViewportWidth(Numeric, Numeric),
-    SavePlayerPosition(Option<Numeric>),
-    RestorePlayerPosition(Option<Numeric>),
-    ExchangePlayerPosition(Option<Numeric>),
+    SavePlayerPosition(Numeric),
+    RestorePlayerPosition(Numeric),
+    ExchangePlayerPosition(Numeric),
     RestorePlayerPositionDupSelf(Numeric),
     ExchangePlayerPositionDupSelf(Numeric),
     PlayerBullet(Character, CardinalDirection),
@@ -1307,35 +1307,29 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::SavePlayerPosition | CommandOp::SavePlayerPositionN => {
             let param1 = if op == CommandOp::SavePlayerPositionN {
                 let (param, _buffer) = get_robotic_parameter(buffer);
-                Some(param)
+                param
             } else {
-                None
+                Parameter::Word(0)
             };
-            Command::SavePlayerPosition(
-                param1.map(|p| p.into()),
-            )
+            Command::SavePlayerPosition(param1.into())
         }
         CommandOp::RestorePlayerPosition | CommandOp::RestorePlayerPositionN => {
             let param1 = if op == CommandOp::RestorePlayerPositionN {
                 let (param, _buffer) = get_robotic_parameter(buffer);
-                Some(param)
+                param
             } else {
-                None
+                Parameter::Word(0)
             };
-            Command::RestorePlayerPosition(
-                param1.map(|p| p.into()),
-            )
+            Command::RestorePlayerPosition(param1.into())
         }
         CommandOp::ExchangePlayerPosition | CommandOp::ExchangePlayerPositionN => {
             let param1 = if op == CommandOp::ExchangePlayerPositionN {
                 let (param, _buffer) = get_robotic_parameter(buffer);
-                Some(param)
+                param
             } else {
-                None
+                Parameter::Word(0)
             };
-            Command::ExchangePlayerPosition(
-                param1.map(|p| p.into()),
-            )
+            Command::ExchangePlayerPosition(param1.into())
         }
         CommandOp::MessageColumn | CommandOp::Unused166 => one_arg(buffer, Command::MessageColumn),
         CommandOp::CenterMessage => Command::CenterMessage,

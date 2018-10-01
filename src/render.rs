@@ -1,4 +1,4 @@
-use itertools::Zip;
+use itertools::{Zip, Itertools};
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::{
@@ -46,20 +46,47 @@ pub fn render<R: Renderer>(
         }
     };
 
-    for (pos, (&(id, color, param),
-               &(_under_id, under_color, _under_param),
-               &(overlay_char, overlay_color)))
-        in Zip::new((&board.level, &board.under, overlay)).enumerate()
+    let level = Itertools::flatten(
+        board
+            .level
+            .chunks(board.width) // per-row
+            .skip(viewport.1 as usize) // ignore rows outside of viewport
+            .take((display.1).1 as usize) // ignore rows outside of viewport
+            .map(|row| row.iter().skip(viewport.0 as usize).take((display.1).0 as usize))
+    );
+
+    let under = Itertools::flatten(
+        board
+            .under
+            .chunks(board.width) // per-row
+            .skip(viewport.1 as usize) // ignore rows outside of viewport
+            .take((display.1).1 as usize) // ignore rows outside of viewport
+            .map(|row| row.iter().skip(viewport.0 as usize).take((display.1).0 as usize))
+    );
+
+    let is_static = board.overlay.as_ref().map_or(false, |(o, _)| *o == OverlayMode::Static);
+    let overlay_viewport = if is_static {
+        Coordinate(0, 0)
+    } else {
+        viewport
+    };
+
+    let overlay = Itertools::flatten(
+        overlay
+            .chunks(board.width) // per-row
+            .skip(overlay_viewport.1 as usize) // ignore pre-viewport
+            .take((display.1).1 as usize) // only iterate rows in viewport
+            .map(|row| row.iter().skip(overlay_viewport.0 as usize).take((display.1).0 as usize))
+    );
+
+    for (pos, (level, under, overlay)) in Zip::new((level, under, overlay)).enumerate()
     {
-        let xpos = (pos % board.width) as u16;
-        let ypos = (pos / board.width) as u16;
-        if xpos < viewport.0 ||
-            xpos >= viewport.0 + (display.1).0 as u16 ||
-            ypos < viewport.1 ||
-            ypos >= viewport.1 + (display.1).1 as u16
-        {
-            continue;
-        }
+        let &(id, color, param) = level;
+        let &(_under_id, under_color, _under_param) = under;
+        let &(overlay_char, overlay_color) = overlay;
+
+        let xpos = pos as u16 % (display.1).0 as u16;
+        let ypos = pos as u16 / (display.1).0 as u16;
 
         let mut color = match Thing::from_u8(id).unwrap() {
             Thing::Player => if is_title_screen {
@@ -96,8 +123,8 @@ pub fn render<R: Renderer>(
             ch,
             color % num_colors,
             color / num_colors,
-            ((display.0).0 as u16 + xpos - viewport.0) as usize,
-            ((display.0).1 as u16 + ypos - viewport.1) as usize,
+            ((display.0).0 as u16 + xpos) as usize,
+            ((display.0).1 as u16 + ypos) as usize,
             charset,
             palette,
             renderer

@@ -14,6 +14,7 @@ mod robotic;
 pub use self::render::{Renderer, render};
 pub use self::robotic::{
     Command, Resolve, Operator, ExtendedParam, ExtendedColorValue, RelativePart, SignedNumeric,
+    ModifiedDirection,
 };
 
 use byteorder::{ByteOrder, LittleEndian};
@@ -302,12 +303,12 @@ pub enum Direction {
     RandNot = 128,*/
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Primitive)]
 pub enum CardinalDirection {
-    North,
-    South,
-    East,
-    West,
+    North = 1,
+    South = 2,
+    East = 3,
+    West = 4,
 }
 
 #[derive(Copy, Clone, Debug, Primitive, PartialEq)]
@@ -603,9 +604,9 @@ pub struct Robot {
     pub bullet_type: BulletType,
     pub locked: bool,
     pub lavawalking: bool,
-    pub walk: Direction,
-    pub last_touched: Direction,
-    pub last_shot: Direction,
+    pub walk: Option<CardinalDirection>,
+    pub last_touched: Option<CardinalDirection>,
+    pub last_shot: Option<CardinalDirection>,
     pub position: Coordinate<u16>,
     pub reserved: [u8; 3],
     pub onscreen: bool,
@@ -693,10 +694,14 @@ fn get_dword(buffer: &[u8]) -> (u32, &[u8]) {
     (LittleEndian::read_u32(dword), buffer)
 }
 
-fn get_direction(buffer: &[u8]) -> (Direction, &[u8]) {
+fn get_direction(buffer: &[u8]) -> (Option<CardinalDirection>, &[u8]) {
     let (byte, buffer) = get_byte(buffer);
-    let dir = Direction::from_u8(byte);
-    (dir.expect("invalid direction value"), buffer)
+    let dir = if byte == 0 {
+        None
+    } else {
+        Some(CardinalDirection::from_u8(byte).expect("invalid direction value"))
+    };
+    (dir, buffer)
 }
 
 fn maybe_get_board(buffer: &[u8]) -> (Option<BoardId>, &[u8]) {

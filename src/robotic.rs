@@ -69,10 +69,10 @@ impl Resolve for Param {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct ModifiedDirection {
     pub dir: Direction,
-    randp: bool,
-    cw: bool,
-    opp: bool,
-    randnot: bool,
+    pub randp: bool,
+    pub cw: bool,
+    pub opp: bool,
+    pub randnot: bool,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]

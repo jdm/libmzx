@@ -696,10 +696,10 @@ fn get_dword(buffer: &[u8]) -> (u32, &[u8]) {
 
 fn get_direction(buffer: &[u8]) -> (Option<CardinalDirection>, &[u8]) {
     let (byte, buffer) = get_byte(buffer);
-    let dir = if byte == 0 {
+    let dir = if byte == 0 || byte == Direction::NoDir as u8 {
         None
     } else {
-        Some(CardinalDirection::from_u8(byte).expect("invalid direction value"))
+        Some(CardinalDirection::from_u8(byte).expect(&format!("invalid direction value: {}", byte)))
     };
     (dir, buffer)
 }

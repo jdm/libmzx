@@ -653,6 +653,13 @@ pub struct Robot {
     pub loop_count: u16,
     pub program: Vec<Command>,
     pub alive: bool,
+    pub status: RunStatus,
+}
+
+#[derive(PartialEq)]
+pub enum RunStatus {
+    NotRun,
+    FinishedRunning,
 }
 
 #[derive(Debug)]
@@ -834,6 +841,7 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
         loop_count: loop_count,
         program: program.into(),
         alive: true,
+        status: RunStatus::NotRun,
     };
     (robot, buffer)
 }

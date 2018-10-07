@@ -567,9 +567,9 @@ pub enum Command {
     Char(Character),
     Color(Color),
     GotoXY(SignedNumeric, SignedNumeric),
-    Set(ByteString, Numeric),
-    Inc(ByteString, Numeric),
-    Dec(ByteString, Numeric),
+    Set(ByteString, Numeric, Option<Numeric>),
+    Inc(ByteString, Numeric, Option<Numeric>),
+    Dec(ByteString, Numeric, Option<Numeric>),
     If(ByteString, Operator, Numeric, ByteString),
     IfCondition(Condition, ByteString, bool),
     IfAny(ExtendedColor, Thing, Param, ByteString, bool),
@@ -636,9 +636,6 @@ pub enum Command {
     Bullet(Character, CardinalDirection),
     GiveKey(Color, Option<ByteString>),
     TakeKey(Color, Option<ByteString>),
-    IncRandom(ByteString, Numeric, Numeric),
-    DecRandom(ByteString, Numeric, Numeric),
-    SetRandom(ByteString, Numeric, Numeric),
     Trade(Numeric, Item, Numeric, Item, ByteString),
     SendDirPlayer(ModifiedDirection, ByteString),
     PutDirPlayer(ExtendedColor, Thing, Param, ModifiedDirection),
@@ -1018,12 +1015,78 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::Char => one_arg(buffer, Command::Char),
         CommandOp::Color => one_arg(buffer, Command::Color),
         CommandOp::GotoXY => two_args(buffer, Command::GotoXY),
-        CommandOp::Set => two_args(buffer, Command::Set),
-        CommandOp::Inc => two_args(buffer, Command::Inc),
-        CommandOp::Dec => two_args(buffer, Command::Dec),
-        CommandOp::Unused13 => two_args(buffer, Command::Set),
-        CommandOp::Unused14 => two_args(buffer, Command::Inc),
-        CommandOp::Unused15 => two_args(buffer, Command::Dec),
+        CommandOp::Set | CommandOp::SetRandom => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, buffer) = get_robotic_parameter(buffer);
+            let param3 = if op == CommandOp::SetRandom {
+                let (param, _buffer) = get_robotic_parameter(buffer);
+                Some(param)
+            } else {
+                None
+            };
+            Command::Set(
+                param1.into(),
+                param2.into(),
+                param3.map(|p| p.into()),
+            )
+        }
+        CommandOp::Inc | CommandOp::IncRandom => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, buffer) = get_robotic_parameter(buffer);
+            let param3 = if op == CommandOp::IncRandom {
+                let (param, _buffer) = get_robotic_parameter(buffer);
+                Some(param)
+            } else {
+                None
+            };
+            Command::Inc(
+                param1.into(),
+                param2.into(),
+                param3.map(|p| p.into()),
+            )
+        }
+        CommandOp::Dec | CommandOp::DecRandom => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, buffer) = get_robotic_parameter(buffer);
+            let param3 = if op == CommandOp::DecRandom {
+                let (param, _buffer) = get_robotic_parameter(buffer);
+                Some(param)
+            } else {
+                None
+            };
+            Command::Dec(
+                param1.into(),
+                param2.into(),
+                param3.map(|p| p.into()),
+            )
+        }
+        CommandOp::Unused13 => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, _buffer) = get_robotic_parameter(buffer);
+            Command::Set(
+                param1.into(),
+                param2.into(),
+                None,
+            )
+        }
+        CommandOp::Unused14 => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, _buffer) = get_robotic_parameter(buffer);
+            Command::Inc(
+                param1.into(),
+                param2.into(),
+                None,
+            )
+        }
+        CommandOp::Unused15 => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, _buffer) = get_robotic_parameter(buffer);
+            Command::Dec(
+                param1.into(),
+                param2.into(),
+                None,
+            )
+        }
         CommandOp::If | CommandOp::Unused17 => four_args(buffer, Command::If),
         CommandOp::IfCondition | CommandOp::IfNotCondition => {
             let (param1, buffer) = get_robotic_parameter(buffer);
@@ -1200,9 +1263,6 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
                 param2.map(|p| p.into()),
             )
         }
-        CommandOp::IncRandom => three_args(buffer, Command::IncRandom),
-        CommandOp::DecRandom => three_args(buffer, Command::DecRandom),
-        CommandOp::SetRandom => three_args(buffer, Command::SetRandom),
         CommandOp::Trade => five_args(buffer, Command::Trade),
         CommandOp::SendDirPlayer => two_args(buffer, Command::SendDirPlayer),
         CommandOp::PutDirPlayer => four_args(buffer, Command::PutDirPlayer),

@@ -143,6 +143,46 @@ impl Board {
         &mut self.level[idx]
     }
 
+    pub fn under_at(&self, pos: &Coordinate<u16>) -> &(u8, u8, u8) {
+        let idx = self.width * pos.1 as usize + pos.0 as usize;
+        &self.under[idx]
+    }
+
+    pub fn under_at_mut(&mut self, pos: &Coordinate<u16>) -> &mut (u8, u8, u8) {
+        let idx = self.width * pos.1 as usize + pos.0 as usize;
+        &mut self.under[idx]
+    }
+
+    pub fn copy(&mut self, src: Coordinate<u16>, block: Size<u16>, dest: Coordinate<u16>) {
+        let mut yiter = if src.1 > dest.1 {
+            Box::new(0..block.1) as Box<Iterator<Item=u16>>
+        } else {
+            Box::new((0..block.1).rev()) as Box<Iterator<Item=u16>>
+        };
+
+        while let Some(j) = yiter.next() {
+            let mut xiter = if src.0 > dest.0 {
+                Box::new(0..block.0) as Box<Iterator<Item=u16>>
+            } else {
+                Box::new((0..block.0).rev()) as Box<Iterator<Item=u16>>
+            };
+            while let Some(i) = xiter.next() {
+                let src_coord = Coordinate(src.0 + i, src.1 + j);
+                let dest_coord = Coordinate(dest.0 + i, dest.1 + j);
+                if src_coord.0 as usize > self.width || dest_coord.0 as usize > self.width ||
+                    src_coord.1 as usize > self.height || dest_coord.1 as usize > self.height
+                {
+                    continue;
+                }
+
+                let src = *self.level_at(&src_coord);
+                *self.level_at_mut(&dest_coord) = src;
+                let src = *self.under_at(&src_coord);
+                *self.under_at_mut(&dest_coord) = src;
+            }
+        }
+    }
+
     pub fn move_level(&mut self, pos: &Coordinate<u16>, xdiff: i8, ydiff: i8) {
         self.move_level_to(
             pos,

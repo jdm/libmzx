@@ -514,6 +514,10 @@ pub enum Thing {
 }
 
 impl Thing {
+    pub fn is_robot(&self) -> bool {
+        *self == Thing::Robot || *self == Thing::RobotPushable
+    }
+
     pub fn is_solid(&self) -> bool {
         match *self {
             Thing::Solid |

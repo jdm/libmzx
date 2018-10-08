@@ -665,7 +665,12 @@ impl LocalCounter {
     fn from(name: &ByteString) -> Option<LocalCounter> {
         if name == "loopcount" {
             Some(LocalCounter::Loopcount)
-        } else if name[0..5] == b"local"[..] {
+        } else if name == "local" {
+                Some(LocalCounter::Local(0))
+        } else if {
+            let subname = ByteString(name[0..5].to_owned());
+            &subname == "local"
+        } {
             let suffix = str::from_utf8(&name[5..]).ok().and_then(|s| s.parse::<u16>().ok());
             match suffix {
                 Some(n) => Some(LocalCounter::Local((n % 32) as u8)),

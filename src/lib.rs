@@ -728,7 +728,7 @@ impl LocalCounter {
             Some(LocalCounter::Loopcount)
         } else if name == "local" {
                 Some(LocalCounter::Local(0))
-        } else if {
+        } else if name.len() > 5 && {
             let subname = ByteString(name[0..5].to_owned());
             &subname == "local"
         } {

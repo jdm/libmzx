@@ -25,6 +25,7 @@ use std::collections::HashMap;
 use std::default::Default;
 use std::fmt;
 use std::ops::Deref;
+use std::str;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct BoardId(pub u8);
@@ -219,19 +220,16 @@ impl Counters {
     }
 
     pub fn set(&mut self, name: ByteString, context: &mut Robot, value: i16) {
-        // TODO: local, lavalwalking, etc.
-        if &name == "loopcount" {
-            context.loop_count = value as u16;
+        if let Some(local) = LocalCounter::from(&name) {
+            *context.local_counter_mut(local) = value;
         } else {
             self.counters.insert(name, value);
         }
     }
 
     pub fn get(&self, name: &ByteString, context: &Robot) -> i16 {
-        // TODO: local, lavawalking, thisx, etc.
-        // TODO: respect command prefixes
-        if name == "loopcount" {
-            context.loop_count as i16
+        if let Some(local) = LocalCounter::from(name) {
+            *context.local_counter(local)
         } else {
             *self.counters.get(&name).unwrap_or(&0)
         }
@@ -643,17 +641,60 @@ pub struct Robot {
     pub cycle_count: u8,
     pub bullet_type: BulletType,
     pub locked: bool,
-    pub lavawalking: bool,
+    pub lavawalking: i16,
     pub walk: Option<CardinalDirection>,
     pub last_touched: Option<CardinalDirection>,
     pub last_shot: Option<CardinalDirection>,
     pub position: Coordinate<u16>,
     pub reserved: [u8; 3],
     pub onscreen: bool,
-    pub loop_count: u16,
+    pub loop_count: i16,
     pub program: Vec<Command>,
     pub alive: bool,
     pub status: RunStatus,
+    pub local: [i16; 32],
+}
+
+pub enum LocalCounter {
+    Loopcount,
+    Local(u8),
+    Lavawalk,
+}
+
+impl LocalCounter {
+    fn from(name: &ByteString) -> Option<LocalCounter> {
+        if name == "loopcount" {
+            Some(LocalCounter::Loopcount)
+        } else if name[0..5] == b"local"[..] {
+            let suffix = str::from_utf8(&name[5..]).ok().and_then(|s| s.parse::<u16>().ok());
+            match suffix {
+                Some(n) => Some(LocalCounter::Local((n % 32) as u8)),
+                _ => None,
+            }
+        } else if name == "lava_walk" {
+            Some(LocalCounter::Lavawalk)
+        } else {
+            None
+        }
+    }
+}
+
+impl Robot {
+    fn local_counter(&self, counter: LocalCounter) -> &i16 {
+        match counter {
+            LocalCounter::Loopcount => &self.loop_count,
+            LocalCounter::Local(n) => &self.local[n as usize],
+            LocalCounter::Lavawalk => &self.lavawalking,
+        }
+    }
+
+    fn local_counter_mut(&mut self, counter: LocalCounter) -> &mut i16 {
+        match counter {
+            LocalCounter::Loopcount => &mut self.loop_count,
+            LocalCounter::Local(n) => &mut self.local[n as usize],
+            LocalCounter::Lavawalk => &mut self.lavawalking,
+        }
+    }
 }
 
 #[derive(PartialEq)]
@@ -831,17 +872,18 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
         cycle_count: cycle_count,
         bullet_type: bullet_type,
         locked: locked,
-        lavawalking: lavawalking,
+        lavawalking: if lavawalking { 1 } else { 0 },
         walk: walk,
         last_touched: last_touched,
         last_shot: last_shot,
         position: Coordinate(x_pos, y_pos),
         reserved: [0, 0, 0],
         onscreen: onscreen,
-        loop_count: loop_count,
+        loop_count: loop_count as i16,
         program: program.into(),
         alive: true,
         status: RunStatus::NotRun,
+        local: [0; 32],
     };
     (robot, buffer)
 }

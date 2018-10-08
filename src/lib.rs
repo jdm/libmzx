@@ -195,16 +195,45 @@ impl Board {
     }
 
     pub fn move_level_to(&mut self, pos: &Coordinate<u16>, new_pos: &Coordinate<u16>) {
-        let old_idx = pos.1 * self.width as u16 + pos.0;
-        let new_idx = new_pos.1 * self.width as u16 + new_pos.0;
-        self.under[new_idx as usize] = self.level[new_idx as usize];
-        self.level[new_idx as usize] = self.level[old_idx as usize];
-        self.level[old_idx as usize] = self.under[old_idx as usize];
+        let old_idx = (pos.1 * self.width as u16 + pos.0) as usize;
+        let new_idx = (new_pos.1 * self.width as u16 + new_pos.0) as usize;
+        self.under[new_idx] = self.level[new_idx];
+        self.level[new_idx] = self.level[old_idx];
+        self.level[old_idx] = self.under[old_idx];
+    }
+
+    pub fn put_at(&mut self, pos: &Coordinate<u16>, thing: u8, color: u8, param: u8) {
+        let idx = (pos.1 * self.width as u16 + pos.0) as usize;
+        self.under[idx] = self.level[idx];
+        self.level[idx] = (thing, color, param);
     }
 
     pub fn remove_thing_at(&mut self, pos: &Coordinate<u16>) {
-        let idx = pos.1 * self.width as u16 + pos.0;
-        self.level[idx as usize] = self.under[idx as usize];
+        let idx = (pos.1 * self.width as u16 + pos.0) as usize;
+        self.level[idx] = self.under[idx];
+    }
+
+    pub fn write_overlay(&mut self, pos: &Coordinate<u16>, s: &ByteString, color: u8) {
+        let overlay = match self.overlay {
+            Some((_mode, ref mut overlay)) => overlay,
+            None => return,
+        };
+
+        let diff = self.width as isize - (pos.0 as usize + s.len()) as isize;
+        let end_offset = if diff > 0 {
+            s.len()
+        } else if diff.abs() as usize > s.len() {
+            return;
+        } else {
+            (s.len() as isize + diff) as usize
+        };
+
+        let start_idx = (pos.1 * self.width as u16 + pos.0) as usize;
+        let end_idx = start_idx + end_offset;
+        for (ch, (och, ocol)) in s[0..end_offset].iter().zip(&mut overlay[start_idx..end_idx]) {
+            *och = *ch;
+            *ocol = color;
+        }
     }
 }
 

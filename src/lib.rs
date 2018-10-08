@@ -688,6 +688,34 @@ pub struct Robot {
     pub local: [i16; 32],
 }
 
+impl Robot {
+    pub fn copy_from(source: &Robot, pos: Coordinate<u16>) -> Robot {
+        // FIXME: check if a robot is in END state when cloned
+        Robot {
+            name: source.name.clone(),
+            ch: source.ch,
+            current_line: 0,
+            current_loc: 0,
+            cycle: 0,
+            cycle_count: 0,
+            bullet_type: BulletType::Neutral,
+            locked: false,
+            lavawalking: 0,
+            walk: None,
+            last_touched: None,
+            last_shot: None,
+            position: pos,
+            reserved: [0; 3],
+            onscreen: true,
+            loop_count: 0,
+            program: source.program.clone(),
+            alive: true,
+            status: RunStatus::NotRun,
+            local: [0; 32],
+        }
+    }
+}
+
 pub enum LocalCounter {
     Loopcount,
     Local(u8),

@@ -1227,6 +1227,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         let board_pos = board_pos as usize;
 
         if byte_length == 0 {
+            buffer = new_buffer;
             continue;
         }
 

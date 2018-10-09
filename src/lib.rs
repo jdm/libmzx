@@ -7,6 +7,7 @@ extern crate itertools;
 #[macro_use]
 extern crate log;
 extern crate num_traits;
+extern crate rand;
 
 mod render;
 mod robotic;
@@ -16,6 +17,7 @@ pub use self::robotic::{
     Command, Resolve, Operator, ExtendedParam, ExtendedColorValue, RelativePart, SignedNumeric,
     ModifiedDirection,
 };
+use self::robotic::Condition;
 
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Zip;
@@ -407,6 +409,76 @@ pub enum Direction {
     RandNot = 128,*/
 }
 
+pub fn adjust_coordinate(
+    coord: Coordinate<u16>,
+    board: &Board,
+    dir: CardinalDirection
+) -> Option<Coordinate<u16>> {
+    let (xdiff, ydiff) = match dir {
+        CardinalDirection::North => (0, -1),
+        CardinalDirection::South => (0, 1),
+        CardinalDirection::East => (1, 0),
+        CardinalDirection::West => (-1, 0),
+    };
+    if (coord.0 as i16 + xdiff < 0) ||
+        ((coord.0 as i16 + xdiff) as usize >= board.width) ||
+        (coord.1 as i16 + ydiff < 0) ||
+        ((coord.1 as i16 + ydiff) as usize >= board.height)
+    {
+        return None;
+    }
+    Some(Coordinate(
+        (coord.0 as i16 + xdiff) as u16,
+        (coord.1 as i16 + ydiff) as u16,
+    ))
+}
+
+pub fn dir_to_cardinal_dir(robot: &Robot, dir: &ModifiedDirection) -> Option<CardinalDirection> {
+    // TODO: blocked, not blocked, etc.
+    let resolved = match dir.dir {
+        Direction::North => Some(CardinalDirection::North),
+        Direction::South => Some(CardinalDirection::South),
+        Direction::East => Some(CardinalDirection::East),
+        Direction::West => Some(CardinalDirection::West),
+        Direction::Idle | Direction::NoDir => None,
+        Direction::Flow => robot.walk.clone(),
+        Direction::RandNs => Some(if rand::random::<bool>() == true {
+            CardinalDirection::North
+        } else {
+            CardinalDirection::South
+        }),
+        Direction::RandNe => Some(if rand::random::<bool>() == true {
+            CardinalDirection::North
+        } else {
+            CardinalDirection::East
+        }),
+        Direction::RandEw => Some(if rand::random::<bool>() == true {
+            CardinalDirection::East
+        } else {
+            CardinalDirection::West
+        }),
+        Direction::Anydir | Direction::RandAny => Some(match rand::random::<u8>() % 4 {
+            0 => CardinalDirection::North,
+            1 => CardinalDirection::South,
+            2 => CardinalDirection::East,
+            3 => CardinalDirection::West,
+            _ => unreachable!(),
+        }),
+        Direction::Seek | Direction::Beneath | Direction::RandB | Direction::RandNb => None, //TODO
+    };
+    // TODO: cw, random perpendicular, randnot
+    if dir.opp {
+        resolved.map(|d| match d {
+            CardinalDirection::North => CardinalDirection::South,
+            CardinalDirection::South => CardinalDirection::North,
+            CardinalDirection::East => CardinalDirection::West,
+            CardinalDirection::West => CardinalDirection::East,
+        })
+    } else {
+        resolved
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Primitive)]
 pub enum CardinalDirection {
     North = 1,
@@ -749,6 +821,85 @@ impl Robot {
             alive: true,
             status: RunStatus::NotRun,
             local: [0; 32],
+        }
+    }
+
+    pub fn is(&self, condition: &Condition, board: &Board) -> bool {
+        match condition {
+            Condition::Walking => self.walk.is_some(),
+            Condition::Swimming => {
+                match board.under_thing_at(&self.position) {
+                    Thing::StillWater |
+                    Thing::NWater |
+                    Thing::SWater |
+                    Thing::EWater |
+                    Thing::WWater => true,
+                    _ => false,
+                }
+            }
+            Condition::Firewalking =>
+                board.under_thing_at(&self.position) == Thing::Fire,
+            Condition::Touching(ref dir) => {
+                let dir = dir_to_cardinal_dir(self, dir);
+                dir.map_or(false, |d| {
+                    let adjusted = adjust_coordinate(
+                        self.position,
+                        board,
+                        d
+                    );
+                    adjusted.map_or(false, |pos| {
+                        board.thing_at(&pos) == Thing::Player
+                    })
+                })
+            }
+            Condition::Blocked(ref dir) => {
+                let dir = dir_to_cardinal_dir(self, dir);
+                dir.map_or(false, |d| {
+                    let adjusted = adjust_coordinate(
+                        self.position,
+                        board,
+                        d
+                    );
+                    adjusted.map_or(false, |pos| {
+                        board.thing_at(&pos).is_solid()
+                    })
+                })
+            }
+            Condition::Aligned => {
+                board.player_pos.0 == self.position.0 ||
+                    board.player_pos.1 == self.position.1
+            }
+            Condition::AlignedNS => {
+                board.player_pos.0 == self.position.0
+            }
+            Condition::AlignedEW => {
+                board.player_pos.1 == self.position.1
+            }
+            Condition::LastShot(ref d) => {
+                let dir = dir_to_cardinal_dir(self, d);
+                match (dir, self.last_shot.as_ref()) {
+                    (Some(ref d1), Some(d2)) => d1 == d2,
+                    _ => false,
+                }
+            }
+            Condition::LastTouch(ref d) => {
+                let dir = dir_to_cardinal_dir(self, d);
+                match (dir, self.last_touched.as_ref()) {
+                    (Some(ref d1), Some(d2)) => d1 == d2,
+                    _ => false,
+                }
+            }
+            Condition::UpPressed |
+            Condition::DownPressed |
+            Condition::LeftPressed |
+            Condition::RightPressed |
+            Condition::SpacePressed |
+            Condition::DelPressed |
+            Condition::MusicOn |
+            Condition::PcSfxOn => {
+                warn!("Unimplemented condition ({:?})", condition);
+                false
+            }
         }
     }
 }

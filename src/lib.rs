@@ -134,6 +134,10 @@ impl Board {
         Thing::from_u8(self.level_at(pos).0).expect("invalid thing value")
     }
 
+    pub fn under_thing_at(&self, pos: &Coordinate<u16>) -> Thing {
+        Thing::from_u8(self.under_at(pos).0).expect("invalid thing value")
+    }
+
     pub fn level_at(&self, pos: &Coordinate<u16>) -> &(u8, u8, u8) {
         let idx = self.width * pos.1 as usize + pos.0 as usize;
         &self.level[idx]

@@ -188,6 +188,39 @@ impl Board {
         }
     }
 
+    pub fn copy_overlay(&mut self, src: Coordinate<u16>, block: Size<u16>, dest: Coordinate<u16>) {
+        let overlay = match self.overlay {
+            Some((_mode, ref mut overlay)) => overlay,
+            None => return,
+        };
+
+        let mut yiter = if src.1 > dest.1 {
+            Box::new(0..block.1) as Box<Iterator<Item=u16>>
+        } else {
+            Box::new((0..block.1).rev()) as Box<Iterator<Item=u16>>
+        };
+
+        while let Some(j) = yiter.next() {
+            let mut xiter = if src.0 > dest.0 {
+                Box::new(0..block.0) as Box<Iterator<Item=u16>>
+            } else {
+                Box::new((0..block.0).rev()) as Box<Iterator<Item=u16>>
+            };
+            while let Some(i) = xiter.next() {
+                let src_coord = Coordinate(src.0 + i, src.1 + j);
+                let dest_coord = Coordinate(dest.0 + i, dest.1 + j);
+                if src_coord.0 as usize > self.width || dest_coord.0 as usize > self.width ||
+                    src_coord.1 as usize > self.height || dest_coord.1 as usize > self.height
+                {
+                    continue;
+                }
+
+                let src = overlay[src_coord.1 as usize * self.width + src_coord.0 as usize];
+                overlay[dest_coord.1 as usize * self.width + dest_coord.0 as usize] = src;
+            }
+        }
+    }
+
     pub fn move_level(&mut self, pos: &Coordinate<u16>, xdiff: i8, ydiff: i8) {
         self.move_level_to(
             pos,

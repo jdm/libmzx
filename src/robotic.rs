@@ -291,7 +291,7 @@ enum_from_primitive! {
         ScrollPointer,
         ScrollArrow,
         Viewport,
-        ViewportWidth,
+        ViewportSize,
         Unused166,
         Unused167,
         SavePlayerPositionN,
@@ -695,7 +695,7 @@ pub enum Command {
     ScrollPointer(Color),
     ScrollArrow(Color),
     Viewport(Numeric, Numeric),
-    ViewportWidth(Numeric, Numeric),
+    ViewportSize(Numeric, Numeric),
     SavePlayerPosition(Numeric),
     RestorePlayerPosition(Numeric),
     ExchangePlayerPosition(Numeric),
@@ -1403,7 +1403,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::ScrollPointer => one_arg(buffer, Command::ScrollPointer),
         CommandOp::ScrollArrow => one_arg(buffer, Command::ScrollArrow),
         CommandOp::Viewport => two_args(buffer, Command::Viewport),
-        CommandOp::ViewportWidth => two_args(buffer, Command::ViewportWidth),
+        CommandOp::ViewportSize => two_args(buffer, Command::ViewportSize),
         CommandOp::RestorePlayerPositionNDuplicateSelf =>
             one_arg(buffer, Command::RestorePlayerPositionDupSelf),
         CommandOp::ExchangePlayerPositionNDuplicateSelf =>

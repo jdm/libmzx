@@ -792,6 +792,16 @@ pub struct Palette {
     pub colors: Vec<(Color, f32)>,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum KeyPress {
+    Up,
+    Down,
+    Left,
+    Right,
+    Space,
+    Delete,
+}
+
 pub struct Robot {
     pub name: ByteString,
     pub ch: u8,
@@ -842,7 +852,7 @@ impl Robot {
         }
     }
 
-    pub fn is(&self, condition: &Condition, board: &Board) -> bool {
+    pub fn is(&self, condition: &Condition, board: &Board, key: Option<KeyPress>) -> bool {
         match condition {
             Condition::Walking => self.walk.is_some(),
             Condition::Swimming => {
@@ -907,12 +917,12 @@ impl Robot {
                     _ => false,
                 }
             }
-            Condition::UpPressed |
-            Condition::DownPressed |
-            Condition::LeftPressed |
-            Condition::RightPressed |
-            Condition::SpacePressed |
-            Condition::DelPressed |
+            Condition::UpPressed => key == Some(KeyPress::Up),
+            Condition::DownPressed => key == Some(KeyPress::Down),
+            Condition::LeftPressed => key == Some(KeyPress::Left),
+            Condition::RightPressed => key == Some(KeyPress::Right),
+            Condition::SpacePressed => key == Some(KeyPress::Space),
+            Condition::DelPressed => key == Some(KeyPress::Delete),
             Condition::MusicOn |
             Condition::PcSfxOn => {
                 warn!("Unimplemented condition ({:?})", condition);

@@ -211,8 +211,8 @@ impl Board {
             while let Some(i) = xiter.next() {
                 let src_coord = Coordinate(src.0 + i, src.1 + j);
                 let dest_coord = Coordinate(dest.0 + i, dest.1 + j);
-                if src_coord.0 as usize > self.width || dest_coord.0 as usize > self.width ||
-                    src_coord.1 as usize > self.height || dest_coord.1 as usize > self.height
+                if src_coord.0 as usize >= self.width || dest_coord.0 as usize >= self.width ||
+                    src_coord.1 as usize >= self.height || dest_coord.1 as usize >= self.height
                 {
                     continue;
                 }

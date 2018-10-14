@@ -132,6 +132,24 @@ impl Board {
         }
     }
 
+    pub fn find(&self, id: u8, color: u8) -> Option<Coordinate<u16>> {
+        for (idx,
+             (&(level_thing, level_color, _),
+              &(under_thing, under_color, _))) in
+            self.level.iter().zip(self.under.iter()).enumerate()
+        {
+            if (level_thing == id && level_color == color) ||
+                (under_thing == id && under_color == color)
+            {
+                return Some(Coordinate(
+                    (idx % self.width) as u16,
+                    (idx / self.width) as u16,
+                ));
+            }
+        }
+        None
+    }
+
     pub fn thing_at(&self, pos: &Coordinate<u16>) -> Thing {
         Thing::from_u8(self.level_at(pos).0).expect("invalid thing value")
     }

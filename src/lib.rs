@@ -1416,6 +1416,8 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
 
         if byte_length == 0 {
             buffer = new_buffer;
+            boards.push(unsafe { ::std::mem::uninitialized() });
+            board_robots.push(vec![]);
             continue;
         }
 

@@ -882,7 +882,7 @@ impl Robot {
                     _ => false,
                 }
             }
-            Condition::LastTouch(ref d) => {
+            Condition::LastTouched(ref d) => {
                 let dir = dir_to_cardinal_dir(self, d);
                 match (dir, self.last_touched.as_ref()) {
                     (Some(ref d1), Some(d2)) => d1 == d2,

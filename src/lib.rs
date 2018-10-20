@@ -69,6 +69,9 @@ pub struct WorldState {
     pub palette: Palette,
     pub idchars: Box<[u8]>,
     pub saved_positions: [(usize, Coordinate<u16>); 10],
+    pub player_locked_ns: bool,
+    pub player_locked_ew: bool,
+    pub scroll_locked: bool,
 }
 
 impl WorldState {
@@ -1467,6 +1470,9 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
             palette: Palette { colors: colors },
             idchars: idchars.to_vec().into_boxed_slice(),
             saved_positions: [(0, Coordinate(0, 0)); 10],
+            player_locked_ns: false,
+            player_locked_ew: false,
+            scroll_locked: false,
         },
         boards: boards,
         board_robots: board_robots,

@@ -130,6 +130,30 @@ pub fn render<R: Renderer>(
             renderer
         );
     }
+
+    if board.remaining_message_cycles > 0 {
+        let mut msg_x = if board.message_line.text_len() <= board.width {
+            (board.width - board.message_line.text_len()) / 2
+        } else {
+            0
+        } as u8 + board.message_col;
+
+        for (chars, bg, fg) in board.message_line.color_text() {
+            for &c in chars {
+                draw_char(
+                    c,
+                    fg.unwrap_or(w.message_color),
+                    bg.unwrap_or(0x00),
+                    msg_x as usize,
+                    board.message_row as usize,
+                    charset,
+                    palette,
+                    renderer,
+                );
+                msg_x += 1;
+            }
+        }
+    }
 }
 
 fn draw_char<R: Renderer>(

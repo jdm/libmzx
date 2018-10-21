@@ -72,6 +72,8 @@ pub struct WorldState {
     pub player_locked_ns: bool,
     pub player_locked_ew: bool,
     pub scroll_locked: bool,
+    pub message_edge: bool,
+    pub message_color: u8,
 }
 
 impl WorldState {
@@ -116,6 +118,10 @@ pub struct Board {
     pub sensors: Vec<Sensor>,
     pub player_pos: Coordinate<u16>,
     pub scroll_offset: Coordinate<u16>,
+    pub message_line: ByteString,
+    pub message_row: u8,
+    pub message_col: u8,
+    pub remaining_message_cycles: u8,
 }
 
 impl Board {
@@ -390,6 +396,112 @@ impl ByteString {
 
     pub fn to_string(&self) -> String {
         self.clone().into_string()
+    }
+
+    pub fn text_len(&self) -> usize {
+        let mut len = 0;
+        let mut maybe_skip_next = false;
+        for &c in self.as_bytes() {
+            if maybe_skip_next {
+                maybe_skip_next = false;
+                if (c >= b'0' && c <= b'9') ||
+                    (c >= b'A' && c <= b'F') ||
+                    (c >= b'a' && c <= b'f')
+                {
+                    continue;
+                }
+            }
+            if c == b'~' || c == b'@' {
+                maybe_skip_next = true;
+            } else {
+                len += 1;
+            }
+        }
+        len
+    }
+
+    pub fn color_text(&self) -> ColorStringIterator {
+        ColorStringIterator {
+            string: self,
+            index: 0,
+            fg: None,
+            bg: None,
+            state: ColorParserState::Text,
+        }
+    }
+}
+
+pub struct ColorStringIterator<'a> {
+    string: &'a ByteString,
+    index: usize,
+    fg: Option<u8>,
+    bg: Option<u8>,
+    state: ColorParserState,
+}
+
+#[derive(PartialEq)]
+enum ColorParserState {
+    Text,
+    Foreground,
+    Background,
+}
+
+impl<'a> Iterator for ColorStringIterator<'a> {
+    type Item = (&'a [u8], Option<u8>, Option<u8>);
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut start = self.index;
+        let bytes = self.string.as_bytes();
+        while self.index < bytes.len() {
+            let byte = bytes[self.index];
+            match self.state {
+                ColorParserState::Text => {
+                }
+                ColorParserState::Foreground |
+                ColorParserState::Background => {
+                    let var = if self.state == ColorParserState::Foreground {
+                        &mut self.fg
+                    } else {
+                        &mut self.bg
+                    };
+                    let skip = {
+                        if byte >= b'0' && byte <= b'9' {
+                            *var = Some(byte - b'0');
+                            true
+                        } else if byte >= b'A' && byte <= b'F' {
+                            *var = Some(byte - b'A');
+                            true
+                        } else if byte >= b'a' && byte <= b'f' {
+                            *var = Some(byte - b'a');
+                            true
+                        } else {
+                            false
+                        }
+                    };
+                    start = if skip {
+                        self.index + 1
+                    } else {
+                        self.index
+                    };
+                }
+            }
+            self.state = ColorParserState::Text;
+            if byte == b'~' || byte == b'@'
+            {
+                if self.index != start {
+                    return Some((&bytes[start..self.index], self.bg, self.fg));
+                } else if byte == b'~' {
+                    self.state = ColorParserState::Foreground;
+                } else {
+                    self.state = ColorParserState::Background;
+                }
+            }
+            self.index += 1;
+        }
+        if self.index != start {
+            Some((&bytes[start..self.index], self.bg, self.fg))
+        } else {
+            None
+        }
     }
 }
 
@@ -1282,25 +1394,39 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<(Board, 
     let (restart_when_zapped, buffer) = get_bool(buffer);
     let (time_limit, mut buffer) = get_word(buffer);
 
-    let (scroll_x, scroll_y) = if version < 0x253 {
+    let (
+        scroll_x,
+        scroll_y,
+        current_message,
+        cycles_until_disappear,
+        message_row,
+        message_col
+    ) = if version < 0x253 {
         let (_last_key, new_buffer) = get_byte(buffer);
         let (_last_input, new_buffer) = get_word(new_buffer);
         let (_last_input_length, new_buffer) = get_byte(new_buffer);
         let (_last_input_string, new_buffer) = get_null_terminated_string(new_buffer, 81);
         let (_last_player_dir, new_buffer) = get_byte(new_buffer);
-        let (_current_message, new_buffer) = get_null_terminated_string(new_buffer, 81);
-        let (_cycles_until_disappear, new_buffer) = get_byte(new_buffer);
+        let (current_message, new_buffer) = get_null_terminated_string(new_buffer, 81);
+        let (cycles_until_disappear, new_buffer) = get_byte(new_buffer);
         let (_lazer_wall_timer, new_buffer) = get_byte(new_buffer);
-        let (_message_row, new_buffer) = get_byte(new_buffer);
-        let (_message_col, new_buffer) = get_byte(new_buffer);
+        let (message_row, new_buffer) = get_byte(new_buffer);
+        let (message_col, new_buffer) = get_byte(new_buffer);
         let (scroll_x, new_buffer) = get_word(new_buffer);
         let (scroll_y, new_buffer) = get_word(new_buffer);
         let (_x_screen_pos, new_buffer) = get_word(new_buffer);
         let (_y_screen_pos, new_buffer) = get_word(new_buffer);
         buffer = new_buffer;
-        (scroll_x, scroll_y)
+        (
+            scroll_x,
+            scroll_y,
+            current_message,
+            cycles_until_disappear,
+            message_row,
+            message_col,
+        )
     } else {
-        (0, 0)
+        (0, 0, ByteString(vec![]), 0, 24, 0)
     };
 
     let (_player_locked_ns, buffer) = get_byte(buffer);
@@ -1348,6 +1474,11 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<(Board, 
         sensors: sensors,
         player_pos: Coordinate(0, 0),
         scroll_offset: Coordinate(scroll_x, scroll_y),
+        message_line: current_message,
+        message_row,
+        // FIX: cans3 has a value of 255???
+        message_col: if message_col == 0xFF { 0 } else { message_col },
+        remaining_message_cycles: cycles_until_disappear,
     },
     robots))
 }
@@ -1473,6 +1604,8 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
             player_locked_ns: false,
             player_locked_ew: false,
             scroll_locked: false,
+            message_edge: true,
+            message_color: 0x01,
         },
         boards: boards,
         board_robots: board_robots,

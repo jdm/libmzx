@@ -304,7 +304,7 @@ impl Board {
 }
 
 pub struct Counters {
-    counters: HashMap<ByteString, i16>,
+    counters: HashMap<ByteString, i32>,
 }
 
 impl Counters {
@@ -314,7 +314,7 @@ impl Counters {
         }
     }
 
-    pub fn set(&mut self, name: ByteString, context: &mut Robot, value: i16) {
+    pub fn set(&mut self, name: ByteString, context: &mut Robot, value: i32) {
         if let Some(local) = LocalCounter::from(&name) {
             *context.local_counter_mut(local) = value;
         } else {
@@ -322,7 +322,7 @@ impl Counters {
         }
     }
 
-    pub fn get(&self, name: &ByteString, context: &Robot) -> i16 {
+    pub fn get(&self, name: &ByteString, context: &Robot) -> i32 {
         if let Some(local) = LocalCounter::from(name) {
             *context.local_counter(local)
         } else {
@@ -951,18 +951,18 @@ pub struct Robot {
     pub cycle_count: u8,
     pub bullet_type: BulletType,
     pub locked: bool,
-    pub lavawalking: i16,
+    pub lavawalking: i32,
     pub walk: Option<CardinalDirection>,
     pub last_touched: Option<CardinalDirection>,
     pub last_shot: Option<CardinalDirection>,
     pub position: Coordinate<u16>,
     pub reserved: [u8; 3],
     pub onscreen: bool,
-    pub loop_count: i16,
+    pub loop_count: i32,
     pub program: Vec<Command>,
     pub alive: bool,
     pub status: RunStatus,
-    pub local: [i16; 32],
+    pub local: [i32; 32],
 }
 
 impl Robot {
@@ -1102,7 +1102,7 @@ impl LocalCounter {
 }
 
 impl Robot {
-    fn local_counter(&self, counter: LocalCounter) -> &i16 {
+    fn local_counter(&self, counter: LocalCounter) -> &i32 {
         match counter {
             LocalCounter::Loopcount => &self.loop_count,
             LocalCounter::Local(n) => &self.local[n as usize],
@@ -1110,7 +1110,7 @@ impl Robot {
         }
     }
 
-    fn local_counter_mut(&mut self, counter: LocalCounter) -> &mut i16 {
+    fn local_counter_mut(&mut self, counter: LocalCounter) -> &mut i32 {
         match counter {
             LocalCounter::Loopcount => &mut self.loop_count,
             LocalCounter::Local(n) => &mut self.local[n as usize],
@@ -1301,7 +1301,7 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
         position: Coordinate(x_pos, y_pos),
         reserved: [0, 0, 0],
         onscreen: onscreen,
-        loop_count: loop_count as i16,
+        loop_count: loop_count as i32,
         program: program.into(),
         alive: true,
         status: RunStatus::NotRun,

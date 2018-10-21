@@ -433,11 +433,11 @@ pub enum Numeric {
 }
 
 impl Resolve for Numeric {
-    type Output = u16;
+    type Output = u32;
     fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
         match *self {
-            Numeric::Counter(ref s) => counters.get(s, context) as u16,
-            Numeric::Literal(u) => u,
+            Numeric::Counter(ref s) => counters.get(s, context) as u32,
+            Numeric::Literal(u) => u as u32,
         }
     }
 }
@@ -449,11 +449,11 @@ pub enum SignedNumeric {
 }
 
 impl Resolve for SignedNumeric {
-    type Output = i16;
+    type Output = i32;
     fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
         match *self {
             SignedNumeric::Counter(ref s) => counters.get(s, context),
-            SignedNumeric::Literal(u) => u,
+            SignedNumeric::Literal(u) => u as i32,
         }
     }
 }

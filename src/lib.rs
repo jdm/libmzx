@@ -429,6 +429,31 @@ impl ByteString {
             state: ColorParserState::Text,
         }
     }
+
+    pub fn evaluate(&self, counters: &Counters, context: &Robot) -> ByteString {
+        let bytes = self.as_bytes();
+        if bytes.iter().find(|b| **b == b'&').is_none() {
+            return self.clone();
+        }
+
+        let mut new_bytes = vec![];
+        let mut start = None;
+        for (idx, &c) in bytes.iter().enumerate() {
+            if c == b'&' {
+                if let Some(start_idx) = start {
+                    let name = ByteString(bytes[start_idx..idx].to_owned());
+                    let value = counters.get(&name, context).to_string();
+                    new_bytes.extend(value.as_bytes());
+                    start = None;
+                } else {
+                    start = Some(idx + 1);
+                }
+            } else if start.is_none() {
+                new_bytes.push(c);
+            }
+        }
+        ByteString(new_bytes)
+    }
 }
 
 pub struct ColorStringIterator<'a> {

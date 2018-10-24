@@ -318,7 +318,8 @@ impl Counters {
         if let Some(local) = LocalCounter::from(&name) {
             *context.local_counter_mut(local) = value;
         } else {
-            self.counters.insert(name, value);
+            let lowercase = ByteString(name.as_bytes().iter().map(|c| c.to_ascii_lowercase()).collect());
+            self.counters.insert(lowercase, value);
         }
     }
 
@@ -326,7 +327,8 @@ impl Counters {
         if let Some(local) = LocalCounter::from(name) {
             *context.local_counter(local)
         } else {
-            *self.counters.get(&name).unwrap_or(&0)
+            let lowercase = ByteString(name.as_bytes().iter().map(|c| c.to_ascii_lowercase()).collect());
+            *self.counters.get(&lowercase).unwrap_or(&0)
         }
     }
 }

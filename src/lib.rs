@@ -120,7 +120,7 @@ pub struct Board {
     pub scroll_offset: Coordinate<u16>,
     pub message_line: ByteString,
     pub message_row: u8,
-    pub message_col: u8,
+    pub message_col: Option<u8>,
     pub remaining_message_cycles: u8,
 }
 
@@ -1501,8 +1501,7 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<(Board, 
         scroll_offset: Coordinate(scroll_x, scroll_y),
         message_line: current_message,
         message_row,
-        // FIX: cans3 has a value of 255???
-        message_col: if message_col == 0xFF { 0 } else { message_col },
+        message_col: if message_col == 0xFF { None } else { Some(message_col) },
         remaining_message_cycles: cycles_until_disappear,
     },
     robots))

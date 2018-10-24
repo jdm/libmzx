@@ -105,7 +105,19 @@ pub fn render<R: Renderer>(
         let overlay_visible = overlay_char != b' ';
         let overlay_see_through = overlay_color / num_colors == 0 && overlay_color != 0x00;
         let ch = if !overlay_visible {
-            char_from_id(id, param, &robots, &board.sensors, &w.idchars)
+            let board_x = viewport.0 + xpos;
+            let board_y = viewport.1 + ypos;
+            char_from_id(
+                id,
+                param,
+                &robots,
+                &board.sensors,
+                &w.idchars,
+                board_x.checked_sub(1).map(|x| board.thing_at(&Coordinate(x, board_y))),
+                if (board_x as usize) < board.width - 1 { Some(board.thing_at(&Coordinate(board_x + 1, board_y))) } else { None },
+                board_y.checked_sub(1).map(|y| board.thing_at(&Coordinate(board_x, y))),
+                if (board_y as usize) < board.height - 1 { Some(board.thing_at(&Coordinate(board_x, board_y + 1))) } else { None },
+            )
         } else {
             overlay_char
         };
@@ -185,13 +197,77 @@ fn draw_char<R: Renderer>(
     }
 }
 
-fn char_from_id(id: u8, param: u8, robots: &[Robot], sensors: &[Sensor], idchars: &[u8]) -> u8 {
-    match Thing::from_u8(id).expect("invalid thing") {
+fn char_from_id(
+    id: u8,
+    param: u8,
+    robots: &[Robot],
+    sensors: &[Sensor],
+    idchars: &[u8],
+    left: Option<Thing>,
+    right: Option<Thing>,
+    top: Option<Thing>,
+    bottom: Option<Thing>,
+) -> u8 {
+    let thing = Thing::from_u8(id).expect("invalid thing");
+    match thing {
         Thing::Space => b' ',
         Thing::Normal => 178,
         Thing::Solid => 219,
         Thing::Tree => 6,
-
+        Thing::Line | Thing::ThickWeb => {
+            let (has_left, has_right, has_top, has_bottom) = if thing == Thing::ThickWeb {
+                let check = |t| t != Thing::Space;
+                (
+                    left.map_or(true, check),
+                    right.map_or(true, check),
+                    top.map_or(true, check),
+                    bottom.map_or(true, check),
+                )
+            } else {
+                let check = |t| t == Thing::Line;
+                (
+                    left.map_or(true, check),
+                    right.map_or(true, check),
+                    top.map_or(true, check),
+                    bottom.map_or(true, check),
+                )
+            };
+            match (has_left, has_right, has_top, has_bottom) {
+                (false, false, false, false) => 249,
+                (_, _, false, false) => 205,
+                (false, false, _, _) => 186,
+                (true, false, true, false) => 188,
+                (false, true, true, false) => 200,
+                (true, false, false, true) => 187,
+                (false, true, false, true) => 201,
+                (true, false, true, true) => 185,
+                (false, true, true, true) => 204,
+                (true, true, true, false) => 202,
+                (true, true, false, true) => 203,
+                (true, true, true, true) => 206,
+            }
+        }
+        Thing::Web => {
+            let check = |t| t != Thing::Space;
+            let has_left = left.map_or(true, check);
+            let has_right = right.map_or(true, check);
+            let has_top = top.map_or(true, check);
+            let has_bottom = bottom.map_or(true, check);
+            match (has_left, has_right, has_top, has_bottom) {
+                (false, false, false, false) => 249,
+                (_, _, false, false) => 196,
+                (false, false, _, _) => 179,
+                (true, false, true, false) => 217,
+                (false, true, true, false) => 192,
+                (true, false, false, true) => 191,
+                (false, true, false, true) => 218,
+                (true, false, true, true) => 180,
+                (false, true, true, true) => 195,
+                (true, true, true, false) => 193,
+                (true, true, false, true) => 194,
+                (true, true, true, true) => 197,
+            }
+        }
         Thing::CustomBlock => param,
         Thing::Breakaway => 177,
         Thing::CustomBreak => param,
@@ -205,8 +281,6 @@ fn char_from_id(id: u8, param: u8, robots: &[Robot], sensors: &[Sensor], idchars
         Thing::Floor => 176,
         Thing::Tiles => 254,
         Thing::CustomFloor => param,
-
-
         Thing::StillWater => 176,
         Thing::NWater => 24,
         Thing::SWater => 25,

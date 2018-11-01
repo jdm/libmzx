@@ -789,6 +789,7 @@ impl Thing {
 
     pub fn is_solid(&self) -> bool {
         match *self {
+            Thing::Normal |
             Thing::Solid |
             Thing::Line |
             Thing::CustomBlock |

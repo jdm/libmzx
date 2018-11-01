@@ -66,7 +66,9 @@ pub struct World {
 
 pub struct WorldState {
     pub charset: Charset,
+    pub initial_charset: Charset,
     pub palette: Palette,
+    pub initial_palette: Palette,
     pub idchars: Box<[u8]>,
     pub saved_positions: [(usize, Coordinate<u16>); 10],
     pub player_locked_ns: bool,
@@ -909,6 +911,7 @@ pub enum SaveRestriction {
 pub const CHAR_BYTES: usize = 14;
 const CHARSET_BUFFER_SIZE: usize = CHAR_BYTES * 256;
 
+#[derive(Copy, Clone)]
 pub struct Charset {
     pub data: [u8; CHARSET_BUFFER_SIZE],
 }
@@ -925,12 +928,14 @@ impl Charset {
     }
 }
 
+#[derive(Copy, Clone)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
     pub b: u8,
 }
 
+#[derive(Clone)]
 pub struct Palette {
     pub colors: Vec<(Color, f32)>,
 }
@@ -1624,8 +1629,10 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         version: version,
         title: title,
         state: WorldState {
-            charset: charset,
-            palette: Palette { colors: colors },
+            charset: charset.clone(),
+            initial_charset: charset,
+            palette: Palette { colors: colors.clone() },
+            initial_palette: Palette { colors: colors },
             idchars: idchars.to_vec().into_boxed_slice(),
             saved_positions: [(0, Coordinate(0, 0)); 10],
             player_locked_ns: false,

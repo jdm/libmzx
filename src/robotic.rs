@@ -559,7 +559,7 @@ pub enum RelativePart {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Command {
     End,
-    Die,
+    Die(bool),
     Wait(Numeric),
     Cycle(Numeric),
     Go(ModifiedDirection, Numeric),
@@ -627,7 +627,6 @@ pub enum Command {
     SpitFire(ModifiedDirection),
     LazerWall(ModifiedDirection, Numeric),
     PutXY(ExtendedColor, Thing, Param, SignedNumeric, SignedNumeric),
-    DieItem,
     SendXY(SignedNumeric, SignedNumeric, ByteString),
     CopyRobotNamed(ByteString),
     CopyRobotXY(SignedNumeric, SignedNumeric),
@@ -755,7 +754,7 @@ impl Command {
     pub fn is_cycle_ending(&self) -> bool {
         match *self {
             Command::End |
-            Command::Die |
+            Command::Die(..) |
             Command::Wait(..) |
             Command::Go(..) |
             Command::Become(..) |
@@ -763,7 +762,6 @@ impl Command {
             Command::Explode(..) |
             Command::MovePlayerDir(..) |
             Command::TryDir(..) |
-            Command::DieItem |
             Command::CopyRobotNamed(..) |
             Command::CopyRobotXY(..) |
             Command::CopyRobotDir(..) |
@@ -1007,7 +1005,8 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
     debug!("parsing {:?}", op);
     let cmd = match op {
         CommandOp::End => Command::End,
-        CommandOp::Die => Command::Die,
+        CommandOp::Die => Command::Die(false),
+        CommandOp::DieItem => Command::Die(true),
         CommandOp::Wait => one_arg(buffer, Command::Wait),
         CommandOp::Cycle => one_arg(buffer, Command::Cycle),
         CommandOp::Go => two_args(buffer, Command::Go),
@@ -1218,7 +1217,6 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::SpitFire => one_arg(buffer, Command::SpitFire),
         CommandOp::LazerWall => two_args(buffer, Command::LazerWall),
         CommandOp::PutXY => five_args(buffer, Command::PutXY),
-        CommandOp::DieItem => Command::DieItem,
         CommandOp::SendXY => three_args(buffer, Command::SendXY),
         CommandOp::CopyRobotNamed => one_arg(buffer, Command::CopyRobotNamed),
         CommandOp::CopyRobotXY => two_args(buffer, Command::CopyRobotXY),

@@ -793,6 +793,7 @@ impl Thing {
         match *self {
             Thing::Normal |
             Thing::Solid |
+            Thing::Tree |
             Thing::Line |
             Thing::CustomBlock |
             Thing::Breakaway |
@@ -852,7 +853,8 @@ impl Thing {
             Thing::RobotPushable |
             Thing::Robot |
             Thing::Sign |
-            Thing::Scroll => true,
+            Thing::Scroll |
+            Thing::Player => true,
             _ => false,
         }
     }

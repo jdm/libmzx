@@ -497,10 +497,10 @@ impl<'a> Iterator for ColorStringIterator<'a> {
                             *var = Some(byte - b'0');
                             true
                         } else if byte >= b'A' && byte <= b'F' {
-                            *var = Some(byte - b'A');
+                            *var = Some(byte - b'A' + 10);
                             true
                         } else if byte >= b'a' && byte <= b'f' {
-                            *var = Some(byte - b'a');
+                            *var = Some(byte - b'a' + 10);
                             true
                         } else {
                             false

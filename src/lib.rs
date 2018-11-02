@@ -333,15 +333,22 @@ impl<'a> CounterContext<'a> {
 }
 
 pub struct CounterContextMut<'a> {
-    _board: &'a mut Board,
+    board: &'a mut Board,
     robot: &'a mut Robot,
 }
 
 impl<'a> CounterContextMut<'a> {
     pub fn from(board: &'a mut Board, robot: &'a mut Robot) -> CounterContextMut<'a> {
         CounterContextMut {
-            _board: board,
+            board,
             robot,
+        }
+    }
+
+    fn as_immutable(&self) -> CounterContext {
+        CounterContext {
+            board: self.board,
+            robot: self.robot,
         }
     }
 
@@ -368,6 +375,7 @@ impl Counters {
     }
 
     pub fn set<'a>(&mut self, name: ByteString, mut context: CounterContextMut<'a>, value: i32) {
+        let name = name.evaluate(self, context.as_immutable());
         if let Some(local) = LocalCounter::from(&name) {
             if let Some(counter) = context.local_counter_mut(local) {
                 *counter = value;
@@ -379,7 +387,8 @@ impl Counters {
     }
 
     pub fn get<'a>(&self, name: &ByteString, context: CounterContext<'a>) -> i32 {
-        if let Some(local) = LocalCounter::from(name) {
+        let name = name.evaluate(self, context);
+        if let Some(local) = LocalCounter::from(&name) {
             context.local_counter(local)
         } else {
             let lowercase = ByteString(name.as_bytes().iter().map(|c| c.to_ascii_lowercase()).collect());

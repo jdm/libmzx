@@ -305,6 +305,57 @@ impl Board {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct CounterContext<'a> {
+    board: &'a Board,
+    robot: &'a Robot,
+}
+
+impl<'a> CounterContext<'a> {
+    pub fn from(board: &'a Board, robot: &'a Robot) -> CounterContext<'a> {
+        CounterContext {
+            board,
+            robot,
+        }
+    }
+
+    fn local_counter(&self, counter: LocalCounter) -> i32 {
+        match counter {
+            LocalCounter::Loopcount => self.robot.loop_count,
+            LocalCounter::Local(n) => self.robot.local[n as usize],
+            LocalCounter::Lavawalk => self.robot.lavawalking,
+            LocalCounter::HorizPld =>
+                (self.robot.position.0 as i32 - self.board.player_pos.0 as i32).abs() as i32,
+            LocalCounter::VertPld =>
+                (self.robot.position.1 as i32 - self.board.player_pos.1 as i32).abs() as i32,
+        }
+    }
+}
+
+pub struct CounterContextMut<'a> {
+    _board: &'a mut Board,
+    robot: &'a mut Robot,
+}
+
+impl<'a> CounterContextMut<'a> {
+    pub fn from(board: &'a mut Board, robot: &'a mut Robot) -> CounterContextMut<'a> {
+        CounterContextMut {
+            _board: board,
+            robot,
+        }
+    }
+
+    fn local_counter_mut(&mut self, counter: LocalCounter) -> Option<&mut i32> {
+        match counter {
+            LocalCounter::Loopcount => Some(&mut self.robot.loop_count),
+            LocalCounter::Local(n) => Some(&mut self.robot.local[n as usize]),
+            LocalCounter::Lavawalk => Some(&mut self.robot.lavawalking),
+            LocalCounter::HorizPld |
+            LocalCounter::VertPld => None,
+        }
+    }
+}
+
 pub struct Counters {
     counters: HashMap<ByteString, i32>,
 }
@@ -316,18 +367,20 @@ impl Counters {
         }
     }
 
-    pub fn set(&mut self, name: ByteString, context: &mut Robot, value: i32) {
+    pub fn set<'a>(&mut self, name: ByteString, mut context: CounterContextMut<'a>, value: i32) {
         if let Some(local) = LocalCounter::from(&name) {
-            *context.local_counter_mut(local) = value;
+            if let Some(counter) = context.local_counter_mut(local) {
+                *counter = value;
+            }
         } else {
             let lowercase = ByteString(name.as_bytes().iter().map(|c| c.to_ascii_lowercase()).collect());
             self.counters.insert(lowercase, value);
         }
     }
 
-    pub fn get(&self, name: &ByteString, context: &Robot) -> i32 {
+    pub fn get<'a>(&self, name: &ByteString, context: CounterContext<'a>) -> i32 {
         if let Some(local) = LocalCounter::from(name) {
-            *context.local_counter(local)
+            context.local_counter(local)
         } else {
             let lowercase = ByteString(name.as_bytes().iter().map(|c| c.to_ascii_lowercase()).collect());
             *self.counters.get(&lowercase).unwrap_or(&0)
@@ -434,7 +487,7 @@ impl ByteString {
         }
     }
 
-    pub fn evaluate(&self, counters: &Counters, context: &Robot) -> ByteString {
+    pub fn evaluate<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> ByteString {
         let bytes = self.as_bytes();
         if bytes.iter().find(|b| **b == b'&').is_none() {
             return self.clone();
@@ -1086,6 +1139,8 @@ pub enum LocalCounter {
     Loopcount,
     Local(u8),
     Lavawalk,
+    HorizPld,
+    VertPld,
 }
 
 impl LocalCounter {
@@ -1105,6 +1160,10 @@ impl LocalCounter {
             }
         } else if name == "lava_walk" {
             Some(LocalCounter::Lavawalk)
+        } else if name == "horizpld" {
+            Some(LocalCounter::HorizPld)
+        } else if name == "vertpld" {
+            Some(LocalCounter::VertPld)
         } else {
             None
         }
@@ -1112,21 +1171,6 @@ impl LocalCounter {
 }
 
 impl Robot {
-    fn local_counter(&self, counter: LocalCounter) -> &i32 {
-        match counter {
-            LocalCounter::Loopcount => &self.loop_count,
-            LocalCounter::Local(n) => &self.local[n as usize],
-            LocalCounter::Lavawalk => &self.lavawalking,
-        }
-    }
-
-    fn local_counter_mut(&mut self, counter: LocalCounter) -> &mut i32 {
-        match counter {
-            LocalCounter::Loopcount => &mut self.loop_count,
-            LocalCounter::Local(n) => &mut self.local[n as usize],
-            LocalCounter::Lavawalk => &mut self.lavawalking,
-        }
-    }
 }
 
 #[derive(PartialEq)]

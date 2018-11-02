@@ -2,7 +2,7 @@ use num_traits::FromPrimitive;
 use std::mem;
 use super::{
     get_word, get_byte, ByteString, Direction, ColorValue, ParamValue, Thing, Counters,
-    CardinalDirection, OverlayMode, CHAR_BYTES, Robot
+    CardinalDirection, OverlayMode, CHAR_BYTES, CounterContext,
 };
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -53,7 +53,7 @@ impl ExtendedParam {
 
 impl Resolve for Param {
     type Output = ExtendedParam;
-    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
+    fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         let v = match *self {
             Param::Counter(ref s) => counters.get(s, context) as u16,
             Param::Literal(p) => p,
@@ -407,7 +407,7 @@ impl From<Parameter> for Item {
 
 pub trait Resolve {
     type Output;
-    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output;
+    fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output;
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -418,7 +418,7 @@ pub enum Byte {
 
 impl Resolve for Byte {
     type Output = u8;
-    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
+    fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         match *self {
             Byte::Counter(ref s) => counters.get(s, context) as u8,
             Byte::Literal(b) => b,
@@ -434,7 +434,7 @@ pub enum Numeric {
 
 impl Resolve for Numeric {
     type Output = u32;
-    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
+    fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         match *self {
             Numeric::Counter(ref s) => counters.get(s, context) as u32,
             Numeric::Literal(u) => u as u32,
@@ -450,7 +450,7 @@ pub enum SignedNumeric {
 
 impl Resolve for SignedNumeric {
     type Output = i32;
-    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
+    fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         match *self {
             SignedNumeric::Counter(ref s) => counters.get(s, context),
             SignedNumeric::Literal(u) => u as i32,
@@ -466,7 +466,7 @@ pub enum Character {
 
 impl Resolve for Character {
     type Output = u8;
-    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
+    fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         match *self {
             Character::Counter(ref s) => counters.get(s, context) as u8,
             Character::Literal(u) => u,
@@ -517,7 +517,7 @@ impl ExtendedColorValue {
 
 impl Resolve for ExtendedColor {
     type Output = ExtendedColorValue;
-    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
+    fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         match *self {
             ExtendedColor::Counter(ref s) => ExtendedColorValue::new(counters.get(s, context) as u16),
             ExtendedColor::Literal(c) => ExtendedColorValue::new(c),
@@ -542,7 +542,7 @@ pub enum Color {
 
 impl Resolve for Color {
     type Output = ColorValue;
-    fn resolve(&self, counters: &Counters, context: &Robot) -> Self::Output {
+    fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         match *self {
             Color::Counter(ref s) => ColorValue(counters.get(s, context) as u8),
             Color::Literal(c) => c,

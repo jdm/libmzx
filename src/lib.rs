@@ -328,6 +328,15 @@ impl<'a> CounterContext<'a> {
                 (self.robot.position.0 as i32 - self.board.player_pos.0 as i32).abs() as i32,
             LocalCounter::VertPld =>
                 (self.robot.position.1 as i32 - self.board.player_pos.1 as i32).abs() as i32,
+            LocalCounter::PlayerDist =>
+                self.local_counter(LocalCounter::HorizPld) +
+                self.local_counter(LocalCounter::VertPld),
+            // TODO: support command prefixes for ThisX and ThisY
+            LocalCounter::ThisX => self.robot.position.0 as i32,
+            LocalCounter::ThisY => self.robot.position.1 as i32,
+            LocalCounter::BulletType => self.robot.bullet_type,
+            LocalCounter::ThisColor => self.board.level_at(&self.robot.position).1 as i32,
+            LocalCounter::ThisChar => self.robot.ch as i32,
         }
     }
 }
@@ -357,8 +366,14 @@ impl<'a> CounterContextMut<'a> {
             LocalCounter::Loopcount => Some(&mut self.robot.loop_count),
             LocalCounter::Local(n) => Some(&mut self.robot.local[n as usize]),
             LocalCounter::Lavawalk => Some(&mut self.robot.lavawalking),
+            LocalCounter::BulletType => Some(&mut self.robot.bullet_type),
             LocalCounter::HorizPld |
-            LocalCounter::VertPld => None,
+            LocalCounter::VertPld |
+            LocalCounter::PlayerDist |
+            LocalCounter::ThisX |
+            LocalCounter::ThisY |
+            LocalCounter::ThisColor |
+            LocalCounter::ThisChar => None,
         }
     }
 }
@@ -926,11 +941,20 @@ impl Thing {
     }
 }
 
-#[derive(Debug)]
 pub enum BulletType {
-    Player,
-    Neutral,
-    Enemy,
+    Player = 0,
+    Neutral = 1,
+    Enemy = 2,
+}
+
+impl From<i32> for BulletType {
+    fn from(v: i32) -> BulletType {
+        match v {
+            0 => BulletType::Player,
+            1 => BulletType::Neutral,
+            _ => BulletType::Enemy,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -1025,7 +1049,7 @@ pub struct Robot {
     pub current_loc: u8,
     pub cycle: u8,
     pub cycle_count: u8,
-    pub bullet_type: BulletType,
+    pub bullet_type: i32,
     pub locked: bool,
     pub lavawalking: i32,
     pub walk: Option<CardinalDirection>,
@@ -1051,7 +1075,7 @@ impl Robot {
             current_loc: 0,
             cycle: 0,
             cycle_count: 0,
-            bullet_type: BulletType::Neutral,
+            bullet_type: BulletType::Neutral as i32,
             locked: false,
             lavawalking: 0,
             walk: None,
@@ -1154,6 +1178,12 @@ pub enum LocalCounter {
     Lavawalk,
     HorizPld,
     VertPld,
+    PlayerDist,
+    ThisX,
+    ThisY,
+    BulletType,
+    ThisColor,
+    ThisChar,
 }
 
 impl LocalCounter {
@@ -1164,6 +1194,12 @@ impl LocalCounter {
             b"lava_walk" => LocalCounter::Lavawalk,
             b"horizpld" => LocalCounter::HorizPld,
             b"vertpld" => LocalCounter::VertPld,
+            b"playerdist" => LocalCounter::PlayerDist,
+            b"thisx" => LocalCounter::ThisX,
+            b"thisy" => LocalCounter::ThisY,
+            b"bullettype" => LocalCounter::BulletType,
+            b"thiscolor" => LocalCounter::ThisColor,
+            b"thischar" => LocalCounter::ThisChar,
             _ if name.len() > 5 && name[0..5] == b"local"[..] => {
                 let suffix = str::from_utf8(&name[5..]).ok().and_then(|s| s.parse::<u16>().ok());
                 match suffix {
@@ -1325,12 +1361,6 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
     let (cycle, buffer) = get_byte(buffer);
     let (cycle_count, buffer) = get_byte(buffer);
     let (bullet_type, buffer) = get_byte(buffer);
-    let bullet_type = match bullet_type {
-        0 => BulletType::Player,
-        1 => BulletType::Neutral,
-        2 => BulletType::Enemy,
-        _ => panic!(),
-    };
     let (locked, buffer) = get_bool(buffer);
     let (lavawalking, buffer) = get_bool(buffer);
     let (walk, buffer) = get_direction(buffer);
@@ -1352,7 +1382,7 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
         current_loc: current_loc,
         cycle: cycle,
         cycle_count: cycle_count,
-        bullet_type: bullet_type,
+        bullet_type: bullet_type as i32,
         locked: locked,
         lavawalking: if lavawalking { 1 } else { 0 },
         walk: walk,

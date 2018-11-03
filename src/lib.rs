@@ -375,24 +375,28 @@ impl Counters {
     }
 
     pub fn set<'a>(&mut self, name: ByteString, mut context: CounterContextMut<'a>, value: i32) {
+        let name = ByteString(name.as_bytes().iter().map(|c| c.to_ascii_lowercase()).collect());
         let name = name.evaluate(self, context.as_immutable());
+        debug!("setting {:?} to {}", name, value);
         if let Some(local) = LocalCounter::from(&name) {
             if let Some(counter) = context.local_counter_mut(local) {
+                debug!("setting local counter");
                 *counter = value;
             }
         } else {
-            let lowercase = ByteString(name.as_bytes().iter().map(|c| c.to_ascii_lowercase()).collect());
-            self.counters.insert(lowercase, value);
+            self.counters.insert(name, value);
         }
     }
 
     pub fn get<'a>(&self, name: &ByteString, context: CounterContext<'a>) -> i32 {
+        let name = ByteString(name.as_bytes().iter().map(|c| c.to_ascii_lowercase()).collect());
         let name = name.evaluate(self, context);
+        debug!("getting {:?}", name);
         if let Some(local) = LocalCounter::from(&name) {
+            debug!("getting local counter");
             context.local_counter(local)
         } else {
-            let lowercase = ByteString(name.as_bytes().iter().map(|c| c.to_ascii_lowercase()).collect());
-            *self.counters.get(&lowercase).unwrap_or(&0)
+            *self.counters.get(&name).unwrap_or(&0)
         }
     }
 }
@@ -1154,28 +1158,21 @@ pub enum LocalCounter {
 
 impl LocalCounter {
     fn from(name: &ByteString) -> Option<LocalCounter> {
-        if name == "loopcount" {
-            Some(LocalCounter::Loopcount)
-        } else if name == "local" {
-                Some(LocalCounter::Local(0))
-        } else if name.len() > 5 && {
-            let subname = ByteString(name[0..5].to_owned());
-            &subname == "local"
-        } {
-            let suffix = str::from_utf8(&name[5..]).ok().and_then(|s| s.parse::<u16>().ok());
-            match suffix {
-                Some(n) => Some(LocalCounter::Local((n % 32) as u8)),
-                _ => None,
+        Some(match &**name {
+            b"loopcount" => LocalCounter::Loopcount,
+            b"local" => LocalCounter::Local(0),
+            b"lava_walk" => LocalCounter::Lavawalk,
+            b"horizpld" => LocalCounter::HorizPld,
+            b"vertpld" => LocalCounter::VertPld,
+            _ if name.len() > 5 && name[0..5] == b"local"[..] => {
+                let suffix = str::from_utf8(&name[5..]).ok().and_then(|s| s.parse::<u16>().ok());
+                match suffix {
+                    Some(n) => LocalCounter::Local((n % 32) as u8),
+                    _ => return None,
+                }
             }
-        } else if name == "lava_walk" {
-            Some(LocalCounter::Lavawalk)
-        } else if name == "horizpld" {
-            Some(LocalCounter::HorizPld)
-        } else if name == "vertpld" {
-            Some(LocalCounter::VertPld)
-        } else {
-            None
-        }
+            _ => return None,
+        })
     }
 }
 

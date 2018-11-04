@@ -95,6 +95,7 @@ pub fn render<R: Renderer>(
                 w.char_id(CharId::PlayerColor)
             },
             Thing::Fire => w.char_id_offset(CharId::FireColor1, param),
+            Thing::Missile => w.char_id(CharId::MissileColor),
             Thing::Explosion => w.char_id_offset(
                 CharId::ExplosionStage1,
                 Explosion::from_param(param).stage
@@ -238,11 +239,11 @@ fn char_from_id(
     player_face_dir: CardinalDirection,
 ) -> u8 {
     let thing = Thing::from_u8(id).expect("invalid thing");
-    match thing {
-        Thing::Space => b' ',
-        Thing::Normal => 178,
-        Thing::Solid => 219,
-        Thing::Tree => 6,
+    let char_id = match thing {
+        Thing::Space => CharId::Space,
+        Thing::Normal => CharId::Normal,
+        Thing::Solid => CharId::Solid,
+        Thing::Tree => CharId::Tree,
         Thing::Line | Thing::ThickWeb => {
             let (has_left, has_right, has_top, has_bottom) = if thing == Thing::ThickWeb {
                 let check = |t| t != Thing::Space;
@@ -261,7 +262,7 @@ fn char_from_id(
                     bottom.map_or(true, check),
                 )
             };
-            match (has_left, has_right, has_top, has_bottom) {
+            return match (has_left, has_right, has_top, has_bottom) {
                 (false, false, false, false) => 249,
                 (_, _, false, false) => 205,
                 (false, false, _, _) => 186,
@@ -282,7 +283,7 @@ fn char_from_id(
             let has_right = right.map_or(true, check);
             let has_top = top.map_or(true, check);
             let has_bottom = bottom.map_or(true, check);
-            match (has_left, has_right, has_top, has_bottom) {
+            return match (has_left, has_right, has_top, has_bottom) {
                 (false, false, false, false) => 249,
                 (_, _, false, false) => 196,
                 (false, false, _, _) => 179,
@@ -297,110 +298,124 @@ fn char_from_id(
                 (true, true, true, true) => 197,
             }
         }
-        Thing::CustomBlock => param,
-        Thing::Breakaway => 177,
-        Thing::CustomBreak => param,
-        Thing::Boulder => 233,
-        Thing::Crate => 254,
-        Thing::CustomPush => param,
-        Thing::Box => 254,
-        Thing::CustomBox => param,
-        Thing::Fake => 178,
-        Thing::Carpet => 177,
-        Thing::Floor => 176,
-        Thing::Tiles => 254,
-        Thing::CustomFloor => param,
-        Thing::StillWater => 176,
-        Thing::NWater => 24,
-        Thing::SWater => 25,
-        Thing::EWater => 26,
-        Thing::WWater => 27,
-
-
-        Thing::Chest => 160,
-        Thing::Gem => 4,
-        Thing::MagicGem => 4,
-        Thing::Health => 3,
-        Thing::Ring => 9,
-        Thing::Potion => 150,
-        Thing::Energizer => 7,
-        Thing::Goop => 176,
-
-        Thing::Bomb => 11,
-
-        Thing::Explosion => 177,
-        Thing::Key => 12,
-        Thing::Lock => 10,
-
-
-        Thing::Stairs => 240,
-        Thing::Cave => 239,
-
-
-        Thing::Gate => 22,
-        Thing::OpenGate => 95,
-
-        Thing::Coin => 7,
-        Thing::NMovingWall => param,
-        Thing::SMovingWall => param,
-        Thing::EMovingWall => param,
-        Thing::WMovingWall => param,
-        Thing::Pouch => 229,
-
-        Thing::SliderNS => 18,
-        Thing::SliderEW => 29,
-
-        Thing::LazerGun => 206,
-
-
-
-        Thing::Fire => idchars[CharId::FireAnim1.to_usize().unwrap() + param as usize],
-        Thing::Forest => 178,
-
-        Thing::Whirlpool1 => 54,
-        Thing::Whirlpool2 => 64,
-        Thing::Whirlpool3 => 57,
-        Thing::Whirlpool4 => 149,
-        Thing::InvisibleWall => b' ',
-
-        Thing::Ricochet => 42,
-
-
-        Thing::CustomHurt => param,
-        Thing::Text => param,
-
-
-        Thing::Snake => 235,
-        Thing::Eye => 236,
-        Thing::Thief => 1,
-        Thing::SlimeBlob => 42,
-        Thing::Runner => 2,
-        Thing::Ghost => 234,
-        Thing::Dragon => 21,
-        Thing::Fish => 224,
-        Thing::Shark => 94,
-        Thing::Spider => 15,
-        Thing::Goblin => 5,
-        Thing::SpittingTiger => 227,
-
-
-        Thing::Bear => 153,
-        Thing::BearCub => 148,
-
-        Thing::Sensor => sensors[param as usize - 1].ch,
-        Thing::RobotPushable | Thing::Robot => robots[param as usize - 1].ch,
-        Thing::Sign => 226,
-        Thing::Scroll => 232,
-        Thing::Player => {
-            let dir = match player_face_dir {
-                CardinalDirection::North => CharId::PlayerNorth,
-                CardinalDirection::South => CharId::PlayerSouth,
-                CardinalDirection::East => CharId::PlayerEast,
-                CardinalDirection::West => CharId::PlayerWest,
-            };
-            idchars[dir.to_usize().unwrap()]
+        Thing::CustomBlock => return param,
+        Thing::Breakaway => CharId::Breakaway,
+        Thing::CustomBreak => return param,
+        Thing::Boulder => CharId::Boulder,
+        Thing::Crate => CharId::Crate,
+        Thing::CustomPush => return param,
+        Thing::Box => CharId::Box,
+        Thing::CustomBox => return param,
+        Thing::Fake => CharId::Fake,
+        Thing::Carpet => CharId::Carpet,
+        Thing::Floor => CharId::Floor,
+        Thing::Tiles => CharId::Tiles,
+        Thing::CustomFloor => return param,
+        Thing::StillWater => CharId::StillWater,
+        Thing::NWater => CharId::NorthWater,
+        Thing::SWater => CharId::SouthWater,
+        Thing::EWater => CharId::EastWater,
+        Thing::WWater => CharId::WestWater,
+        Thing::Ice => return idchars[CharId::BlankIce.to_usize().unwrap() + param as usize],
+        Thing::Lava => CharId::LavaAnim1, //TODO: lava animation,
+        Thing::Chest => CharId::Chest,
+        Thing::Gem => CharId::Gem,
+        Thing::MagicGem => CharId::MagicGem,
+        Thing::Health => CharId::Health,
+        Thing::Ring => CharId::Ring,
+        Thing::Potion => CharId::Potion,
+        Thing::Energizer => CharId::Energizer,
+        Thing::Goop => CharId::Goop,
+        Thing::Ammo => if param < 10 { CharId::SmallAmmo } else { CharId::LargeAmmo },
+        Thing::Bomb => CharId::Bomb,
+        Thing::LitBomb => CharId::LitBombAnim1, // TODO: lit bomb animation
+        Thing::Explosion => CharId::Explosion,
+        Thing::Key => CharId::Key,
+        Thing::Lock => CharId::Lock,
+        Thing::Door => return b'!', //TODO horizontaldoor/verticaldoor/diagonaldoor
+        Thing::OpenDoor => return b'!', //TODO horizontaldoor/verticaldoor/diagonaldoor
+        Thing::Stairs => CharId::Stairs,
+        Thing::Cave => CharId::Cave,
+        Thing::CWRotate => CharId::CwAnim1, //TODO animate
+        Thing::CCWRotate => CharId::CcwAnim1, //TODO animate
+        Thing::Gate => CharId::Gate,
+        Thing::OpenGate => CharId::OpenGate,
+        Thing::Transport => match param { //TODO animate
+            0 => CharId::NTransportAnim1,
+            1 => CharId::STransportAnim1,
+            2 => CharId::ETransportAnim1,
+            3 => CharId::WTransportAnim1,
+            4 => CharId::AnyTransportAnim1,
+            _ => unreachable!("unexpected transport param: {}", param),
+        },
+        Thing::Coin => CharId::Coin,
+        Thing::NMovingWall => return param,
+        Thing::SMovingWall => return param,
+        Thing::EMovingWall => return param,
+        Thing::WMovingWall => return param,
+        Thing::Pouch => CharId::Pouch,
+        Thing::Pusher | Thing::Missile | Thing::Spike => match param {
+            0 => CharId::NThickArrow,
+            1 => CharId::SThickArrow,
+            2 => CharId::EThickArrow,
+            3 => CharId::WThickArrow,
+            _ => unreachable!("unexpected param for {:?}: {}", thing, param),
         }
-
-        _ => b'!',
-    }
+        Thing::SliderNS => CharId::SliderNS,
+        Thing::SliderEW => CharId::SliderEW,
+        Thing::Lazer => CharId::HorizontalLazerAnim1, //TODO: differentiate horizontal/vertical
+        Thing::LazerGun => CharId::LazerGun,
+        Thing::Bullet => CharId::NPlayerBullet, //TODO differentiate player/neutral/enemy and dir
+        Thing::Fire => return idchars[CharId::FireAnim1.to_usize().unwrap() + param as usize],
+        Thing::Forest => CharId::Forest,
+        Thing::Life => CharId::LifeAnim1, //TODO animate
+        Thing::Whirlpool1 => CharId::Whirlpool1,
+        Thing::Whirlpool2 => CharId::Whirlpool2,
+        Thing::Whirlpool3 => CharId::Whirlpool3,
+        Thing::Whirlpool4 => CharId::Whirlpool4,
+        Thing::InvisibleWall => CharId::InvisibleWall,
+        Thing::RicochetPanel => match param {
+            0 => CharId::RicochetPanel1,
+            1 => CharId::RicochetPanel2,
+            _ => unreachable!("unexpected ricochet panel param: {}", param),
+        },
+        Thing::Ricochet => CharId::Ricochet,
+        Thing::Mine => CharId::MineAnim1, //TODO animate
+        Thing::CustomHurt => return param,
+        Thing::Text => return param,
+        Thing::ShootingFire => CharId::SpitFireAnim1, //TODO animate
+        Thing::Seeker => CharId::SeekerAnim1, //TODO animate
+        Thing::Snake => CharId::Snake,
+        Thing::Eye => CharId::Eye,
+        Thing::Thief => CharId::Thief,
+        Thing::SlimeBlob => CharId::SlimeBlob,
+        Thing::Runner => CharId::Runner,
+        Thing::Ghost => CharId::Ghost,
+        Thing::Dragon => CharId::Dragon,
+        Thing::Fish => CharId::Fish,
+        Thing::Shark => CharId::Shark,
+        Thing::Spider => CharId::Spider,
+        Thing::Goblin => CharId::Goblin,
+        Thing::SpittingTiger => CharId::SpittingTiger,
+        Thing::BulletGun => CharId::NThinArrow, //TODO differentiate
+        Thing::SpinningGun => CharId::NThinArrow, //TODO differentiate
+        Thing::Bear => CharId::Bear,
+        Thing::BearCub => CharId::BearCub,
+        Thing::MissileGun => CharId::NThickArrow, //TODO differentiate
+        Thing::Sensor => return sensors[param as usize - 1].ch,
+        Thing::RobotPushable | Thing::Robot => return robots[param as usize - 1].ch,
+        Thing::Sign => CharId::Sign,
+        Thing::Scroll => CharId::Scroll,
+        Thing::Sprite => unreachable!("no physical spites should exist"),
+        Thing::SpriteCollision => unreachable!("no physical sprite collisions should exist"),
+        Thing::ImageFile => unreachable!("no physical image files should exist"),
+        Thing::NoId => unreachable!("no physical noid objects should exist"),
+        Thing::Player => match player_face_dir {
+            CardinalDirection::North => CharId::PlayerNorth,
+            CardinalDirection::South => CharId::PlayerSouth,
+            CardinalDirection::East => CharId::PlayerEast,
+            CardinalDirection::West => CharId::PlayerWest,
+        }
+    };
+    idchars[char_id.to_usize().unwrap()]
 }

@@ -611,7 +611,7 @@ pub enum Command {
     LockPlayerEW,
     LockPlayerAttack,
     MovePlayerDir(ModifiedDirection, Option<ByteString>),
-    PutPlayerXY(SignedNumeric),
+    PutPlayerXY(SignedNumeric, SignedNumeric),
     ObsoleteIfPlayerDir(ModifiedDirection, ByteString, bool),
     IfPlayerXY(SignedNumeric, SignedNumeric, ByteString),
     PutPlayerDir(ModifiedDirection),
@@ -1187,7 +1187,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
                 param2.map(|p| p.into()),
             )
         }
-        CommandOp::PutPlayerXY => one_arg(buffer, Command::PutPlayerXY),
+        CommandOp::PutPlayerXY => two_args(buffer, Command::PutPlayerXY),
         CommandOp::ObsoleteIfPlayerDir | CommandOp::ObsoleteIfNotPlayerDir => {
             let (param1, buffer) = get_robotic_parameter(buffer);
             let (param2, _buffer) = get_robotic_parameter(buffer);

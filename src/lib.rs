@@ -77,6 +77,7 @@ pub struct WorldState {
     pub message_edge: bool,
     pub message_color: u8,
     pub global_robot: Robot,
+    pub player_face_dir: CardinalDirection,
 }
 
 impl WorldState {
@@ -1725,6 +1726,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
             message_edge: true,
             message_color: 0x01,
             global_robot,
+            player_face_dir: CardinalDirection::South,
         },
         boards: boards,
         board_robots: board_robots,

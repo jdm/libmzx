@@ -3,7 +3,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::{
     WorldState, Board, Robot, Charset, Palette, Sensor, Thing, OverlayMode, Coordinate, Size,
-    CharId, Explosion,
+    CharId, Explosion, CardinalDirection,
 };
 
 pub trait Renderer {
@@ -117,6 +117,7 @@ pub fn render<R: Renderer>(
                 if (board_x as usize) < board.width - 1 { Some(board.thing_at(&Coordinate(board_x + 1, board_y))) } else { None },
                 board_y.checked_sub(1).map(|y| board.thing_at(&Coordinate(board_x, y))),
                 if (board_y as usize) < board.height - 1 { Some(board.thing_at(&Coordinate(board_x, board_y + 1))) } else { None },
+                w.player_face_dir,
             )
         } else {
             overlay_char
@@ -234,6 +235,7 @@ fn char_from_id(
     right: Option<Thing>,
     top: Option<Thing>,
     bottom: Option<Thing>,
+    player_face_dir: CardinalDirection,
 ) -> u8 {
     let thing = Thing::from_u8(id).expect("invalid thing");
     match thing {
@@ -389,7 +391,15 @@ fn char_from_id(
         Thing::RobotPushable | Thing::Robot => robots[param as usize - 1].ch,
         Thing::Sign => 226,
         Thing::Scroll => 232,
-        Thing::Player => idchars[CharId::PlayerSouth.to_usize().unwrap()], //FIXME: use current playerdir
+        Thing::Player => {
+            let dir = match player_face_dir {
+                CardinalDirection::North => CharId::PlayerNorth,
+                CardinalDirection::South => CharId::PlayerSouth,
+                CardinalDirection::East => CharId::PlayerEast,
+                CardinalDirection::West => CharId::PlayerWest,
+            };
+            idchars[dir.to_usize().unwrap()]
+        }
 
         _ => b'!',
     }

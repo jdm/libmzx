@@ -76,6 +76,7 @@ pub struct WorldState {
     pub scroll_locked: bool,
     pub message_edge: bool,
     pub message_color: u8,
+    pub global_robot: Robot,
 }
 
 impl WorldState {
@@ -1658,7 +1659,8 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
     }
     assert_eq!(colors.len(), 16);
 
-    let (_global_robot_pos, buffer) = get_dword(buffer);
+    let (global_robot_pos, buffer) = get_dword(buffer);
+    let (global_robot, _) = load_robot(&original_buffer[global_robot_pos as usize..]);
     let (sfx, mut buffer) = get_byte(buffer);
     let num_boards = if sfx == 0 {
         let (len, new_buffer) = get_word(buffer);
@@ -1722,6 +1724,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
             scroll_locked: false,
             message_edge: true,
             message_color: 0x01,
+            global_robot,
         },
         boards: boards,
         board_robots: board_robots,

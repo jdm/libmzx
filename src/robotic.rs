@@ -602,7 +602,7 @@ pub enum Command {
     PlayIfSilent(ByteString),
     Open(ModifiedDirection),
     LockSelf(bool),
-    SendDir(ModifiedDirection, ByteString),
+    SendDir(ModifiedDirection, ByteString, bool),
     Zap(ByteString, Numeric),
     Restore(ByteString, Numeric),
     LockPlayer,
@@ -636,7 +636,6 @@ pub enum Command {
     GiveKey(Color, Option<ByteString>),
     TakeKey(Color, Option<ByteString>),
     Trade(Numeric, Item, Numeric, Item, ByteString),
-    SendDirPlayer(ModifiedDirection, ByteString),
     PutDirPlayer(ExtendedColor, Thing, Param, ModifiedDirection),
     Slash(ByteString),
     MessageLine(ByteString),
@@ -1166,7 +1165,11 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::Open => one_arg(buffer, Command::Open),
         CommandOp::LockSelf => Command::LockSelf(true),
         CommandOp::UnlockSelf => Command::LockSelf(false),
-        CommandOp::SendDir => two_args(buffer, Command::SendDir),
+        CommandOp::SendDir | CommandOp::SendDirPlayer => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, _buffer) = get_robotic_parameter(buffer);
+            Command::SendDir(param1.into(), param2.into(), op == CommandOp::SendDirPlayer)
+        }
         CommandOp::Zap => two_args(buffer, Command::Zap),
         CommandOp::Restore => two_args(buffer, Command::Restore),
         CommandOp::LockPlayer => Command::LockPlayer,
@@ -1262,7 +1265,6 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             )
         }
         CommandOp::Trade => five_args(buffer, Command::Trade),
-        CommandOp::SendDirPlayer => two_args(buffer, Command::SendDirPlayer),
         CommandOp::PutDirPlayer => four_args(buffer, Command::PutDirPlayer),
         CommandOp::Slash => one_arg(buffer, Command::Slash),
         CommandOp::MessageLine => one_arg(buffer, Command::MessageLine),

@@ -77,6 +77,7 @@ pub struct WorldState {
     pub message_edge: bool,
     pub message_color: u8,
     pub player_face_dir: i32,
+    pub key_pressed: i32,
 }
 
 impl WorldState {
@@ -347,7 +348,8 @@ impl<'a> CounterContext<'a> {
             LocalCounter::BulletType => self.robot.bullet_type,
             LocalCounter::ThisColor => self.board.level_at(&self.robot.position).1 as i32,
             LocalCounter::ThisChar => self.robot.ch as i32,
-            LocalCounter::PlayerFaceDir => self.state.player_face_dir as i32,
+            LocalCounter::PlayerFaceDir => self.state.player_face_dir,
+            LocalCounter::KeyPressed => self.state.key_pressed,
         }
     }
 }
@@ -388,7 +390,8 @@ impl<'a> CounterContextMut<'a> {
             LocalCounter::ThisY |
             LocalCounter::ThisColor |
             LocalCounter::ThisChar |
-            LocalCounter::PlayerFaceDir => Some(&mut self.state.player_face_dir),
+            LocalCounter::PlayerFaceDir |
+            LocalCounter::KeyPressed => Some(&mut self.state.player_face_dir),
         }
     }
 }
@@ -462,6 +465,12 @@ impl<'a> Into<ByteString> for &'a ByteString {
 impl<'a> From<&'a str> for ByteString {
     fn from(v: &'a str) -> ByteString {
         ByteString(v.as_bytes().to_vec())
+    }
+}
+
+impl From<Vec<u8>> for ByteString {
+    fn from(v: Vec<u8>) -> ByteString {
+        ByteString(v)
     }
 }
 
@@ -1255,6 +1264,7 @@ pub enum KeyPress {
     Right,
     Space,
     Delete,
+    Other(u8, Option<u8>),
 }
 
 pub struct Robot {
@@ -1400,6 +1410,7 @@ pub enum LocalCounter {
     ThisColor,
     ThisChar,
     PlayerFaceDir,
+    KeyPressed,
 }
 
 impl LocalCounter {
@@ -1417,6 +1428,7 @@ impl LocalCounter {
             b"thiscolor" => LocalCounter::ThisColor,
             b"thischar" => LocalCounter::ThisChar,
             b"playerfacedir" => LocalCounter::PlayerFaceDir,
+            b"key_pressed" => LocalCounter::KeyPressed,
             _ if name.len() > 5 && name[0..5] == b"local"[..] => {
                 let suffix = str::from_utf8(&name[5..]).ok().and_then(|s| s.parse::<u16>().ok());
                 match suffix {
@@ -1951,6 +1963,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
             message_edge: true,
             message_color: 0x01,
             player_face_dir: 1,
+            key_pressed: 0,
         },
         boards: boards,
         edge_border: ColorValue(edge_border),

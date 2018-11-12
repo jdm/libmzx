@@ -47,7 +47,7 @@ pub struct World {
     pub title: ByteString,
     pub state: WorldState,
     pub boards: Vec<Board>,
-    pub board_robots: Vec<Vec<Robot>>,
+    pub all_robots: Vec<Robot>,
     pub edge_border: ColorValue,
     pub starting_board_number: BoardId,
     pub end_game_board: BoardId,
@@ -76,8 +76,7 @@ pub struct WorldState {
     pub scroll_locked: bool,
     pub message_edge: bool,
     pub message_color: u8,
-    pub global_robot: Robot,
-    pub player_face_dir: CardinalDirection,
+    pub player_face_dir: i32,
 }
 
 impl WorldState {
@@ -132,6 +131,7 @@ pub struct Board {
     pub message_row: u8,
     pub message_col: Option<u8>,
     pub remaining_message_cycles: u8,
+    pub robot_range: (usize, usize),
 }
 
 impl Board {
@@ -317,13 +317,15 @@ impl Board {
 pub struct CounterContext<'a> {
     board: &'a Board,
     robot: &'a Robot,
+    state: &'a WorldState,
 }
 
 impl<'a> CounterContext<'a> {
-    pub fn from(board: &'a Board, robot: &'a Robot) -> CounterContext<'a> {
+    pub fn from(board: &'a Board, robot: &'a Robot, state: &'a WorldState) -> CounterContext<'a> {
         CounterContext {
             board,
             robot,
+            state,
         }
     }
 
@@ -345,6 +347,7 @@ impl<'a> CounterContext<'a> {
             LocalCounter::BulletType => self.robot.bullet_type,
             LocalCounter::ThisColor => self.board.level_at(&self.robot.position).1 as i32,
             LocalCounter::ThisChar => self.robot.ch as i32,
+            LocalCounter::PlayerFaceDir => self.state.player_face_dir as i32,
         }
     }
 }
@@ -352,20 +355,23 @@ impl<'a> CounterContext<'a> {
 pub struct CounterContextMut<'a> {
     board: &'a mut Board,
     robot: &'a mut Robot,
+    state: &'a mut WorldState,
 }
 
 impl<'a> CounterContextMut<'a> {
-    pub fn from(board: &'a mut Board, robot: &'a mut Robot) -> CounterContextMut<'a> {
+    pub fn from(board: &'a mut Board, robot: &'a mut Robot, state: &'a mut WorldState) -> CounterContextMut<'a> {
         CounterContextMut {
             board,
             robot,
+            state,
         }
     }
 
-    fn as_immutable(&self) -> CounterContext {
+    pub fn as_immutable(&self) -> CounterContext {
         CounterContext {
             board: self.board,
             robot: self.robot,
+            state: self.state,
         }
     }
 
@@ -381,7 +387,8 @@ impl<'a> CounterContextMut<'a> {
             LocalCounter::ThisX |
             LocalCounter::ThisY |
             LocalCounter::ThisColor |
-            LocalCounter::ThisChar => None,
+            LocalCounter::ThisChar |
+            LocalCounter::PlayerFaceDir => Some(&mut self.state.player_face_dir),
         }
     }
 }
@@ -1363,6 +1370,7 @@ pub enum LocalCounter {
     BulletType,
     ThisColor,
     ThisChar,
+    PlayerFaceDir,
 }
 
 impl LocalCounter {
@@ -1379,6 +1387,7 @@ impl LocalCounter {
             b"bullettype" => LocalCounter::BulletType,
             b"thiscolor" => LocalCounter::ThisColor,
             b"thischar" => LocalCounter::ThisChar,
+            b"playerfacedir" => LocalCounter::PlayerFaceDir,
             _ if name.len() > 5 && name[0..5] == b"local"[..] => {
                 let suffix = str::from_utf8(&name[5..]).ok().and_then(|s| s.parse::<u16>().ok());
                 match suffix {
@@ -1604,7 +1613,12 @@ fn load_sensor(buffer: &[u8]) -> (Sensor, &[u8]) {
     )
 }
 
-fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<(Board, Vec<Robot>), BoardError> {
+fn load_board(
+    title: ByteString,
+    version: u32,
+    buffer: &[u8],
+    robot_offset: usize,
+) -> Result<(Board, Vec<Robot>), BoardError> {
     debug!("loading board {:?}", title);
     let (sizing, mut buffer) = get_byte(buffer);
     let (_width, _height) = match sizing {
@@ -1772,6 +1786,7 @@ fn load_board(title: ByteString, version: u32, buffer: &[u8]) -> Result<(Board, 
         message_row,
         message_col: if message_col == 0xFF { None } else { Some(message_col) },
         remaining_message_cycles: cycles_until_disappear,
+        robot_range: (robot_offset, robots.len()),
     },
     robots))
 }
@@ -1839,6 +1854,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
 
     let (global_robot_pos, buffer) = get_dword(buffer);
     let (global_robot, _) = load_robot(&original_buffer[global_robot_pos as usize..]);
+    let mut all_robots = vec![global_robot];
     let (sfx, mut buffer) = get_byte(buffer);
     let num_boards = if sfx == 0 {
         let (len, new_buffer) = get_word(buffer);
@@ -1855,7 +1871,6 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
 
     let mut titles = vec![];
     let mut boards = vec![];
-    let mut board_robots = vec![];
     for _ in 0..num_boards {
         let (title, new_buffer) = get_null_terminated_string(buffer, 25);
         buffer = new_buffer;
@@ -1873,17 +1888,21 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         if byte_length == 0 {
             buffer = new_buffer;
             boards.push(unsafe { ::std::mem::uninitialized() });
-            board_robots.push(vec![]);
             continue;
         }
 
         let end_board_pos = board_pos + byte_length;
         let (mut board, mut robots) = try!(
-            load_board(title, version, &original_buffer[board_pos..end_board_pos])
+            load_board(
+                title,
+                version,
+                &original_buffer[board_pos..end_board_pos],
+                all_robots.len()
+            )
         );
         board.init(&mut robots);
         boards.push(board);
-        board_robots.push(robots);
+        all_robots.extend(robots);
         buffer = new_buffer;
     }
 
@@ -1902,11 +1921,9 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
             scroll_locked: false,
             message_edge: true,
             message_color: 0x01,
-            global_robot,
-            player_face_dir: CardinalDirection::South,
+            player_face_dir: 1,
         },
         boards: boards,
-        board_robots: board_robots,
         edge_border: ColorValue(edge_border),
         starting_board_number: BoardId(starting_board_number),
         end_game_board: BoardId(end_game_board),
@@ -1921,6 +1938,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         enemies_hurt_enemies: enemies_hurt_enemies,
         clear_messages_and_projectiles: clear_messages_and_projectiles,
         only_play_via_swap_world: only_play_via_swap_world,
+        all_robots,
     })
 }
 

@@ -3,7 +3,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::{
     WorldState, Board, Robot, Charset, Palette, Sensor, Thing, OverlayMode, Coordinate, Size,
-    CharId, Explosion, CardinalDirection,
+    CharId, Explosion,
 };
 
 pub trait Renderer {
@@ -236,7 +236,7 @@ fn char_from_id(
     right: Option<Thing>,
     top: Option<Thing>,
     bottom: Option<Thing>,
-    player_face_dir: CardinalDirection,
+    player_face_dir: i32,
 ) -> u8 {
     let thing = Thing::from_u8(id).expect("invalid thing");
     let char_id = match thing {
@@ -411,10 +411,10 @@ fn char_from_id(
         Thing::ImageFile => unreachable!("no physical image files should exist"),
         Thing::NoId => unreachable!("no physical noid objects should exist"),
         Thing::Player => match player_face_dir {
-            CardinalDirection::North => CharId::PlayerNorth,
-            CardinalDirection::South => CharId::PlayerSouth,
-            CardinalDirection::East => CharId::PlayerEast,
-            CardinalDirection::West => CharId::PlayerWest,
+            0 => CharId::PlayerNorth,
+            1 => CharId::PlayerSouth,
+            2 => CharId::PlayerEast,
+            _ => CharId::PlayerWest,
         }
     };
     idchars[char_id.to_usize().unwrap()]

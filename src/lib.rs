@@ -691,7 +691,36 @@ pub fn adjust_coordinate(
     ))
 }
 
+pub enum RelativeDirBasis {
+    Robot(Coordinate<u16>, Option<CardinalDirection>),
+    Player(Coordinate<u16>),
+}
+
+impl RelativeDirBasis {
+    fn flow(&self) -> Option<CardinalDirection> {
+        match *self {
+            RelativeDirBasis::Robot(_, ref flow) => flow.clone(),
+            RelativeDirBasis::Player(..) => None,
+        }
+    }
+
+    pub fn from_robot(robot: &Robot) -> RelativeDirBasis {
+        RelativeDirBasis::Robot(robot.position, robot.walk.clone())
+    }
+
+    pub fn from_player(board: &Board) -> RelativeDirBasis {
+        RelativeDirBasis::Player(board.player_pos)
+    }
+}
+
 pub fn dir_to_cardinal_dir(robot: &Robot, dir: &ModifiedDirection) -> Option<CardinalDirection> {
+    dir_to_cardinal_dir_rel(
+        RelativeDirBasis::Robot(robot.position, robot.walk.clone()),
+        dir
+    )
+}
+
+pub fn dir_to_cardinal_dir_rel(basis: RelativeDirBasis, dir: &ModifiedDirection) -> Option<CardinalDirection> {
     // TODO: blocked, not blocked, etc.
     let resolved = match dir.dir {
         Direction::North => Some(CardinalDirection::North),
@@ -699,7 +728,7 @@ pub fn dir_to_cardinal_dir(robot: &Robot, dir: &ModifiedDirection) -> Option<Car
         Direction::East => Some(CardinalDirection::East),
         Direction::West => Some(CardinalDirection::West),
         Direction::Idle | Direction::NoDir => None,
-        Direction::Flow => robot.walk.clone(),
+        Direction::Flow => basis.flow(),
         Direction::RandNs => Some(if rand::random::<bool>() == true {
             CardinalDirection::North
         } else {

@@ -78,6 +78,8 @@ pub struct WorldState {
     pub message_color: u8,
     pub player_face_dir: i32,
     pub key_pressed: i32,
+    pub health: i32,
+    pub lives: i32,
 }
 
 impl WorldState {
@@ -342,6 +344,8 @@ impl<'a> CounterContext<'a> {
             LocalCounter::PlayerDist =>
                 self.local_counter(LocalCounter::HorizPld) +
                 self.local_counter(LocalCounter::VertPld),
+            LocalCounter::PlayerX => self.board.player_pos.0 as i32,
+            LocalCounter::PlayerY => self.board.player_pos.1 as i32,
             // TODO: support command prefixes for ThisX and ThisY
             LocalCounter::ThisX => self.robot.position.0 as i32,
             LocalCounter::ThisY => self.robot.position.1 as i32,
@@ -350,6 +354,8 @@ impl<'a> CounterContext<'a> {
             LocalCounter::ThisChar => self.robot.ch as i32,
             LocalCounter::PlayerFaceDir => self.state.player_face_dir,
             LocalCounter::KeyPressed => self.state.key_pressed,
+            LocalCounter::Health => self.state.health,
+            LocalCounter::Lives => self.state.lives,
         }
     }
 }
@@ -383,15 +389,19 @@ impl<'a> CounterContextMut<'a> {
             LocalCounter::Local(n) => Some(&mut self.robot.local[n as usize]),
             LocalCounter::Lavawalk => Some(&mut self.robot.lavawalking),
             LocalCounter::BulletType => Some(&mut self.robot.bullet_type),
+            LocalCounter::PlayerFaceDir => Some(&mut self.state.player_face_dir),
+            LocalCounter::Health => Some(&mut self.state.health),
+            LocalCounter::Lives => Some(&mut self.state.lives),
             LocalCounter::HorizPld |
             LocalCounter::VertPld |
             LocalCounter::PlayerDist |
+            LocalCounter::PlayerX |
+            LocalCounter::PlayerY |
             LocalCounter::ThisX |
             LocalCounter::ThisY |
             LocalCounter::ThisColor |
             LocalCounter::ThisChar |
-            LocalCounter::PlayerFaceDir |
-            LocalCounter::KeyPressed => Some(&mut self.state.player_face_dir),
+            LocalCounter::KeyPressed => None,
         }
     }
 }
@@ -1404,6 +1414,8 @@ pub enum LocalCounter {
     HorizPld,
     VertPld,
     PlayerDist,
+    PlayerX,
+    PlayerY,
     ThisX,
     ThisY,
     BulletType,
@@ -1411,6 +1423,8 @@ pub enum LocalCounter {
     ThisChar,
     PlayerFaceDir,
     KeyPressed,
+    Health,
+    Lives,
 }
 
 impl LocalCounter {
@@ -1429,6 +1443,10 @@ impl LocalCounter {
             b"thischar" => LocalCounter::ThisChar,
             b"playerfacedir" => LocalCounter::PlayerFaceDir,
             b"key_pressed" => LocalCounter::KeyPressed,
+            b"health" => LocalCounter::Health,
+            b"lives" => LocalCounter::Lives,
+            b"playerx" => LocalCounter::PlayerX,
+            b"playery" => LocalCounter::PlayerY,
             _ if name.len() > 5 && name[0..5] == b"local"[..] => {
                 let suffix = str::from_utf8(&name[5..]).ok().and_then(|s| s.parse::<u16>().ok());
                 match suffix {
@@ -1964,6 +1982,8 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
             message_color: 0x01,
             player_face_dir: 1,
             key_pressed: 0,
+            lives: 3,
+            health: 100,
         },
         boards: boards,
         edge_border: ColorValue(edge_border),

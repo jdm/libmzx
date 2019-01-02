@@ -208,20 +208,94 @@ pub enum MessageBoxLine {
 
 pub fn draw_messagebox<R: Renderer>(
     w: &WorldState,
+    title: &ByteString,
     lines: &[MessageBoxLine],
     pos: usize,
     renderer: &mut R,
 ) {
-    for (y, line) in lines.iter().enumerate() {
+    let empty_title = ByteString("Interaction".to_owned().into_bytes());
+    let title = if title.is_empty() {
+        &empty_title
+    } else {
+        title
+    };
+    const DIALOG_Y: usize = 3;
+    const DIALOG_X: usize = 5;
+    const DIALOG_W: usize = 79 - DIALOG_X * 2;
+    const DIALOG_H: usize = 25 - DIALOG_Y * 2;
+    const CONTENT_H: usize = DIALOG_H - 6;
+
+    let mut y = DIALOG_Y;
+    draw_char(0xDA, 0x00, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer); // .-
+    for x in 1..DIALOG_W {
+        draw_char(0xC4, 0x00, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // -
+    }
+    draw_char(0xBF, 0x07, 0x08, DIALOG_X + DIALOG_W, y, &w.charset, &w.palette, renderer); // -.
+
+    y += 1;
+    draw_char(0xB3, 0x00, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer); // |
+    for x in 1..DIALOG_W {
+        draw_char(0x00, 0x00, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // ' '
+    }
+    draw_char(0xB3, 0x0F, 0x08, DIALOG_X + DIALOG_W, y, &w.charset, &w.palette, renderer); // |
+    for (x, c) in title.iter().enumerate() {
+        draw_char(*c, 0x0F, 0x08, DIALOG_X + (DIALOG_W - title.len()) / 2 + x, y, &w.charset, &w.palette, renderer);
+    }
+
+    y += 1;
+    draw_char(0xDA, 0x0F, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer); // .-
+    for x in 1..DIALOG_W {
+        draw_char(0xC4, 0x0F, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // -
+    }
+    draw_char(0xD9, 0x0F, 0x08, DIALOG_X + DIALOG_W, y, &w.charset, &w.palette, renderer); // -/
+
+    y += 1;
+
+    for y_off in 0..CONTENT_H {
+        draw_char(0xB3, 0x0F, 0x08, DIALOG_X, y + y_off, &w.charset, &w.palette, renderer); // |
+        for x in 1..DIALOG_W {
+            draw_char(0x00, 0x00, 0x08, DIALOG_X + x, y + y_off, &w.charset, &w.palette, renderer);
+        }
+        if y_off == CONTENT_H / 2 {
+            draw_char(0x10, 0x00, 0x08, DIALOG_X + 1, y + y_off, &w.charset, &w.palette, renderer); // >
+            draw_char(0x11, 0x00, 0x08, DIALOG_X + DIALOG_W - 1, y + y_off, &w.charset, &w.palette, renderer); // <
+        }
+        draw_char(0xB3, 0x00, 0x08, DIALOG_X + DIALOG_W, y + y_off, &w.charset, &w.palette, renderer); // |
+    }
+
+    y += CONTENT_H;
+    draw_char(0xDA, 0x00, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer); // .-
+    for x in 1..DIALOG_W {
+        draw_char(0xC4, 0x00, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // -
+    }
+    draw_char(0xD9, 0x00, 0x08, DIALOG_X + DIALOG_W, y, &w.charset, &w.palette, renderer); // -/
+
+    y += 1;
+    draw_char(0xB3, 0x00, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer); // |
+    for x in 1..DIALOG_W {
+        draw_char(0x00, 0x00, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // -
+    }
+    draw_char(0xB3, 0x0F, 0x08, DIALOG_X + DIALOG_W, y, &w.charset, &w.palette, renderer); // |
+
+    y += 1;
+    draw_char(0xC0, 0x07, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer); // \-
+    for x in 1..DIALOG_W {
+        draw_char(0xC4, 0x0F, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // -
+    }
+    draw_char(0xD9, 0x0F, 0x08, DIALOG_X + DIALOG_W, y, &w.charset, &w.palette, renderer); // -/
+
+    let start = (pos as isize - CONTENT_H as isize / 2).max(0) as usize;
+    let end = (start + (CONTENT_H / 2 + pos + 1).min(CONTENT_H)).min(lines.len());
+    let y_start = DIALOG_Y + 3 + CONTENT_H / 2 - pos.min(CONTENT_H / 2);
+
+    for (y_off, line) in lines[start..end].iter().enumerate() {
         let text = match line {
             MessageBoxLine::Text(ref s, _type) => s,
             MessageBoxLine::Option { ref text, .. } => text,
         };
-        if y == pos {
-            draw_char(0x10, 0x0E, 0x08, 0, y, &w.charset, &w.palette, renderer);
-        }
+        // FIXME: limit maximum line characters
         for (x, ch) in text.iter().enumerate() {
-            draw_char(*ch, 0x0F, 0x08, 2 + x, y, &w.charset, &w.palette, renderer);
+            draw_char(*ch, 0x0F, 0x08, DIALOG_X + 3 + x, y_start + y_off, &w.charset, &w.palette, renderer);
         }
     }
 }

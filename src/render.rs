@@ -235,7 +235,7 @@ pub fn draw_messagebox<R: Renderer>(
     y += 1;
     draw_char(0xB3, 0x00, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer); // |
     for x in 1..DIALOG_W {
-        draw_char(0x00, 0x00, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // ' '
+        draw_char(0x20, 0x00, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // ' '
     }
     draw_char(0xB3, 0x0F, 0x08, DIALOG_X + DIALOG_W, y, &w.charset, &w.palette, renderer); // |
     for (x, c) in title.iter().enumerate() {
@@ -254,7 +254,7 @@ pub fn draw_messagebox<R: Renderer>(
     for y_off in 0..CONTENT_H {
         draw_char(0xB3, 0x0F, 0x08, DIALOG_X, y + y_off, &w.charset, &w.palette, renderer); // |
         for x in 1..DIALOG_W {
-            draw_char(0x00, 0x00, 0x08, DIALOG_X + x, y + y_off, &w.charset, &w.palette, renderer);
+            draw_char(0x20, 0x00, 0x08, DIALOG_X + x, y + y_off, &w.charset, &w.palette, renderer);
         }
         if y_off == CONTENT_H / 2 {
             draw_char(0x10, 0x00, 0x08, DIALOG_X + 1, y + y_off, &w.charset, &w.palette, renderer); // >
@@ -273,7 +273,7 @@ pub fn draw_messagebox<R: Renderer>(
     y += 1;
     draw_char(0xB3, 0x00, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer); // |
     for x in 1..DIALOG_W {
-        draw_char(0x00, 0x00, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // -
+        draw_char(0x20, 0x00, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // -
     }
     draw_char(0xB3, 0x0F, 0x08, DIALOG_X + DIALOG_W, y, &w.charset, &w.palette, renderer); // |
 

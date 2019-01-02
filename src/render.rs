@@ -3,7 +3,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::{
     WorldState, Board, Robot, Charset, Palette, Sensor, Thing, OverlayMode, Coordinate, Size,
-    CharId, Explosion,
+    CharId, Explosion, MessageBoxLineType, ByteString,
 };
 
 pub trait Renderer {
@@ -193,6 +193,35 @@ pub fn render<R: Renderer>(
                 palette,
                 renderer
             );
+        }
+    }
+}
+
+pub enum MessageBoxLine {
+    Text(ByteString, MessageBoxLineType),
+    Option {
+        counter: Option<ByteString>,
+        label: ByteString,
+        text: ByteString
+    },
+}
+
+pub fn draw_messagebox<R: Renderer>(
+    w: &WorldState,
+    lines: &[MessageBoxLine],
+    pos: usize,
+    renderer: &mut R,
+) {
+    for (y, line) in lines.iter().enumerate() {
+        let text = match line {
+            MessageBoxLine::Text(ref s, _type) => s,
+            MessageBoxLine::Option { ref text, .. } => text,
+        };
+        if y == pos {
+            draw_char(0x10, 0x0E, 0x08, 0, y, &w.charset, &w.palette, renderer);
+        }
+        for (x, ch) in text.iter().enumerate() {
+            draw_char(*ch, 0x0F, 0x08, 2 + x, y, &w.charset, &w.palette, renderer);
         }
     }
 }

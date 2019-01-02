@@ -12,10 +12,12 @@ extern crate rand;
 mod render;
 mod robotic;
 
-pub use self::render::{Renderer, render};
+pub use self::render::{
+    Renderer, MessageBoxLine, render, draw_messagebox
+};
 pub use self::robotic::{
     Command, Resolve, Operator, ExtendedParam, ExtendedColorValue, RelativePart, SignedNumeric,
-    ModifiedDirection,
+    ModifiedDirection, MessageBoxLineType,
 };
 use self::robotic::Condition;
 

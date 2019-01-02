@@ -556,6 +556,13 @@ pub enum RelativePart {
     Last,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum MessageBoxLineType {
+    Plain,
+    Center,
+    Color,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Command {
     End,
@@ -639,9 +646,8 @@ pub enum Command {
     PutDirPlayer(ExtendedColor, Thing, Param, ModifiedDirection),
     Slash(ByteString),
     MessageLine(ByteString),
-    MessageBoxLine(ByteString),
-    MessageBoxOption(ByteString),
-    MessageBoxMaybeOption(ByteString),
+    MessageBoxLine(ByteString, MessageBoxLineType),
+    MessageBoxOption(Option<ByteString>, ByteString, ByteString),
     Label(ByteString),
     Comment(ByteString),
     ZappedLabel(ByteString),
@@ -651,8 +657,6 @@ pub enum Command {
     IfInput(ByteString, ByteString, bool),
     IfInputMatches(ByteString, ByteString),
     PlayerChar(Character),
-    MessageBoxColorLine(ByteString),
-    MessageBoxCenterLine(ByteString),
     MoveAll(ExtendedColor, Thing, ModifiedDirection),
     Copy(SignedNumeric, SignedNumeric, SignedNumeric, SignedNumeric),
     SetEdgeColor(Color),
@@ -773,6 +777,15 @@ impl Command {
             Command::ColorFadeOut |
             Command::SwapWorld(..) |
             Command::CopyOverlayBlock(..) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_message_box(&self) -> bool {
+        match *self {
+            Command::MessageBoxLine(..) |
+            Command::MessageBoxOption(..) |
+            Command::BlankLine => true,
             _ => false,
         }
     }
@@ -1268,9 +1281,29 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::PutDirPlayer => four_args(buffer, Command::PutDirPlayer),
         CommandOp::Slash => one_arg(buffer, Command::Slash),
         CommandOp::MessageLine => one_arg(buffer, Command::MessageLine),
-        CommandOp::MessageBoxLine => one_arg(buffer, Command::MessageBoxLine),
-        CommandOp::MessageBoxOption => one_arg(buffer, Command::MessageBoxOption),
-        CommandOp::MessageBoxMaybeOption => one_arg(buffer, Command::MessageBoxMaybeOption),
+        CommandOp::MessageBoxLine => {
+            let (param1, _buffer) = get_robotic_parameter(buffer);
+            Command::MessageBoxLine(param1.into(), MessageBoxLineType::Plain)
+        }
+        CommandOp::MessageBoxOption => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, _buffer) = get_robotic_parameter(buffer);
+            Command::MessageBoxOption(
+                None,
+                param1.into(),
+                param2.into(),
+            )
+        }
+        CommandOp::MessageBoxMaybeOption => {
+            let (param1, buffer) = get_robotic_parameter(buffer);
+            let (param2, buffer) = get_robotic_parameter(buffer);
+            let (param3, _buffer) = get_robotic_parameter(buffer);
+            Command::MessageBoxOption(
+                Some(param1.into()),
+                param2.into(),
+                param3.into(),
+            )
+        }
         CommandOp::Label => one_arg(buffer, Command::Label),
         CommandOp::Comment => one_arg(buffer, Command::Comment),
         CommandOp::ZappedLabel => one_arg(buffer, Command::ZappedLabel),
@@ -1288,8 +1321,14 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         }
         CommandOp::IfInputMatches => two_args(buffer, Command::IfInputMatches),
         CommandOp::PlayerChar => one_arg(buffer, Command::PlayerChar),
-        CommandOp::MessageBoxColorLine => one_arg(buffer, Command::MessageBoxColorLine),
-        CommandOp::MessageBoxCenterLine => one_arg(buffer, Command::MessageBoxCenterLine),
+        CommandOp::MessageBoxColorLine => {
+            let (param1, _buffer) = get_robotic_parameter(buffer);
+            Command::MessageBoxLine(param1.into(), MessageBoxLineType::Color)
+        }
+        CommandOp::MessageBoxCenterLine => {
+            let (param1, _buffer) = get_robotic_parameter(buffer);
+            Command::MessageBoxLine(param1.into(), MessageBoxLineType::Center)
+        }
         CommandOp::MoveAll => three_args(buffer, Command::MoveAll),
         CommandOp::Copy => four_args(buffer, Command::Copy),
         CommandOp::SetEdgeColor => one_arg(buffer, Command::SetEdgeColor),

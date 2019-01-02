@@ -82,6 +82,7 @@ pub struct WorldState {
     pub key_pressed: i32,
     pub health: i32,
     pub lives: i32,
+    pub keys: u32,
 }
 
 impl WorldState {
@@ -1986,6 +1987,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
             key_pressed: 0,
             lives: 3,
             health: 100,
+            keys: 0,
         },
         boards: boards,
         edge_border: ColorValue(edge_border),

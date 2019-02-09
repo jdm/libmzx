@@ -328,14 +328,18 @@ pub fn draw_messagebox<R: Renderer>(
 fn draw_fancy_message_box_line<R: Renderer>(
     text: &ByteString,
     _center: bool,
-    _option: bool,
+    option: bool,
     x: usize,
     y: usize,
     charset: &Charset,
     palette: &Palette,
     renderer: &mut R,
 ) {
-    let mut x_off = 0;
+    let mut x_off = if option { 2 } else { 0 };
+    if option {
+        draw_char(0x10, 0x0E, 0x08, x, y, charset, palette, renderer);
+    }
+
     for (chars, bg, fg) in text.color_text() {
         for &c in chars {
             draw_char(

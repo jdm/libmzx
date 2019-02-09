@@ -291,6 +291,7 @@ pub fn draw_messagebox<R: Renderer>(
     for (y_off, line) in lines[start..end].iter().enumerate() {
         // FIXME: limit maximum line characters
         const START_X: usize = DIALOG_X + 3;
+        const LIMIT: usize = DIALOG_W - 4;
         match line {
             MessageBoxLine::Text(ref s, MessageBoxLineType::Plain) => {
                 for (x, ch) in s.iter().enumerate() {
@@ -308,17 +309,17 @@ pub fn draw_messagebox<R: Renderer>(
             }
             MessageBoxLine::Text(ref s, MessageBoxLineType::Color) => {
                 draw_fancy_message_box_line(
-                    s, false, false, START_X, y_start + y_off, &w.charset, &w.palette, renderer,
+                    s, false, false, START_X, y_start + y_off, LIMIT, &w.charset, &w.palette, renderer,
                 )
             }
             MessageBoxLine::Text(ref s, MessageBoxLineType::Center) => {
                 draw_fancy_message_box_line(
-                    s, true, false, START_X, y_start + y_off, &w.charset, &w.palette, renderer,
+                    s, true, false, START_X, y_start + y_off, LIMIT, &w.charset, &w.palette, renderer,
                 )
             }
             MessageBoxLine::Option { ref text, .. } => {
                 draw_fancy_message_box_line(
-                    text, false, true, START_X, y_start + y_off, &w.charset, &w.palette, renderer,
+                    text, false, true, START_X, y_start + y_off, LIMIT, &w.charset, &w.palette, renderer,
                 )
             }
         };
@@ -327,10 +328,11 @@ pub fn draw_messagebox<R: Renderer>(
 
 fn draw_fancy_message_box_line<R: Renderer>(
     text: &ByteString,
-    _center: bool,
+    center: bool,
     option: bool,
     x: usize,
     y: usize,
+    limit: usize,
     charset: &Charset,
     palette: &Palette,
     renderer: &mut R,
@@ -338,6 +340,11 @@ fn draw_fancy_message_box_line<R: Renderer>(
     let mut x_off = if option { 2 } else { 0 };
     if option {
         draw_char(0x10, 0x0E, 0x08, x, y, charset, palette, renderer);
+    }
+
+    if center {
+        let len = text.color_text().fold(0, |acc, (chars, _bg, _fg)| acc + chars.len());
+        x_off += (limit - len) / 2;
     }
 
     for (chars, bg, fg) in text.color_text() {

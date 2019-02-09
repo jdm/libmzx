@@ -289,13 +289,66 @@ pub fn draw_messagebox<R: Renderer>(
     let y_start = DIALOG_Y + 3 + CONTENT_H / 2 - pos.min(CONTENT_H / 2);
 
     for (y_off, line) in lines[start..end].iter().enumerate() {
-        let text = match line {
-            MessageBoxLine::Text(ref s, _type) => s,
-            MessageBoxLine::Option { ref text, .. } => text,
-        };
         // FIXME: limit maximum line characters
-        for (x, ch) in text.iter().enumerate() {
-            draw_char(*ch, 0x0F, 0x08, DIALOG_X + 3 + x, y_start + y_off, &w.charset, &w.palette, renderer);
+        const START_X: usize = DIALOG_X + 3;
+        match line {
+            MessageBoxLine::Text(ref s, MessageBoxLineType::Plain) => {
+                for (x, ch) in s.iter().enumerate() {
+                    draw_char(
+                        *ch,
+                        0x0F,
+                        0x08,
+                        START_X + x,
+                        y_start + y_off,
+                        &w.charset,
+                        &w.palette,
+                        renderer
+                    );
+                }
+            }
+            MessageBoxLine::Text(ref s, MessageBoxLineType::Color) => {
+                draw_fancy_message_box_line(
+                    s, false, false, START_X, y_start + y_off, &w.charset, &w.palette, renderer,
+                )
+            }
+            MessageBoxLine::Text(ref s, MessageBoxLineType::Center) => {
+                draw_fancy_message_box_line(
+                    s, true, false, START_X, y_start + y_off, &w.charset, &w.palette, renderer,
+                )
+            }
+            MessageBoxLine::Option { ref text, .. } => {
+                draw_fancy_message_box_line(
+                    text, false, true, START_X, y_start + y_off, &w.charset, &w.palette, renderer,
+                )
+            }
+        };
+    }
+}
+
+fn draw_fancy_message_box_line<R: Renderer>(
+    text: &ByteString,
+    _center: bool,
+    _option: bool,
+    x: usize,
+    y: usize,
+    charset: &Charset,
+    palette: &Palette,
+    renderer: &mut R,
+) {
+    let mut x_off = 0;
+    for (chars, bg, fg) in text.color_text() {
+        for &c in chars {
+            draw_char(
+                c,
+                fg.unwrap_or(0x0F),
+                bg.unwrap_or(0x08),
+                x + x_off,
+                y,
+                charset,
+                palette,
+                renderer,
+            );
+            x_off += 1;
         }
     }
 }

@@ -497,8 +497,8 @@ impl PartialEq for ByteString {
     }
 }
 
-impl PartialEq<str> for ByteString {
-    fn eq(&self, other: &str) -> bool {
+impl PartialEq<&str> for ByteString {
+    fn eq(&self, other: &&str) -> bool {
         self.as_bytes().len() == other.as_bytes().len() &&
         self.as_bytes()
             .iter()

@@ -200,7 +200,6 @@ pub fn render<R: Renderer>(
 pub enum MessageBoxLine {
     Text(ByteString, MessageBoxLineType),
     Option {
-        counter: Option<ByteString>,
         label: ByteString,
         text: ByteString
     },

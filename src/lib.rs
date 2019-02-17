@@ -423,14 +423,16 @@ impl Counters {
     pub fn set<'a>(&mut self, name: ByteString, mut context: CounterContextMut<'a>, value: i32) {
         let name = ByteString(name.as_bytes().iter().map(|c| c.to_ascii_lowercase()).collect());
         let name = name.evaluate(self, context.as_immutable());
-        debug!("setting {:?} to {}", name, value);
+        println!("setting {:?} to {}", name, value);
         if let Some(local) = LocalCounter::from(&name) {
             if let Some(counter) = context.local_counter_mut(local) {
-                debug!("setting local counter");
+                println!("setting local counter");
                 *counter = value;
             }
         } else {
+            println!("setting");
             self.counters.insert(name, value);
+            println!("done setting");
         }
     }
 

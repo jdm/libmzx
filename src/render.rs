@@ -4,6 +4,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 use super::{
     WorldState, Board, Robot, Charset, Palette, Sensor, Thing, OverlayMode, Coordinate, Size,
     CharId, Explosion, MessageBoxLineType, ByteString, DoorOrientation, door_from_param,
+    bullet_from_param, BulletType, CardinalDirection
 };
 
 pub trait Renderer {
@@ -100,6 +101,13 @@ pub fn render<R: Renderer>(
                 CharId::ExplosionStage1,
                 Explosion::from_param(param).stage
             ),
+            Thing::Bullet => {
+                match bullet_from_param(param).0 {
+                    BulletType::Player => w.char_id(CharId::PlayerBulletColor),
+                    BulletType::Enemy => w.char_id(CharId::EnemyBulletColor),
+                    BulletType::Neutral => w.char_id(CharId::NeutralBulletColor),
+                }
+            }
             _ => color,
         };
 
@@ -539,7 +547,22 @@ fn char_from_id(
         Thing::SliderEW => CharId::SliderEW,
         Thing::Lazer => CharId::HorizontalLazerAnim1, //TODO: differentiate horizontal/vertical
         Thing::LazerGun => CharId::LazerGun,
-        Thing::Bullet => CharId::NPlayerBullet, //TODO differentiate player/neutral/enemy and dir
+        Thing::Bullet => {
+            match bullet_from_param(param) {
+                (BulletType::Player, CardinalDirection::North) => CharId::NPlayerBullet,
+                (BulletType::Player, CardinalDirection::South) => CharId::SPlayerBullet,
+                (BulletType::Player, CardinalDirection::East) => CharId::EPlayerBullet,
+                (BulletType::Player, CardinalDirection::West) => CharId::WPlayerBullet,
+                (BulletType::Enemy, CardinalDirection::North) => CharId::NEnemyBullet,
+                (BulletType::Enemy, CardinalDirection::South) => CharId::SEnemyBullet,
+                (BulletType::Enemy, CardinalDirection::East) => CharId::EEnemyBullet,
+                (BulletType::Enemy, CardinalDirection::West) => CharId::WEnemyBullet,
+                (BulletType::Neutral, CardinalDirection::North) => CharId::NNeutralBullet,
+                (BulletType::Neutral, CardinalDirection::South) => CharId::SNeutralBullet,
+                (BulletType::Neutral, CardinalDirection::East) => CharId::ENeutralBullet,
+                (BulletType::Neutral, CardinalDirection::West) => CharId::WNeutralBullet,
+            }
+        }
         Thing::Fire => return idchars[CharId::FireAnim1.to_usize().unwrap() + param as usize],
         Thing::Forest => CharId::Forest,
         Thing::Life => CharId::LifeAnim1, //TODO animate

@@ -1278,6 +1278,28 @@ impl From<i32> for BulletType {
     }
 }
 
+pub fn bullet_param(type_: BulletType, dir: CardinalDirection) -> u8 {
+    (match dir {
+        CardinalDirection::North => 0,
+        CardinalDirection::South => 1,
+        CardinalDirection::East => 2,
+        CardinalDirection::West => 3,
+    }) |
+    ((type_ as u8) << 2)
+}
+
+pub fn bullet_from_param(param: u8) -> (BulletType, CardinalDirection) {
+    let type_ = BulletType::from((param >> 2) as i32);
+    let dir = match param & 3 {
+        0 => CardinalDirection::North,
+        1 => CardinalDirection::South,
+        2 => CardinalDirection::East,
+        3 => CardinalDirection::West,
+        _ => unreachable!(),
+    };
+    (type_, dir)
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum OverlayMode {
     Normal,

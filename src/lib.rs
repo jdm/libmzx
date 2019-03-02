@@ -906,10 +906,8 @@ pub enum CharId {
     ExplosionStage2 = 185,
     ExplosionStage3 = 186,
     ExplosionStage4 = 187,
-    //HorizontalDoor = ???
-    //VerticalDoor = ???
-    //DiagonalDoor1 = ???
-    //DiagonalDoor2 = ???
+    HorizontalDoor = 188,
+    VerticalDoor = 189,
     CwAnim1 = 190,
     CwAnim2 = 191,
     CwAnim3 = 192,
@@ -918,6 +916,7 @@ pub enum CharId {
     CcwAnim2 = 195,
     CcwAnim3 = 196,
     CcwAnim4 = 197,
+    OpenDoorStart = 198,
     NTransportAnim1 = 230,
     NTransportAnim2 = 231,
     NTransportAnim3 = 232,
@@ -1015,6 +1014,65 @@ pub enum CharId {
     PlayerBulletColor = 324,
     NeutralBulletColor = 325,
     EnemyBulletColor = 326,
+}
+
+pub enum DoorOrientation {
+    Horizontal,
+    Vertical,
+}
+
+pub enum DoorDir {
+    OpensNW,
+    OpensNE,
+    OpensSW,
+    OpensSE,
+}
+
+#[derive(PartialEq)]
+pub enum DoorStatus {
+    Unlocked,
+    Locked,
+}
+
+pub fn param_from_door(orientation: DoorOrientation, dir: DoorDir, status: DoorStatus) -> u8 {
+    (match status {
+        DoorStatus::Locked => 1,
+        DoorStatus::Unlocked => 0,
+    }) << 5 |
+    (match dir {
+        DoorDir::OpensNW => 0,
+        DoorDir::OpensNE => 1,
+        DoorDir::OpensSW => 2,
+        DoorDir::OpensSE => 3,
+    }) << 1 |
+    match orientation {
+        DoorOrientation::Horizontal => 0,
+        DoorOrientation::Vertical => 1,
+    }
+}
+
+pub fn door_from_param(param: u8) -> (DoorOrientation, DoorDir, DoorStatus) {
+    let orientation = if (param & 0b1) != 0 {
+        DoorOrientation::Horizontal
+    } else {
+        DoorOrientation::Vertical
+    };
+
+    let dir = match (param & 0b1110) >> 1 {
+        0 => DoorDir::OpensNW,
+        1 => DoorDir::OpensNE,
+        2 => DoorDir::OpensSW,
+        3 => DoorDir::OpensSE,
+        _ => unreachable!(),
+    };
+
+    let status = if (param & 0b10000) != 0 {
+        DoorStatus::Locked
+    } else {
+        DoorStatus::Unlocked
+    };
+
+    (orientation, dir, status)
 }
 
 #[derive(Copy, Clone, Debug, Primitive, PartialEq)]

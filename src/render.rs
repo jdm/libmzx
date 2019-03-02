@@ -3,7 +3,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::{
     WorldState, Board, Robot, Charset, Palette, Sensor, Thing, OverlayMode, Coordinate, Size,
-    CharId, Explosion, MessageBoxLineType, ByteString,
+    CharId, Explosion, MessageBoxLineType, ByteString, DoorOrientation, door_from_param,
 };
 
 pub trait Renderer {
@@ -498,8 +498,16 @@ fn char_from_id(
         Thing::Explosion => CharId::Explosion,
         Thing::Key => CharId::Key,
         Thing::Lock => CharId::Lock,
-        Thing::Door => return b'!', //TODO horizontaldoor/verticaldoor/diagonaldoor
-        Thing::OpenDoor => return b'!', //TODO horizontaldoor/verticaldoor/diagonaldoor
+        Thing::Door => {
+            let (orientation, _dir, _status) = door_from_param(param);
+            match orientation {
+                DoorOrientation::Horizontal => CharId::HorizontalDoor,
+                DoorOrientation::Vertical => CharId::VerticalDoor,
+            }
+        }
+        Thing::OpenDoor => {
+            return idchars[CharId::OpenDoorStart.to_usize().unwrap() + (param & 0x1F) as usize];
+        }
         Thing::Stairs => CharId::Stairs,
         Thing::Cave => CharId::Cave,
         Thing::CWRotate => CharId::CwAnim1, //TODO animate

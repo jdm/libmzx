@@ -103,6 +103,26 @@ impl WorldState {
         assert!(cur < len);
         (cur + 1) % len
     }
+
+    pub fn take_key(&mut self, color: u8) -> Result<(), ()> {
+        let has_key = self.keys & (1 << color) != 0;
+        self.keys &= !(1 << color);
+        if has_key {
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
+    pub fn give_key(&mut self, color: u8) -> Result<(), ()> {
+        let has_key = self.keys & (1 << color) != 0;
+        self.keys |= 1 << color;
+        if has_key {
+            Err(())
+        } else {
+            Ok(())
+        }
+    }
 }
 
 pub struct Board {

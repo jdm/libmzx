@@ -73,8 +73,6 @@ pub struct WorldState {
     pub initial_palette: Palette,
     pub idchars: Box<[u8]>,
     pub saved_positions: [(usize, Coordinate<u16>); 10],
-    pub player_locked_ns: bool,
-    pub player_locked_ew: bool,
     pub scroll_locked: bool,
     pub message_edge: bool,
     pub message_color: u8,
@@ -158,6 +156,9 @@ pub struct Board {
     pub message_col: Option<u8>,
     pub remaining_message_cycles: u8,
     pub robot_range: (usize, usize),
+    pub player_locked_ns: bool,
+    pub player_locked_ew: bool,
+    pub player_locked_attack: bool,
 }
 
 impl Board {
@@ -1882,9 +1883,9 @@ fn load_board(
         (0, 0, ByteString(vec![]), 0, 24, 0)
     };
 
-    let (_player_locked_ns, buffer) = get_byte(buffer);
-    let (_player_locked_ew, buffer) = get_byte(buffer);
-    let (_player_locked_attack, mut buffer) = get_byte(buffer);
+    let (player_locked_ns, buffer) = get_bool(buffer);
+    let (player_locked_ew, buffer) = get_bool(buffer);
+    let (player_locked_attack, mut buffer) = get_bool(buffer);
     if version < 0x253 {
         let (_mod_volume, new_buffer) = get_byte(buffer);
         let (_mod_volume_change, new_buffer) = get_byte(new_buffer);
@@ -1932,6 +1933,9 @@ fn load_board(
         message_col: if message_col == 0xFF { None } else { Some(message_col) },
         remaining_message_cycles: cycles_until_disappear,
         robot_range: (robot_offset, robots.len()),
+        player_locked_ns,
+        player_locked_ew,
+        player_locked_attack,
     },
     robots))
 }
@@ -2061,8 +2065,6 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
             initial_palette: Palette { colors: colors },
             idchars: idchars.to_vec().into_boxed_slice(),
             saved_positions: [(0, Coordinate(0, 0)); 10],
-            player_locked_ns: false,
-            player_locked_ew: false,
             scroll_locked: false,
             message_edge: true,
             message_color: 0x01,

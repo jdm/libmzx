@@ -337,6 +337,11 @@ impl Board {
             *ocol = color;
         }
     }
+
+    pub fn set_message_line(&mut self, line: ByteString) {
+        self.message_line = line;
+        self.remaining_message_cycles = 100;
+    }
 }
 
 #[derive(Copy, Clone)]

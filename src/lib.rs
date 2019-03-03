@@ -81,6 +81,7 @@ pub struct WorldState {
     pub health: i32,
     pub lives: i32,
     pub keys: u32,
+    pub update_done: Vec<bool>, // FIXME: this belongs in mzxplay, not libmzx
 }
 
 impl WorldState {
@@ -2095,6 +2096,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
             lives: 3,
             health: 100,
             keys: 0,
+            update_done: vec![],
         },
         boards: boards,
         edge_border: ColorValue(edge_border),

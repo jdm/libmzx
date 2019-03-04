@@ -197,6 +197,33 @@ impl Board {
         None
     }
 
+    pub fn find_extended(
+        &self,
+        id: u8,
+        color: ExtendedColorValue,
+        param: ExtendedParam
+    ) -> Option<Coordinate<u16>> {
+        for (idx,
+             (&(level_thing, level_color, level_param),
+              &(under_thing, under_color, under_param))) in
+            self.level.iter().zip(self.under.iter()).enumerate()
+        {
+            if (level_thing == id &&
+                color.matches(ColorValue(level_color)) &&
+                param.matches(ParamValue(level_param))) ||
+                (under_thing == id &&
+                 color.matches(ColorValue(under_color)) &&
+                 param.matches(ParamValue(under_param)))
+            {
+                return Some(Coordinate(
+                    (idx % self.width) as u16,
+                    (idx / self.width) as u16,
+                ));
+            }
+        }
+        None
+    }
+
     pub fn thing_at(&self, pos: &Coordinate<u16>) -> Thing {
         Thing::from_u8(self.level_at(pos).0).expect("invalid thing value")
     }

@@ -179,14 +179,28 @@ impl Board {
         }
     }
 
+    fn whirlpools_match(_id: u8, other: u8) -> bool {
+        other >= Thing::Whirlpool1 as u8 && other <= Thing::Whirlpool4 as u8
+    }
+
+    fn ids_match(id: u8, other: u8) -> bool {
+        id == other
+    }
+
     pub fn find(&self, id: u8, color: u8) -> Option<Coordinate<u16>> {
+        let id_match = if id >= Thing::Whirlpool1 as u8 && id <= Thing::Whirlpool4 as u8 {
+            Board::whirlpools_match
+        } else {
+            Board::ids_match
+        };
+
         for (idx,
              (&(level_thing, level_color, _),
               &(under_thing, under_color, _))) in
             self.level.iter().zip(self.under.iter()).enumerate()
         {
-            if (level_thing == id && level_color == color) ||
-                (under_thing == id && under_color == color)
+            if (id_match(id, level_thing) && level_color == color) ||
+                (id_match(id, under_thing) && under_color == color)
             {
                 return Some(Coordinate(
                     (idx % self.width) as u16,
@@ -1217,6 +1231,16 @@ pub enum Thing {
 impl Thing {
     pub fn is_robot(&self) -> bool {
         *self == Thing::Robot || *self == Thing::RobotPushable
+    }
+
+    pub fn is_whirlpool(&self) -> bool {
+        [Thing::Whirlpool1, Thing::Whirlpool2, Thing::Whirlpool3, Thing::Whirlpool4]
+            .iter()
+            .any(|t| t == self)
+    }
+
+    pub fn is_teleporter(&self) -> bool {
+        *self == Thing::Stairs || *self == Thing::Cave || self.is_whirlpool()
     }
 
     pub fn is_solid(&self) -> bool {

@@ -108,6 +108,7 @@ pub fn render<R: Renderer>(
                     BulletType::Neutral => w.char_id(CharId::NeutralBulletColor),
                 }
             }
+            Thing::Scroll => w.message_color,
             _ => color,
         };
 

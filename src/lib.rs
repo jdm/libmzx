@@ -1967,7 +1967,23 @@ fn load_board(
         buffer = new_buffer;
     }
 
-    let (robots, buffer) = get_objects(buffer, load_robot);
+    let (mut robots, buffer) = get_objects(buffer, load_robot);
+
+    for (pos, (id, param)) in ids.iter().zip(params.iter()).enumerate() {
+        if *id == Thing::Robot as u8 || *id == Thing::RobotPushable as u8 {
+            let x = (pos % width) as u16;
+            let y = (pos / width) as u16;
+            let robot = &mut robots[*param as usize - 1];
+            if robot.position != Coordinate(x, y) {
+                warn!(
+                    "resetting invalid robot position: {:?} to {},{}",
+                    robot.position, x, y
+                );
+                robot.position = Coordinate(x, y);
+            }
+        }
+    }
+
     debug!("loading scrolls");
     let (scrolls, buffer) = get_objects(buffer, load_scroll);
     debug!("loading sensors");

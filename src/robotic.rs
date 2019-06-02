@@ -1598,6 +1598,13 @@ pub(crate) fn parse_program(buffer: &[u8]) -> Vec<Command> {
     }
 
     let (initial, mut buffer) = get_byte(buffer);
+
+    // First -- fix the odd robots that appear in old MZX games,
+    // such as Catacombs of Zeux.
+    if buffer.len() == 1 || initial as i8 != -1 {
+        return commands;
+    }
+
     assert_eq!(initial as i8, -1);
     loop {
         let (total, new_buffer) = get_byte(buffer);

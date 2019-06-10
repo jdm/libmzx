@@ -1243,6 +1243,22 @@ impl Thing {
         *self == Thing::Stairs || *self == Thing::Cave || self.is_whirlpool()
     }
 
+    pub fn is_pushable(&self) -> bool {
+        match *self {
+            Thing::Crate |
+            Thing::CustomPush |
+            Thing::RobotPushable |
+            Thing::Gem |
+            Thing::MagicGem |
+            Thing::Bomb |
+            Thing::LitBomb |
+            Thing::Key |
+            Thing::Coin |
+            Thing::Player => true,
+            _ => false,
+        }
+    }
+
     pub fn is_solid(&self) -> bool {
         match *self {
             Thing::Normal |

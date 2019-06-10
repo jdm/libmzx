@@ -834,14 +834,14 @@ pub fn dir_to_cardinal_dir_rel(basis: RelativeDirBasis, dir: &ModifiedDirection)
         } else {
             CardinalDirection::West
         }),
-        Direction::Anydir | Direction::RandAny => Some(match rand::random::<u8>() % 4 {
+        Direction::RandAny => Some(match rand::random::<u8>() % 4 {
             0 => CardinalDirection::North,
             1 => CardinalDirection::South,
             2 => CardinalDirection::East,
             3 => CardinalDirection::West,
             _ => unreachable!(),
         }),
-        Direction::Seek | Direction::Beneath | Direction::RandB | Direction::RandNb => None, //TODO
+        Direction::Anydir | Direction::Seek | Direction::Beneath | Direction::RandB | Direction::RandNb => None, //TODO
     };
     // TODO: cw, random perpendicular, randnot
     if dir.opp {
@@ -1504,30 +1504,50 @@ impl Robot {
             Condition::Firewalking =>
                 board.under_thing_at(&self.position) == Thing::Fire,
             Condition::Touching(ref dir) => {
-                let dir = dir_to_cardinal_dir(self, dir);
-                dir.map_or(false, |d| {
+                let is_touching_dir = |d: &CardinalDirection| {
                     let adjusted = adjust_coordinate(
                         self.position,
                         board,
-                        d
+                        *d
                     );
                     adjusted.map_or(false, |pos| {
                         board.thing_at(&pos) == Thing::Player
                     })
-                })
+                };
+                match dir_to_cardinal_dir(self, dir) {
+                    Some(dir) => is_touching_dir(&dir),
+                    None => if dir.dir == Direction::Anydir {
+                        [CardinalDirection::North, CardinalDirection::South,
+                         CardinalDirection::East, CardinalDirection::West]
+                            .iter()
+                            .any(is_touching_dir)
+                    } else {
+                        false
+                    }
+                }
             }
             Condition::Blocked(ref dir) => {
-                let dir = dir_to_cardinal_dir(self, dir);
-                dir.map_or(false, |d| {
+                let is_blocked_dir = |d: &CardinalDirection| {
                     let adjusted = adjust_coordinate(
                         self.position,
                         board,
-                        d
+                        *d
                     );
                     adjusted.map_or(false, |pos| {
                         board.thing_at(&pos).is_solid()
                     })
-                })
+                };
+                match dir_to_cardinal_dir(self, dir) {
+                    Some(dir) => is_blocked_dir(&dir),
+                    None => if dir.dir == Direction::Anydir {
+                        [CardinalDirection::North, CardinalDirection::South,
+                         CardinalDirection::East, CardinalDirection::West]
+                            .iter()
+                            .any(is_blocked_dir)
+                    } else {
+                        false
+                    }
+                }
             }
             Condition::Aligned => {
                 board.player_pos.0 == self.position.0 ||

@@ -9,7 +9,10 @@ extern crate log;
 extern crate num_traits;
 extern crate rand;
 
+pub mod audio;
+pub mod board;
 mod render;
+pub mod robot;
 mod robotic;
 
 pub use self::render::{
@@ -37,9 +40,9 @@ pub struct BoardId(pub u8);
 pub struct ColorValue(pub u8);
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct ParamValue(pub u8);
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Coordinate<T>(pub T, pub T);
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct Size<T>(pub T, pub T);
 
 const LEGACY_WORLD_VERSION: u32 = 0x0254;
@@ -124,6 +127,7 @@ impl WorldState {
     }
 }
 
+#[derive(Default)]
 pub struct Board {
     pub title: ByteString,
     pub width: usize,
@@ -268,16 +272,16 @@ impl Board {
 
     pub fn copy(&mut self, src: Coordinate<u16>, block: Size<u16>, dest: Coordinate<u16>) {
         let mut yiter = if src.1 > dest.1 {
-            Box::new(0..block.1) as Box<Iterator<Item=u16>>
+            Box::new(0..block.1) as Box<dyn Iterator<Item=u16>>
         } else {
-            Box::new((0..block.1).rev()) as Box<Iterator<Item=u16>>
+            Box::new((0..block.1).rev()) as Box<dyn Iterator<Item=u16>>
         };
 
         while let Some(j) = yiter.next() {
             let mut xiter = if src.0 > dest.0 {
-                Box::new(0..block.0) as Box<Iterator<Item=u16>>
+                Box::new(0..block.0) as Box<dyn Iterator<Item=u16>>
             } else {
-                Box::new((0..block.0).rev()) as Box<Iterator<Item=u16>>
+                Box::new((0..block.0).rev()) as Box<dyn Iterator<Item=u16>>
             };
             while let Some(i) = xiter.next() {
                 let src_coord = Coordinate(src.0 + i, src.1 + j);
@@ -303,16 +307,16 @@ impl Board {
         };
 
         let mut yiter = if src.1 > dest.1 {
-            Box::new(0..block.1) as Box<Iterator<Item=u16>>
+            Box::new(0..block.1) as Box<dyn Iterator<Item=u16>>
         } else {
-            Box::new((0..block.1).rev()) as Box<Iterator<Item=u16>>
+            Box::new((0..block.1).rev()) as Box<dyn Iterator<Item=u16>>
         };
 
         while let Some(j) = yiter.next() {
             let mut xiter = if src.0 > dest.0 {
-                Box::new(0..block.0) as Box<Iterator<Item=u16>>
+                Box::new(0..block.0) as Box<dyn Iterator<Item=u16>>
             } else {
-                Box::new((0..block.0).rev()) as Box<Iterator<Item=u16>>
+                Box::new((0..block.0).rev()) as Box<dyn Iterator<Item=u16>>
             };
             while let Some(i) = xiter.next() {
                 let src_coord = Coordinate(src.0 + i, src.1 + j);
@@ -329,8 +333,9 @@ impl Board {
         }
     }
 
-    pub fn move_level(&mut self, pos: &Coordinate<u16>, xdiff: i8, ydiff: i8) {
+    pub fn move_level(&mut self, robots: &mut [Robot], pos: &Coordinate<u16>, xdiff: i8, ydiff: i8) {
         self.move_level_to(
+            robots,
             pos,
             &Coordinate(
                 (pos.0 as i16 + xdiff as i16) as u16,
@@ -339,7 +344,14 @@ impl Board {
         );
     }
 
-    pub fn move_level_to(&mut self, pos: &Coordinate<u16>, new_pos: &Coordinate<u16>) {
+    pub fn move_level_to(&mut self, robots: &mut [Robot], pos: &Coordinate<u16>, new_pos: &Coordinate<u16>) {
+        let thing = Thing::from_u8(self.level_at(pos).0).unwrap();
+        if thing.is_robot() {
+            let id = self.level_at(pos).2;
+            robots[id as usize - 1].position = *new_pos;
+        } else if thing == Thing::Player {
+            self.player_pos = *new_pos;
+        }
         let old_idx = (pos.1 * self.width as u16 + pos.0) as usize;
         let new_idx = (new_pos.1 * self.width as u16 + new_pos.0) as usize;
         self.under[new_idx] = self.level[new_idx];
@@ -768,6 +780,15 @@ pub fn adjust_coordinate(
         CardinalDirection::East => (1, 0),
         CardinalDirection::West => (-1, 0),
     };
+    adjust_coordinate_diff(coord, board, xdiff, ydiff)
+}
+
+pub fn adjust_coordinate_diff(
+    coord: Coordinate<u16>,
+    board: &Board,
+    xdiff: i16,
+    ydiff: i16,
+) -> Option<Coordinate<u16>> {
     if (coord.0 as i16 + xdiff < 0) ||
         ((coord.0 as i16 + xdiff) as usize >= board.width) ||
         (coord.1 as i16 + ydiff < 0) ||
@@ -1382,6 +1403,12 @@ pub enum ExplosionResult {
     Fire,
 }
 
+impl Default for ExplosionResult {
+    fn default() -> ExplosionResult {
+        ExplosionResult::Nothing
+    }
+}
+
 pub struct Explosion {
     pub stage: u8,
     pub size: u8,
@@ -1409,6 +1436,12 @@ pub enum SaveRestriction {
     Unrestricted,
     NoSave,
     OnlyOnSensor,
+}
+
+impl Default for SaveRestriction {
+    fn default() -> Self {
+        SaveRestriction::Unrestricted
+    }
 }
 
 pub const CHAR_BYTES: usize = 14;
@@ -2162,19 +2195,17 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
 
         if byte_length == 0 {
             buffer = new_buffer;
-            boards.push(unsafe { ::std::mem::uninitialized() });
+            boards.push(Board::default());
             continue;
         }
 
         let end_board_pos = board_pos + byte_length;
-        let (mut board, mut robots) = try!(
-            load_board(
-                title,
-                version,
-                &original_buffer[board_pos..end_board_pos],
-                all_robots.len()
-            )
-        );
+        let (mut board, mut robots) = load_board(
+            title,
+            version,
+            &original_buffer[board_pos..end_board_pos],
+            all_robots.len()
+        )?;
         board.init(&mut robots);
         boards.push(board);
         all_robots.extend(robots);

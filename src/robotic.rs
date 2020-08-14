@@ -491,8 +491,8 @@ impl ExtendedColorValue {
             ExtendedColorValue::Known(ColorValue(c as u8))
         } else {
             match c & 0xFF {
-                v @ 0...15 => ExtendedColorValue::Unknown(None, Some(ColorValue(v as u8))),
-                v @ 16...31 => ExtendedColorValue::Unknown(Some(ColorValue(v as u8)), None),
+                v @ 0..=15 => ExtendedColorValue::Unknown(None, Some(ColorValue(v as u8))),
+                v @ 16..=31 => ExtendedColorValue::Unknown(Some(ColorValue(v as u8)), None),
                 32 => ExtendedColorValue::Unknown(None, None),
                 _ => unreachable!(),
             }

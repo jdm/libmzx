@@ -1756,10 +1756,10 @@ fn get_null_terminated_string(buffer: &[u8], max_length: usize) -> (ByteString, 
 
 fn get_bool(buffer: &[u8]) -> (bool, &[u8]) {
     let (byte, buffer) = get_byte(buffer);
-    if byte != 0 && byte != 1 {
+    /*if byte != 0 && byte != 1 {
         assert_eq!(byte, 0);
-    }
-    (byte == 1, buffer)
+    }*/
+    (byte != 0, buffer)
 }
 
 fn get_byte(buffer: &[u8]) -> (u8, &[u8]) {

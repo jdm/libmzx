@@ -474,9 +474,11 @@ fn run_one_command(
 
         Command::Die(as_item) => {
             let robot = robots.get_mut(robot_id);
-            board.remove_thing_at(&robot.position);
+            if !robot_id.is_global() {
+                board.remove_thing_at(&robot.position);
+            }
             robot.alive = false;
-            if as_item {
+            if as_item && !robot_id.is_global() {
                 let player_pos = board.player_pos;
                 let robot_pos = robot.position;
                 move_level_to(board, robots.robots, &player_pos, &robot_pos, &mut *state.update_done);
@@ -889,13 +891,15 @@ fn run_one_command(
         }
 
         Command::IfAt(ref x, ref y, ref l) => {
-            let robot = robots.get_mut(robot_id);
-            let context = CounterContext::from(board, robot, state);
-            let pos = mode.resolve_xy(x, y, counters, context, RelativePart::First);
-            let l = l.eval(counters, context);
-            if robot.position == pos {
-                if jump_robot_to_label(robot, l) {
-                    return CommandResult::NoAdvance;
+            if !robot_id.is_global() {
+                let robot = robots.get_mut(robot_id);
+                let context = CounterContext::from(board, robot, state);
+                let pos = mode.resolve_xy(x, y, counters, context, RelativePart::First);
+                let l = l.eval(counters, context);
+                if robot.position == pos {
+                    if jump_robot_to_label(robot, l) {
+                        return CommandResult::NoAdvance;
+                    }
                 }
             }
         }
@@ -925,6 +929,7 @@ fn run_one_command(
             let color = color.resolve(counters, context);
             let param = param.resolve(counters, context);
             let l = label.eval(counters, context);
+            //FIXME: ignore thingdir when global robot
             let (not, base_pos) = if let Command::IfThingDir(_, _, _, _, _, not) = cmd {
                 (*not, robot.position)
             } else {
@@ -1066,9 +1071,11 @@ fn run_one_command(
         }
 
         Command::Color(ref c) => {
-            let robot = robots.get(robot_id);
-            let context = CounterContext::from(board, robot, state);
-            board.level_at_mut(&robot.position).1 = c.resolve(counters, context).0;
+            if !robot_id.is_global() {
+                let robot = robots.get(robot_id);
+                let context = CounterContext::from(board, robot, state);
+                board.level_at_mut(&robot.position).1 = c.resolve(counters, context).0;
+            }
         }
 
         Command::Char(ref c) => {
@@ -1138,6 +1145,7 @@ fn run_one_command(
         }
 
         Command::SendDir(ref d, ref l, player) => {
+            //FIXME: handle when global robot
             let robot = robots.get(robot_id);
             let basis = if player {
                 RelativeDirBasis::from_player(board)
@@ -1196,8 +1204,10 @@ fn run_one_command(
                     _ => None,
                 };
                 robot.current_loc += 1;
-                if let Some(dir) = dir {
-                    move_robot(robots, robot_id, board, dir, &mut *state.update_done, true);
+                if !robot_id.is_global() {
+                    if let Some(dir) = dir {
+                        move_robot(robots, robot_id, board, dir, &mut *state.update_done, true);
+                    }
                 }
                 return CommandResult::NoAdvance;
             }
@@ -1215,8 +1225,10 @@ fn run_one_command(
             }
             if robot.current_loc != 0 {
                 let dir = dir_to_cardinal_dir(&robot, d);
-                if let Some(dir) = dir {
-                    move_robot(robots, robot_id, board, dir, &mut *state.update_done, true);
+                if !robot_id.is_global() {
+                    if let Some(dir) = dir {
+                        move_robot(robots, robot_id, board, dir, &mut *state.update_done, true);
+                    }
                 }
                 return CommandResult::NoAdvance;
             } else {
@@ -1228,7 +1240,7 @@ fn run_one_command(
             let robot = robots.get_mut(robot_id);
             let dir = dir_to_cardinal_dir(robot, d);
             if let Some(dir) = dir {
-                if move_robot(robots, robot_id, board, dir, &mut *state.update_done, true) == Move::Blocked {
+                if !robot_id.is_global() && move_robot(robots, robot_id, board, dir, &mut *state.update_done, true) == Move::Blocked {
                     let robot = robots.get_mut(robot_id);
                     let context = CounterContext::from(board, robot, state);
                     let l = l.eval(counters, context);
@@ -1248,13 +1260,15 @@ fn run_one_command(
         Command::Explode(ref n) => {
             let robot = robots.get_mut(robot_id);
             robot.alive = false;
-            let context = CounterContext::from(board, robot, state);
-            let n = n.resolve(counters, context) as u8;
-            let &mut (ref mut id, ref mut c, ref mut param) =
-                board.level_at_mut(&robot.position);
-            *id = Thing::Explosion.to_u8().unwrap();
-            *c = state.char_id(CharId::ExplosionStage1);
-            *param = Explosion { stage: 0, size: n }.to_param();
+            if !robot_id.is_global() {
+                let context = CounterContext::from(board, robot, state);
+                let n = n.resolve(counters, context) as u8;
+                let &mut (ref mut id, ref mut c, ref mut param) =
+                    board.level_at_mut(&robot.position);
+                *id = Thing::Explosion.to_u8().unwrap();
+                *c = state.char_id(CharId::ExplosionStage1);
+                *param = Explosion { stage: 0, size: n }.to_param();
+            }
         }
 
         Command::OverlayMode(mode) => if let Some(ref mut overlay) = board.overlay {
@@ -1262,10 +1276,12 @@ fn run_one_command(
         },
 
         Command::GotoXY(ref x, ref y) => {
-            let robot = robots.get_mut(robot_id);
-            let context = CounterContext::from(board, robot, state);
-            let coord = mode.resolve_xy(x, y, counters, context, RelativePart::First);
-            move_robot_to(robots.robots, robot_id, board, coord, &mut *state.update_done);
+            if !robot_id.is_global() {
+                let robot = robots.get_mut(robot_id);
+                let context = CounterContext::from(board, robot, state);
+                let coord = mode.resolve_xy(x, y, counters, context, RelativePart::First);
+                move_robot_to(robots.robots, robot_id, board, coord, &mut *state.update_done);
+            }
         }
 
         Command::RelSelf(ref part) => {
@@ -1570,6 +1586,7 @@ fn run_one_command(
         }
 
         Command::MovePlayerDir(ref dir, ref blocked) => {
+            //FIXME: figure out what to do with globl robot
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
             let blocked = blocked.as_ref().map(|b| b.eval(counters, context));
@@ -1725,6 +1742,7 @@ fn run_one_command(
         }
 
         Command::Shoot(ref dir) => {
+            //FIXME: figure out what to do with global robot
             let robot = robots.get(robot_id);
             let dir = dir_to_cardinal_dir(robot, dir);
             if let Some(dir) = dir {
@@ -1763,7 +1781,7 @@ fn run_one_command(
         }
 
         Command::Become(ref color, ref thing, ref param) => {
-            let robot = robots.get(robot_id);
+            let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
             let color = match color.resolve(counters, context) {
                 ExtendedColorValue::Known(c) => c.0,
@@ -1773,14 +1791,18 @@ fn run_one_command(
                 ExtendedParam::Specific(p) => p.0,
                 ExtendedParam::Any => 0x00, //XXXjdm proper defaults
             };
-            put_at(
-                board,
-                &robot.position,
-                color,
-                *thing,
-                param,
-                &mut *state.update_done,
-            );
+            if !robot_id.is_global() {
+                put_at(
+                    board,
+                    &robot.position,
+                    color,
+                    *thing,
+                    param,
+                    &mut *state.update_done,
+                );
+            } else {
+                robot.alive = false;
+            }
         }
 
         ref cmd => warn!("ignoring {:?}", cmd),

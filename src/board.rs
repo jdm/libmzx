@@ -141,6 +141,7 @@ pub fn update_board(
     board_id: usize,
     all_robots: &mut Vec<Robot>,
 ) -> Option<GameStateChange> {
+    debug!("running global robot");
     let change = update_robot(
         state,
         audio,
@@ -157,17 +158,23 @@ pub fn update_board(
         return change;
     }
 
+    debug!("updating board: {},{}", board.width, board.height);
     for y in 0..board.height {
         for x in 0..board.width {
             if state.update_done[y * board.width + x] {
+                debug!("already updated {},{}", x,y);
                 continue;
             }
 
             let coord = Coordinate(x as u16, y as u16);
+            if let (0, 0) = (x, y) {
+                debug!("thing at 0,0: {:?}", board.thing_at(&coord));
+            }
             match board.thing_at(&coord) {
                 Thing::Robot | Thing::RobotPushable => {
                     let robots = Robots::new(board, all_robots);
 
+                    debug!("running robot at {},{}", x, y);
                     let change = update_robot(
                         state,
                         audio,

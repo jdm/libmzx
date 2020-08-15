@@ -1938,6 +1938,7 @@ fn load_board(
     };
 
     let (ids, buffer, width, height) = decode_runs(buffer);
+    debug!("board {:?} has dimensions {}x{}", title.to_string(), width, height);
     let (colors, buffer, _, _) = decode_runs(buffer);
     let (params, buffer, _, _) = decode_runs(buffer);
     assert_eq!(ids.len(), colors.len());

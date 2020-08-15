@@ -47,6 +47,11 @@ pub fn render<R: Renderer>(
         }
     };
 
+    //assert_ne!(board.width, 0);
+    if board.width == 0 {
+        return;
+    }
+
     let level = Itertools::flatten(
         board
             .level
@@ -604,10 +609,22 @@ fn char_from_id(
         Thing::RobotPushable | Thing::Robot => return robots[param as usize - 1].ch,
         Thing::Sign => CharId::Sign,
         Thing::Scroll => CharId::Scroll,
-        Thing::Sprite => unreachable!("no physical spites should exist"),
-        Thing::SpriteCollision => unreachable!("no physical sprite collisions should exist"),
-        Thing::ImageFile => unreachable!("no physical image files should exist"),
-        Thing::NoId => unreachable!("no physical noid objects should exist"),
+        Thing::Sprite => {
+            warn!("no physical spites should exist");
+            CharId::Space
+        }
+        Thing::SpriteCollision => {
+            warn!("no physical sprite collisions should exist");
+            CharId::Space
+        }
+        Thing::ImageFile => {
+            warn!("no physical image files should exist");
+            CharId::Space
+        }
+        Thing::NoId => {
+            warn!("no physical noid objects should exist");
+            CharId::Space
+        }
         Thing::Player => match player_face_dir {
             0 => CharId::PlayerNorth,
             1 => CharId::PlayerSouth,

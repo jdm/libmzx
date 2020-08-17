@@ -596,12 +596,13 @@ fn run_one_command(
         }
 
         Command::LoadCharSet(ref c) => {
+            //TODO: handle partial charset offsets correctly.
             let path = world_path.join(c.to_string());
             match File::open(&path) {
                 Ok(mut file) => {
                     let mut v = vec![];
                     file.read_to_end(&mut v).unwrap();
-                    state.charset.data.copy_from_slice(&v);
+                    state.charset.data[0..v.len()].copy_from_slice(&v);
                 }
                 Err(e) => {
                     info!("Error opening charset {} ({})", path.display(), e);

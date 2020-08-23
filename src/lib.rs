@@ -376,18 +376,20 @@ impl Board {
             None => return,
         };
 
-        let diff = self.width as isize - (pos.0 as usize + s.len()) as isize;
-        let end_offset = if diff > 0 {
-            s.len()
-        } else if diff.abs() as usize > s.len() {
+        // Can't write beyond boundaries of board.
+        if pos.0 as usize >= self.width || pos.1 as usize >= self.height {
             return;
+        }
+
+        let end_x = pos.0 as usize + s.len();
+        let bytes = if end_x > self.width {
+            &s[0..(end_x - self.width)]
         } else {
-            (s.len() as isize + diff) as usize
+            &s[..]
         };
 
         let start_idx = (pos.1 * self.width as u16 + pos.0) as usize;
-        let end_idx = start_idx + end_offset;
-        for (ch, (och, ocol)) in s[0..end_offset].iter().zip(&mut overlay[start_idx..end_idx]) {
+        for (ch, (och, ocol)) in bytes.iter().zip(&mut overlay[start_idx..start_idx + bytes.len()]) {
             *och = *ch;
             *ocol = color;
         }

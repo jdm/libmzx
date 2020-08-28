@@ -17,19 +17,17 @@ pub mod robot;
 mod robotic;
 
 use self::expression::{CounterContextExt, CounterContextMutExt};
-pub use self::render::{
-    Renderer, MessageBoxLine, render, draw_messagebox
-};
-pub use self::robotic::{
-    Command, Resolve, Operator, ExtendedParam, ExtendedColorValue, RelativePart, SignedNumeric,
-    ModifiedDirection, MessageBoxLineType,
-};
+pub use self::render::{draw_messagebox, render, MessageBoxLine, Renderer};
 use self::robotic::Condition;
+pub use self::robotic::{
+    Command, ExtendedColorValue, ExtendedParam, MessageBoxLineType, ModifiedDirection, Operator,
+    RelativePart, Resolve, SignedNumeric,
+};
 
+use self::robotic::parse_program;
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Zip;
-use num_traits::{ToPrimitive, FromPrimitive};
-use self::robotic::parse_program;
+use num_traits::{FromPrimitive, ToPrimitive};
 use std::collections::HashMap;
 use std::default::Default;
 use std::fmt;
@@ -151,7 +149,12 @@ pub struct Board {
     pub save_restriction: SaveRestriction,
     pub collect_bombs: bool,
     pub fire_burns_forever: bool,
-    pub exits: (Option<BoardId>, Option<BoardId>, Option<BoardId>, Option<BoardId>),
+    pub exits: (
+        Option<BoardId>,
+        Option<BoardId>,
+        Option<BoardId>,
+        Option<BoardId>,
+    ),
     pub restart_when_zapped: bool,
     pub time_limit: u16,
     pub scrolls: Vec<Scroll>,
@@ -172,15 +175,10 @@ impl Board {
     fn init(&mut self, robots: &mut [Robot]) {
         for (idx, &(thing, _, param)) in self.level.iter().enumerate() {
             if thing == Thing::Robot.to_u8().unwrap() {
-                robots[param as usize - 1].position = Coordinate(
-                    (idx % self.width) as u16,
-                    (idx / self.width) as u16
-                );
+                robots[param as usize - 1].position =
+                    Coordinate((idx % self.width) as u16, (idx / self.width) as u16);
             } else if thing == Thing::Player.to_u8().unwrap() {
-                self.player_pos = Coordinate(
-                    (idx % self.width) as u16,
-                    (idx / self.width) as u16
-                );
+                self.player_pos = Coordinate((idx % self.width) as u16, (idx / self.width) as u16);
             }
         }
     }
@@ -200,13 +198,11 @@ impl Board {
             Board::ids_match
         };
 
-        for (idx,
-             (&(level_thing, level_color, _),
-              &(under_thing, under_color, _))) in
+        for (idx, (&(level_thing, level_color, _), &(under_thing, under_color, _))) in
             self.level.iter().zip(self.under.iter()).enumerate()
         {
-            if (id_match(id, level_thing) && level_color == color) ||
-                (id_match(id, under_thing) && under_color == color)
+            if (id_match(id, level_thing) && level_color == color)
+                || (id_match(id, under_thing) && under_color == color)
             {
                 return Some(Coordinate(
                     (idx % self.width) as u16,
@@ -221,19 +217,19 @@ impl Board {
         &self,
         id: u8,
         color: ExtendedColorValue,
-        param: ExtendedParam
+        param: ExtendedParam,
     ) -> Option<Coordinate<u16>> {
-        for (idx,
-             (&(level_thing, level_color, level_param),
-              &(under_thing, under_color, under_param))) in
-            self.level.iter().zip(self.under.iter()).enumerate()
+        for (
+            idx,
+            (&(level_thing, level_color, level_param), &(under_thing, under_color, under_param)),
+        ) in self.level.iter().zip(self.under.iter()).enumerate()
         {
-            if (level_thing == id &&
-                color.matches(ColorValue(level_color)) &&
-                param.matches(ParamValue(level_param))) ||
-                (under_thing == id &&
-                 color.matches(ColorValue(under_color)) &&
-                 param.matches(ParamValue(under_param)))
+            if (level_thing == id
+                && color.matches(ColorValue(level_color))
+                && param.matches(ParamValue(level_param)))
+                || (under_thing == id
+                    && color.matches(ColorValue(under_color))
+                    && param.matches(ParamValue(under_param)))
             {
                 return Some(Coordinate(
                     (idx % self.width) as u16,
@@ -274,22 +270,24 @@ impl Board {
 
     pub fn copy(&mut self, src: Coordinate<u16>, block: Size<u16>, dest: Coordinate<u16>) {
         let mut yiter = if src.1 > dest.1 {
-            Box::new(0..block.1) as Box<dyn Iterator<Item=u16>>
+            Box::new(0..block.1) as Box<dyn Iterator<Item = u16>>
         } else {
-            Box::new((0..block.1).rev()) as Box<dyn Iterator<Item=u16>>
+            Box::new((0..block.1).rev()) as Box<dyn Iterator<Item = u16>>
         };
 
         while let Some(j) = yiter.next() {
             let mut xiter = if src.0 > dest.0 {
-                Box::new(0..block.0) as Box<dyn Iterator<Item=u16>>
+                Box::new(0..block.0) as Box<dyn Iterator<Item = u16>>
             } else {
-                Box::new((0..block.0).rev()) as Box<dyn Iterator<Item=u16>>
+                Box::new((0..block.0).rev()) as Box<dyn Iterator<Item = u16>>
             };
             while let Some(i) = xiter.next() {
                 let src_coord = Coordinate(src.0 + i, src.1 + j);
                 let dest_coord = Coordinate(dest.0 + i, dest.1 + j);
-                if src_coord.0 as usize > self.width || dest_coord.0 as usize > self.width ||
-                    src_coord.1 as usize > self.height || dest_coord.1 as usize > self.height
+                if src_coord.0 as usize > self.width
+                    || dest_coord.0 as usize > self.width
+                    || src_coord.1 as usize > self.height
+                    || dest_coord.1 as usize > self.height
                 {
                     continue;
                 }
@@ -309,22 +307,24 @@ impl Board {
         };
 
         let mut yiter = if src.1 > dest.1 {
-            Box::new(0..block.1) as Box<dyn Iterator<Item=u16>>
+            Box::new(0..block.1) as Box<dyn Iterator<Item = u16>>
         } else {
-            Box::new((0..block.1).rev()) as Box<dyn Iterator<Item=u16>>
+            Box::new((0..block.1).rev()) as Box<dyn Iterator<Item = u16>>
         };
 
         while let Some(j) = yiter.next() {
             let mut xiter = if src.0 > dest.0 {
-                Box::new(0..block.0) as Box<dyn Iterator<Item=u16>>
+                Box::new(0..block.0) as Box<dyn Iterator<Item = u16>>
             } else {
-                Box::new((0..block.0).rev()) as Box<dyn Iterator<Item=u16>>
+                Box::new((0..block.0).rev()) as Box<dyn Iterator<Item = u16>>
             };
             while let Some(i) = xiter.next() {
                 let src_coord = Coordinate(src.0 + i, src.1 + j);
                 let dest_coord = Coordinate(dest.0 + i, dest.1 + j);
-                if src_coord.0 as usize >= self.width || dest_coord.0 as usize >= self.width ||
-                    src_coord.1 as usize >= self.height || dest_coord.1 as usize >= self.height
+                if src_coord.0 as usize >= self.width
+                    || dest_coord.0 as usize >= self.width
+                    || src_coord.1 as usize >= self.height
+                    || dest_coord.1 as usize >= self.height
                 {
                     continue;
                 }
@@ -335,18 +335,29 @@ impl Board {
         }
     }
 
-    pub fn move_level(&mut self, robots: &mut [Robot], pos: &Coordinate<u16>, xdiff: i8, ydiff: i8) {
+    pub fn move_level(
+        &mut self,
+        robots: &mut [Robot],
+        pos: &Coordinate<u16>,
+        xdiff: i8,
+        ydiff: i8,
+    ) {
         self.move_level_to(
             robots,
             pos,
             &Coordinate(
                 (pos.0 as i16 + xdiff as i16) as u16,
-                (pos.1 as i16 + ydiff as i16) as u16
-            )
+                (pos.1 as i16 + ydiff as i16) as u16,
+            ),
         );
     }
 
-    pub fn move_level_to(&mut self, robots: &mut [Robot], pos: &Coordinate<u16>, new_pos: &Coordinate<u16>) {
+    pub fn move_level_to(
+        &mut self,
+        robots: &mut [Robot],
+        pos: &Coordinate<u16>,
+        new_pos: &Coordinate<u16>,
+    ) {
         let thing = Thing::from_u8(self.level_at(pos).0).unwrap();
         if thing.is_robot() {
             let id = self.level_at(pos).2;
@@ -391,7 +402,10 @@ impl Board {
         };
 
         let start_idx = (pos.1 * self.width as u16 + pos.0) as usize;
-        for (ch, (och, ocol)) in bytes.iter().zip(&mut overlay[start_idx..start_idx + bytes.len()]) {
+        for (ch, (och, ocol)) in bytes
+            .iter()
+            .zip(&mut overlay[start_idx..start_idx + bytes.len()])
+        {
             *och = *ch;
             *ocol = color;
         }
@@ -424,13 +438,16 @@ impl<'a> CounterContext<'a> {
             LocalCounter::Loopcount => self.robot.loop_count,
             LocalCounter::Local(n) => self.robot.local[n as usize],
             LocalCounter::Lavawalk => self.robot.lavawalking,
-            LocalCounter::HorizPld =>
-                (self.robot.position.0 as i32 - self.board.player_pos.0 as i32).abs() as i32,
-            LocalCounter::VertPld =>
-                (self.robot.position.1 as i32 - self.board.player_pos.1 as i32).abs() as i32,
-            LocalCounter::PlayerDist =>
-                self.local_counter(LocalCounter::HorizPld) +
-                self.local_counter(LocalCounter::VertPld),
+            LocalCounter::HorizPld => {
+                (self.robot.position.0 as i32 - self.board.player_pos.0 as i32).abs() as i32
+            }
+            LocalCounter::VertPld => {
+                (self.robot.position.1 as i32 - self.board.player_pos.1 as i32).abs() as i32
+            }
+            LocalCounter::PlayerDist => {
+                self.local_counter(LocalCounter::HorizPld)
+                    + self.local_counter(LocalCounter::VertPld)
+            }
             LocalCounter::PlayerX => self.board.player_pos.0 as i32,
             LocalCounter::PlayerY => self.board.player_pos.1 as i32,
             // TODO: support command prefixes for ThisX and ThisY
@@ -454,7 +471,11 @@ pub struct CounterContextMut<'a> {
 }
 
 impl<'a> CounterContextMut<'a> {
-    pub fn from(board: &'a mut Board, robot: &'a mut Robot, state: &'a mut WorldState) -> CounterContextMut<'a> {
+    pub fn from(
+        board: &'a mut Board,
+        robot: &'a mut Robot,
+        state: &'a mut WorldState,
+    ) -> CounterContextMut<'a> {
         CounterContextMut {
             board,
             robot,
@@ -479,16 +500,16 @@ impl<'a> CounterContextMut<'a> {
             LocalCounter::PlayerFaceDir => Some(&mut self.state.player_face_dir),
             LocalCounter::Health => Some(&mut self.state.health),
             LocalCounter::Lives => Some(&mut self.state.lives),
-            LocalCounter::HorizPld |
-            LocalCounter::VertPld |
-            LocalCounter::PlayerDist |
-            LocalCounter::PlayerX |
-            LocalCounter::PlayerY |
-            LocalCounter::ThisX |
-            LocalCounter::ThisY |
-            LocalCounter::ThisColor |
-            LocalCounter::ThisChar |
-            LocalCounter::KeyPressed => None,
+            LocalCounter::HorizPld
+            | LocalCounter::VertPld
+            | LocalCounter::PlayerDist
+            | LocalCounter::PlayerX
+            | LocalCounter::PlayerY
+            | LocalCounter::ThisX
+            | LocalCounter::ThisY
+            | LocalCounter::ThisColor
+            | LocalCounter::ThisChar
+            | LocalCounter::KeyPressed => None,
         }
     }
 }
@@ -505,7 +526,12 @@ impl Counters {
     }
 
     pub fn set(&mut self, name: ByteString, context: &mut dyn CounterContextMutExt, value: i32) {
-        let name = ByteString(name.as_bytes().iter().map(|c| c.to_ascii_lowercase()).collect());
+        let name = ByteString(
+            name.as_bytes()
+                .iter()
+                .map(|c| c.to_ascii_lowercase())
+                .collect(),
+        );
         let name = name.evaluate(self, context.as_immutable());
         debug!("setting {:?} to {}", name, value);
         if let Some(local) = LocalCounter::from(&name) {
@@ -519,7 +545,12 @@ impl Counters {
     }
 
     pub fn get(&self, name: &ByteString, context: &dyn CounterContextExt) -> i32 {
-        let name = ByteString(name.as_bytes().iter().map(|c| c.to_ascii_lowercase()).collect());
+        let name = ByteString(
+            name.as_bytes()
+                .iter()
+                .map(|c| c.to_ascii_lowercase())
+                .collect(),
+        );
         let name = name.evaluate(self, context);
         debug!("getting {:?}", name);
         if let Some(local) = LocalCounter::from(&name) {
@@ -573,21 +604,23 @@ impl From<Vec<u8>> for ByteString {
 
 impl PartialEq for ByteString {
     fn eq(&self, other: &ByteString) -> bool {
-        self.as_bytes().len() == other.as_bytes().len() &&
-        self.as_bytes()
-            .iter()
-            .zip(other.as_bytes().iter())
-            .all(|(a, b)| a.to_ascii_lowercase() == b.to_ascii_lowercase())
+        self.as_bytes().len() == other.as_bytes().len()
+            && self
+                .as_bytes()
+                .iter()
+                .zip(other.as_bytes().iter())
+                .all(|(a, b)| a.to_ascii_lowercase() == b.to_ascii_lowercase())
     }
 }
 
 impl PartialEq<&str> for ByteString {
     fn eq(&self, other: &&str) -> bool {
-        self.as_bytes().len() == other.as_bytes().len() &&
-        self.as_bytes()
-            .iter()
-            .zip(other.as_bytes().iter())
-            .all(|(a, b)| a.to_ascii_lowercase() == b.to_ascii_lowercase())
+        self.as_bytes().len() == other.as_bytes().len()
+            && self
+                .as_bytes()
+                .iter()
+                .zip(other.as_bytes().iter())
+                .all(|(a, b)| a.to_ascii_lowercase() == b.to_ascii_lowercase())
     }
 }
 
@@ -610,9 +643,7 @@ impl ByteString {
         for &c in self.as_bytes() {
             if maybe_skip_next {
                 maybe_skip_next = false;
-                if (c >= b'0' && c <= b'9') ||
-                    (c >= b'A' && c <= b'F') ||
-                    (c >= b'a' && c <= b'f')
+                if (c >= b'0' && c <= b'9') || (c >= b'A' && c <= b'F') || (c >= b'a' && c <= b'f')
                 {
                     continue;
                 }
@@ -696,10 +727,8 @@ impl<'a> Iterator for ColorStringIterator<'a> {
         while self.index < bytes.len() {
             let byte = bytes[self.index];
             match self.state {
-                ColorParserState::Text => {
-                }
-                ColorParserState::Foreground |
-                ColorParserState::Background => {
+                ColorParserState::Text => {}
+                ColorParserState::Foreground | ColorParserState::Background => {
                     let var = if self.state == ColorParserState::Foreground {
                         &mut self.fg
                     } else {
@@ -719,16 +748,11 @@ impl<'a> Iterator for ColorStringIterator<'a> {
                             false
                         }
                     };
-                    start = if skip {
-                        self.index + 1
-                    } else {
-                        self.index
-                    };
+                    start = if skip { self.index + 1 } else { self.index };
                 }
             }
             self.state = ColorParserState::Text;
-            if byte == b'~' || byte == b'@'
-            {
+            if byte == b'~' || byte == b'@' {
                 if self.index != start {
                     return Some((&bytes[start..self.index], self.bg, self.fg));
                 } else if byte == b'~' {
@@ -787,7 +811,7 @@ pub enum Direction {
 pub fn adjust_coordinate(
     coord: Coordinate<u16>,
     board: &Board,
-    dir: CardinalDirection
+    dir: CardinalDirection,
 ) -> Option<Coordinate<u16>> {
     let (xdiff, ydiff) = match dir {
         CardinalDirection::North => (0, -1),
@@ -804,10 +828,10 @@ pub fn adjust_coordinate_diff(
     xdiff: i16,
     ydiff: i16,
 ) -> Option<Coordinate<u16>> {
-    if (coord.0 as i16 + xdiff < 0) ||
-        ((coord.0 as i16 + xdiff) as usize >= board.width) ||
-        (coord.1 as i16 + ydiff < 0) ||
-        ((coord.1 as i16 + ydiff) as usize >= board.height)
+    if (coord.0 as i16 + xdiff < 0)
+        || ((coord.0 as i16 + xdiff) as usize >= board.width)
+        || (coord.1 as i16 + ydiff < 0)
+        || ((coord.1 as i16 + ydiff) as usize >= board.height)
     {
         return None;
     }
@@ -842,11 +866,14 @@ impl RelativeDirBasis {
 pub fn dir_to_cardinal_dir(robot: &Robot, dir: &ModifiedDirection) -> Option<CardinalDirection> {
     dir_to_cardinal_dir_rel(
         RelativeDirBasis::Robot(robot.position, robot.walk.clone()),
-        dir
+        dir,
     )
 }
 
-pub fn dir_to_cardinal_dir_rel(basis: RelativeDirBasis, dir: &ModifiedDirection) -> Option<CardinalDirection> {
+pub fn dir_to_cardinal_dir_rel(
+    basis: RelativeDirBasis,
+    dir: &ModifiedDirection,
+) -> Option<CardinalDirection> {
     // TODO: blocked, not blocked, etc.
     let resolved = match dir.dir {
         Direction::North => Some(CardinalDirection::North),
@@ -877,7 +904,11 @@ pub fn dir_to_cardinal_dir_rel(basis: RelativeDirBasis, dir: &ModifiedDirection)
             3 => CardinalDirection::West,
             _ => unreachable!(),
         }),
-        Direction::Anydir | Direction::Seek | Direction::Beneath | Direction::RandB | Direction::RandNb => None, //TODO
+        Direction::Anydir
+        | Direction::Seek
+        | Direction::Beneath
+        | Direction::RandB
+        | Direction::RandNb => None, //TODO
     };
     // TODO: cw, random perpendicular, randnot
     if dir.opp {
@@ -1117,17 +1148,17 @@ pub fn param_from_door(orientation: DoorOrientation, dir: DoorDir, status: DoorS
     (match status {
         DoorStatus::Locked => 1,
         DoorStatus::Unlocked => 0,
-    }) << 5 |
-    (match dir {
-        DoorDir::OpensNW => 0,
-        DoorDir::OpensNE => 1,
-        DoorDir::OpensSW => 2,
-        DoorDir::OpensSE => 3,
-    }) << 1 |
-    match orientation {
-        DoorOrientation::Horizontal => 0,
-        DoorOrientation::Vertical => 1,
-    }
+    }) << 5
+        | (match dir {
+            DoorDir::OpensNW => 0,
+            DoorDir::OpensNE => 1,
+            DoorDir::OpensSW => 2,
+            DoorDir::OpensSE => 3,
+        }) << 1
+        | match orientation {
+            DoorOrientation::Horizontal => 0,
+            DoorOrientation::Vertical => 1,
+        }
 }
 
 pub fn door_from_param(param: u8) -> (DoorOrientation, DoorDir, DoorStatus) {
@@ -1164,7 +1195,7 @@ pub enum Thing {
     CustomBlock = 5,
     Breakaway = 6,
     CustomBreak = 7,
-    Boulder = 8 ,
+    Boulder = 8,
     Crate = 9,
     CustomPush = 10,
     Box = 11,
@@ -1270,9 +1301,14 @@ impl Thing {
     }
 
     pub fn is_whirlpool(&self) -> bool {
-        [Thing::Whirlpool1, Thing::Whirlpool2, Thing::Whirlpool3, Thing::Whirlpool4]
-            .iter()
-            .any(|t| t == self)
+        [
+            Thing::Whirlpool1,
+            Thing::Whirlpool2,
+            Thing::Whirlpool3,
+            Thing::Whirlpool4,
+        ]
+        .iter()
+        .any(|t| t == self)
     }
 
     pub fn is_teleporter(&self) -> bool {
@@ -1281,86 +1317,86 @@ impl Thing {
 
     pub fn is_pushable(&self) -> bool {
         match *self {
-            Thing::Crate |
-            Thing::CustomPush |
-            Thing::RobotPushable |
-            Thing::Gem |
-            Thing::MagicGem |
-            Thing::Bomb |
-            Thing::LitBomb |
-            Thing::Key |
-            Thing::Coin |
-            Thing::Player => true,
+            Thing::Crate
+            | Thing::CustomPush
+            | Thing::RobotPushable
+            | Thing::Gem
+            | Thing::MagicGem
+            | Thing::Bomb
+            | Thing::LitBomb
+            | Thing::Key
+            | Thing::Coin
+            | Thing::Player => true,
             _ => false,
         }
     }
 
     pub fn is_solid(&self) -> bool {
         match *self {
-            Thing::Normal |
-            Thing::Solid |
-            Thing::Tree |
-            Thing::Line |
-            Thing::CustomBlock |
-            Thing::Breakaway |
-            Thing::CustomBreak |
-            Thing::Boulder |
-            Thing::Crate |
-            Thing::CustomPush |
-            Thing::Box |
-            Thing::CustomBox |
-            Thing::Chest |
-            Thing::Gem |
-            Thing::MagicGem |
-            Thing::Health |
-            Thing::Ring |
-            Thing::Potion |
-            Thing::Energizer |
-            Thing::Goop |
-            Thing::Ammo |
-            Thing::Bomb |
-            Thing::LitBomb |
-            Thing::Key |
-            Thing::Lock |
-            Thing::Door |
-            Thing::Gate |
-            Thing::Transport |
-            Thing::Coin |
-            Thing::Pouch |
-            Thing::Pusher |
-            Thing::SliderNS |
-            Thing::SliderEW |
-            Thing::LazerGun |
-            Thing::Bullet |
-            Thing::Missile |
-            Thing::Life |
-            Thing::InvisibleWall |
-            Thing::Mine |
-            Thing::Spike |
-            Thing::CustomHurt |
-            Thing::Text |
-            Thing::Snake |
-            Thing::Eye |
-            Thing::Thief |
-            Thing::SlimeBlob |
-            Thing::Runner |
-            Thing::Ghost |
-            Thing::Dragon |
-            Thing::Fish |
-            Thing::Shark |
-            Thing::Spider |
-            Thing::Goblin |
-            Thing::SpittingTiger |
-            Thing::BulletGun |
-            Thing::SpinningGun |
-            Thing::Bear |
-            Thing::BearCub |
-            Thing::MissileGun |
-            Thing::RobotPushable |
-            Thing::Robot |
-            Thing::Sign |
-            Thing::Scroll |
-            Thing::Player => true,
+            Thing::Normal
+            | Thing::Solid
+            | Thing::Tree
+            | Thing::Line
+            | Thing::CustomBlock
+            | Thing::Breakaway
+            | Thing::CustomBreak
+            | Thing::Boulder
+            | Thing::Crate
+            | Thing::CustomPush
+            | Thing::Box
+            | Thing::CustomBox
+            | Thing::Chest
+            | Thing::Gem
+            | Thing::MagicGem
+            | Thing::Health
+            | Thing::Ring
+            | Thing::Potion
+            | Thing::Energizer
+            | Thing::Goop
+            | Thing::Ammo
+            | Thing::Bomb
+            | Thing::LitBomb
+            | Thing::Key
+            | Thing::Lock
+            | Thing::Door
+            | Thing::Gate
+            | Thing::Transport
+            | Thing::Coin
+            | Thing::Pouch
+            | Thing::Pusher
+            | Thing::SliderNS
+            | Thing::SliderEW
+            | Thing::LazerGun
+            | Thing::Bullet
+            | Thing::Missile
+            | Thing::Life
+            | Thing::InvisibleWall
+            | Thing::Mine
+            | Thing::Spike
+            | Thing::CustomHurt
+            | Thing::Text
+            | Thing::Snake
+            | Thing::Eye
+            | Thing::Thief
+            | Thing::SlimeBlob
+            | Thing::Runner
+            | Thing::Ghost
+            | Thing::Dragon
+            | Thing::Fish
+            | Thing::Shark
+            | Thing::Spider
+            | Thing::Goblin
+            | Thing::SpittingTiger
+            | Thing::BulletGun
+            | Thing::SpinningGun
+            | Thing::Bear
+            | Thing::BearCub
+            | Thing::MissileGun
+            | Thing::RobotPushable
+            | Thing::Robot
+            | Thing::Sign
+            | Thing::Scroll
+            | Thing::Player => true,
             _ => false,
         }
     }
@@ -1388,8 +1424,7 @@ pub fn bullet_param(type_: BulletType, dir: CardinalDirection) -> u8 {
         CardinalDirection::South => 1,
         CardinalDirection::East => 2,
         CardinalDirection::West => 3,
-    }) |
-    ((type_ as u8) << 2)
+    }) | ((type_ as u8) << 2)
 }
 
 pub fn bullet_from_param(param: u8) -> (BulletType, CardinalDirection) {
@@ -1439,10 +1474,7 @@ impl Explosion {
         assert!(stage < 4);
         let size = (p & 0xF0) >> 4;
         assert!(size < 16);
-        Explosion {
-            stage,
-            size,
-        }
+        Explosion { stage, size }
     }
 }
 
@@ -1555,74 +1587,66 @@ impl Robot {
     pub fn is(&self, condition: &Condition, board: &Board, key: Option<KeyPress>) -> bool {
         match condition {
             Condition::Walking => self.walk.is_some(),
-            Condition::Swimming => {
-                match board.under_thing_at(&self.position) {
-                    Thing::StillWater |
-                    Thing::NWater |
-                    Thing::SWater |
-                    Thing::EWater |
-                    Thing::WWater => true,
-                    _ => false,
-                }
-            }
-            Condition::Firewalking =>
-                board.under_thing_at(&self.position) == Thing::Fire,
+            Condition::Swimming => match board.under_thing_at(&self.position) {
+                Thing::StillWater
+                | Thing::NWater
+                | Thing::SWater
+                | Thing::EWater
+                | Thing::WWater => true,
+                _ => false,
+            },
+            Condition::Firewalking => board.under_thing_at(&self.position) == Thing::Fire,
             Condition::Touching(ref dir) => {
                 let is_touching_dir = |d: &CardinalDirection| {
-                    let adjusted = adjust_coordinate(
-                        self.position,
-                        board,
-                        *d
-                    );
-                    adjusted.map_or(false, |pos| {
-                        board.thing_at(&pos) == Thing::Player
-                    })
+                    let adjusted = adjust_coordinate(self.position, board, *d);
+                    adjusted.map_or(false, |pos| board.thing_at(&pos) == Thing::Player)
                 };
                 match dir_to_cardinal_dir(self, dir) {
                     Some(dir) => is_touching_dir(&dir),
-                    None => if dir.dir == Direction::Anydir {
-                        [CardinalDirection::North, CardinalDirection::South,
-                         CardinalDirection::East, CardinalDirection::West]
+                    None => {
+                        if dir.dir == Direction::Anydir {
+                            [
+                                CardinalDirection::North,
+                                CardinalDirection::South,
+                                CardinalDirection::East,
+                                CardinalDirection::West,
+                            ]
                             .iter()
                             .any(is_touching_dir)
-                    } else {
-                        false
+                        } else {
+                            false
+                        }
                     }
                 }
             }
             Condition::Blocked(ref dir) => {
                 let is_blocked_dir = |d: &CardinalDirection| {
-                    let adjusted = adjust_coordinate(
-                        self.position,
-                        board,
-                        *d
-                    );
-                    adjusted.map_or(false, |pos| {
-                        board.thing_at(&pos).is_solid()
-                    })
+                    let adjusted = adjust_coordinate(self.position, board, *d);
+                    adjusted.map_or(false, |pos| board.thing_at(&pos).is_solid())
                 };
                 match dir_to_cardinal_dir(self, dir) {
                     Some(dir) => is_blocked_dir(&dir),
-                    None => if dir.dir == Direction::Anydir {
-                        [CardinalDirection::North, CardinalDirection::South,
-                         CardinalDirection::East, CardinalDirection::West]
+                    None => {
+                        if dir.dir == Direction::Anydir {
+                            [
+                                CardinalDirection::North,
+                                CardinalDirection::South,
+                                CardinalDirection::East,
+                                CardinalDirection::West,
+                            ]
                             .iter()
                             .any(is_blocked_dir)
-                    } else {
-                        false
+                        } else {
+                            false
+                        }
                     }
                 }
             }
             Condition::Aligned => {
-                board.player_pos.0 == self.position.0 ||
-                    board.player_pos.1 == self.position.1
+                board.player_pos.0 == self.position.0 || board.player_pos.1 == self.position.1
             }
-            Condition::AlignedNS => {
-                board.player_pos.0 == self.position.0
-            }
-            Condition::AlignedEW => {
-                board.player_pos.1 == self.position.1
-            }
+            Condition::AlignedNS => board.player_pos.0 == self.position.0,
+            Condition::AlignedEW => board.player_pos.1 == self.position.1,
             Condition::LastShot(ref d) => {
                 let dir = dir_to_cardinal_dir(self, d);
                 match (dir, self.last_shot.as_ref()) {
@@ -1643,8 +1667,7 @@ impl Robot {
             Condition::RightPressed => key == Some(KeyPress::Right),
             Condition::SpacePressed => key == Some(KeyPress::Space),
             Condition::DelPressed => key == Some(KeyPress::Delete),
-            Condition::MusicOn |
-            Condition::PcSfxOn => {
+            Condition::MusicOn | Condition::PcSfxOn => {
                 warn!("Unimplemented condition ({:?})", condition);
                 false
             }
@@ -1693,7 +1716,9 @@ impl LocalCounter {
             b"playerx" => LocalCounter::PlayerX,
             b"playery" => LocalCounter::PlayerY,
             _ if name.len() > 5 && name[0..5] == b"local"[..] => {
-                let suffix = str::from_utf8(&name[5..]).ok().and_then(|s| s.parse::<u16>().ok());
+                let suffix = str::from_utf8(&name[5..])
+                    .ok()
+                    .and_then(|s| s.parse::<u16>().ok());
                 match suffix {
                     Some(n) => LocalCounter::Local((n % 32) as u8),
                     _ => return None,
@@ -1704,8 +1729,7 @@ impl LocalCounter {
     }
 }
 
-impl Robot {
-}
+impl Robot {}
 
 #[derive(PartialEq)]
 pub enum RunStatus {
@@ -1739,7 +1763,8 @@ impl<'a> From<BoardError> for WorldError<'a> {
 }
 
 fn get_objects<T, F>(buffer: &[u8], loader: F) -> (Vec<T>, &[u8])
-    where F: Fn(&[u8]) -> (T, &[u8])
+where
+    F: Fn(&[u8]) -> (T, &[u8]),
 {
     let (num_objects, mut buffer) = get_byte(buffer);
     debug!("loading {} objects", num_objects);
@@ -1804,11 +1829,14 @@ fn get_direction(buffer: &[u8]) -> (Option<CardinalDirection>, &[u8]) {
 
 fn maybe_get_board(buffer: &[u8]) -> (Option<BoardId>, &[u8]) {
     let (board, buffer) = get_byte(buffer);
-    (if board == 255 {
-        None
-    } else {
-        Some(BoardId(board))
-    }, buffer)
+    (
+        if board == 255 {
+            None
+        } else {
+            Some(BoardId(board))
+        },
+        buffer,
+    )
 }
 
 fn decode_runs(buffer: &[u8]) -> (Vec<u8>, &[u8], usize, usize) {
@@ -1901,8 +1929,12 @@ fn load_scroll(buffer: &[u8]) -> (Scroll, &[u8]) {
     debug!("{:?}", text);
     assert_eq!(text.len(), chars as usize);
     (
-        Scroll { num_lines, text, used },
-        buffer
+        Scroll {
+            num_lines,
+            text,
+            used,
+        },
+        buffer,
     )
 }
 
@@ -1912,8 +1944,13 @@ fn load_sensor(buffer: &[u8]) -> (Sensor, &[u8]) {
     let (target, buffer) = get_null_terminated_string(buffer, 15);
     let (used, buffer) = get_bool(buffer);
     (
-        Sensor { name, ch, target, used },
-        buffer
+        Sensor {
+            name,
+            ch,
+            target,
+            used,
+        },
+        buffer,
     )
 }
 
@@ -1947,13 +1984,21 @@ fn load_board(
         assert_eq!(w, w2);
         assert_eq!(h, h2);
         buffer = new_buffer;
-        Some((overlay_mode, Zip::new((chars.into_iter(), colors.into_iter())).collect()))
+        Some((
+            overlay_mode,
+            Zip::new((chars.into_iter(), colors.into_iter())).collect(),
+        ))
     } else {
         None
     };
 
     let (ids, buffer, width, height) = decode_runs(buffer);
-    debug!("board {:?} has dimensions {}x{}", title.to_string(), width, height);
+    debug!(
+        "board {:?} has dimensions {}x{}",
+        title.to_string(),
+        width,
+        height
+    );
     let (colors, buffer, _, _) = decode_runs(buffer);
     let (params, buffer, _, _) = decode_runs(buffer);
     assert_eq!(ids.len(), colors.len());
@@ -2007,40 +2052,34 @@ fn load_board(
     let (restart_when_zapped, buffer) = get_bool(buffer);
     let (time_limit, mut buffer) = get_word(buffer);
 
-    let (
-        scroll_x,
-        scroll_y,
-        current_message,
-        cycles_until_disappear,
-        message_row,
-        message_col
-    ) = if version < 0x253 {
-        let (_last_key, new_buffer) = get_byte(buffer);
-        let (_last_input, new_buffer) = get_word(new_buffer);
-        let (_last_input_length, new_buffer) = get_byte(new_buffer);
-        let (_last_input_string, new_buffer) = get_null_terminated_string(new_buffer, 81);
-        let (_last_player_dir, new_buffer) = get_byte(new_buffer);
-        let (current_message, new_buffer) = get_null_terminated_string(new_buffer, 81);
-        let (cycles_until_disappear, new_buffer) = get_byte(new_buffer);
-        let (_lazer_wall_timer, new_buffer) = get_byte(new_buffer);
-        let (message_row, new_buffer) = get_byte(new_buffer);
-        let (message_col, new_buffer) = get_byte(new_buffer);
-        let (scroll_x, new_buffer) = get_word(new_buffer);
-        let (scroll_y, new_buffer) = get_word(new_buffer);
-        let (_x_screen_pos, new_buffer) = get_word(new_buffer);
-        let (_y_screen_pos, new_buffer) = get_word(new_buffer);
-        buffer = new_buffer;
-        (
-            scroll_x,
-            scroll_y,
-            current_message,
-            cycles_until_disappear,
-            message_row,
-            message_col,
-        )
-    } else {
-        (0, 0, ByteString(vec![]), 0, 24, 0)
-    };
+    let (scroll_x, scroll_y, current_message, cycles_until_disappear, message_row, message_col) =
+        if version < 0x253 {
+            let (_last_key, new_buffer) = get_byte(buffer);
+            let (_last_input, new_buffer) = get_word(new_buffer);
+            let (_last_input_length, new_buffer) = get_byte(new_buffer);
+            let (_last_input_string, new_buffer) = get_null_terminated_string(new_buffer, 81);
+            let (_last_player_dir, new_buffer) = get_byte(new_buffer);
+            let (current_message, new_buffer) = get_null_terminated_string(new_buffer, 81);
+            let (cycles_until_disappear, new_buffer) = get_byte(new_buffer);
+            let (_lazer_wall_timer, new_buffer) = get_byte(new_buffer);
+            let (message_row, new_buffer) = get_byte(new_buffer);
+            let (message_col, new_buffer) = get_byte(new_buffer);
+            let (scroll_x, new_buffer) = get_word(new_buffer);
+            let (scroll_y, new_buffer) = get_word(new_buffer);
+            let (_x_screen_pos, new_buffer) = get_word(new_buffer);
+            let (_y_screen_pos, new_buffer) = get_word(new_buffer);
+            buffer = new_buffer;
+            (
+                scroll_x,
+                scroll_y,
+                current_message,
+                cycles_until_disappear,
+                message_row,
+                message_col,
+            )
+        } else {
+            (0, 0, ByteString(vec![]), 0, 24, 0)
+        };
 
     let (player_locked_ns, buffer) = get_bool(buffer);
     let (player_locked_ew, buffer) = get_bool(buffer);
@@ -2075,44 +2114,55 @@ fn load_board(
     let (sensors, _buffer) = get_objects(buffer, load_sensor);
     assert_eq!(_buffer.len(), 0);
 
-    Ok((Board {
-        title: title,
-        width: width,
-        height: height,
-        overlay: overlay,
-        level: Zip::new((ids.into_iter(), colors.into_iter(), params.into_iter())).collect(),
-        under: Zip::new((under_ids.into_iter(), under_colors.into_iter(), under_params.into_iter())).collect(),
-        mod_file: mod_file.to_string(),
-        upper_left_viewport: Coordinate(upper_view_x, upper_view_y),
-        viewport_size: Size(view_width, view_height),
-        can_shoot: can_shoot,
-        can_bomb: can_bomb,
-        fire_burns_brown: fire_burns_brown,
-        fire_burns_space: fire_burns_space,
-        fire_burns_fakes: fire_burns_fakes,
-        fire_burns_trees: fire_burns_trees,
-        explosion_result: explosion_result,
-        save_restriction: save_restriction,
-        forest_becomes_floor: forest_becomes_floor,
-        collect_bombs: collect_bombs,
-        fire_burns_forever: fire_burns_forever,
-        exits: (north_board, south_board, east_board, west_board),
-        restart_when_zapped: restart_when_zapped,
-        time_limit: time_limit,
-        scrolls: scrolls,
-        sensors: sensors,
-        player_pos: Coordinate(0, 0),
-        scroll_offset: Coordinate(scroll_x, scroll_y),
-        message_line: current_message,
-        message_row,
-        message_col: if message_col == 0xFF { None } else { Some(message_col) },
-        remaining_message_cycles: cycles_until_disappear,
-        robot_range: (robot_offset, robots.len()),
-        player_locked_ns,
-        player_locked_ew,
-        player_locked_attack,
-    },
-    robots))
+    Ok((
+        Board {
+            title: title,
+            width: width,
+            height: height,
+            overlay: overlay,
+            level: Zip::new((ids.into_iter(), colors.into_iter(), params.into_iter())).collect(),
+            under: Zip::new((
+                under_ids.into_iter(),
+                under_colors.into_iter(),
+                under_params.into_iter(),
+            ))
+            .collect(),
+            mod_file: mod_file.to_string(),
+            upper_left_viewport: Coordinate(upper_view_x, upper_view_y),
+            viewport_size: Size(view_width, view_height),
+            can_shoot: can_shoot,
+            can_bomb: can_bomb,
+            fire_burns_brown: fire_burns_brown,
+            fire_burns_space: fire_burns_space,
+            fire_burns_fakes: fire_burns_fakes,
+            fire_burns_trees: fire_burns_trees,
+            explosion_result: explosion_result,
+            save_restriction: save_restriction,
+            forest_becomes_floor: forest_becomes_floor,
+            collect_bombs: collect_bombs,
+            fire_burns_forever: fire_burns_forever,
+            exits: (north_board, south_board, east_board, west_board),
+            restart_when_zapped: restart_when_zapped,
+            time_limit: time_limit,
+            scrolls: scrolls,
+            sensors: sensors,
+            player_pos: Coordinate(0, 0),
+            scroll_offset: Coordinate(scroll_x, scroll_y),
+            message_line: current_message,
+            message_row,
+            message_col: if message_col == 0xFF {
+                None
+            } else {
+                Some(message_col)
+            },
+            remaining_message_cycles: cycles_until_disappear,
+            robot_range: (robot_offset, robots.len()),
+            player_locked_ns,
+            player_locked_ew,
+            player_locked_attack,
+        },
+        robots,
+    ))
 }
 
 pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
@@ -2144,7 +2194,9 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
     if charset_data.len() < CHARSET_BUFFER_SIZE {
         return Err(WorldError::CharsetTooSmall);
     }
-    let mut charset = Charset { data: [0; CHARSET_BUFFER_SIZE] };
+    let mut charset = Charset {
+        data: [0; CHARSET_BUFFER_SIZE],
+    };
     charset.data.copy_from_slice(charset_data);
 
     let (idchars, buffer) = buffer.split_at(455);
@@ -2172,7 +2224,14 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
     let mut colors = vec![];
     for rgb in palette_color_data.chunks(3) {
         assert!(rgb.iter().all(|&b| b < 64u8));
-        colors.push((Color { r: rgb[0], g: rgb[1], b: rgb[2] }, 1.0));
+        colors.push((
+            Color {
+                r: rgb[0],
+                g: rgb[1],
+                b: rgb[2],
+            },
+            1.0,
+        ));
     }
     assert_eq!(colors.len(), 16);
 
@@ -2220,7 +2279,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
             title,
             version,
             &original_buffer[board_pos..end_board_pos],
-            all_robots.len()
+            all_robots.len(),
         )?;
         board.init(&mut robots);
         boards.push(board);
@@ -2234,7 +2293,9 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         state: WorldState {
             charset: charset.clone(),
             initial_charset: charset,
-            palette: Palette { colors: colors.clone() },
+            palette: Palette {
+                colors: colors.clone(),
+            },
             initial_palette: Palette { colors: colors },
             idchars: idchars.to_vec().into_boxed_slice(),
             saved_positions: [(0, Coordinate(0, 0)); 10],
@@ -2271,9 +2332,9 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
 mod tests {
     #[test]
     fn it_works() {
+        use super::load_world;
         use std::fs::File;
         use std::io::Read;
-        use super::load_world;
 
         let mut f = File::open("BERNARD.MZX").unwrap();
         let mut v = vec![];

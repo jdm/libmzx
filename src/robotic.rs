@@ -1,9 +1,9 @@
+use super::{
+    get_byte, get_word, ByteString, CardinalDirection, ColorValue, CounterContext, Counters,
+    Direction, OverlayMode, ParamValue, Thing, CHAR_BYTES,
+};
 use num_traits::FromPrimitive;
 use std::mem;
-use super::{
-    get_word, get_byte, ByteString, Direction, ColorValue, ParamValue, Thing, Counters,
-    CardinalDirection, OverlayMode, CHAR_BYTES, CounterContext,
-};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Operator {
@@ -34,7 +34,6 @@ pub enum Param {
     Counter(ByteString),
     Literal(u16),
 }
-
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ExtendedParam {
@@ -501,16 +500,11 @@ impl ExtendedColorValue {
 
     pub fn matches(&self, other: ColorValue) -> bool {
         match *self {
-            ExtendedColorValue::Known(c) =>
-                c == other,
-            ExtendedColorValue::Unknown(Some(bg), None) =>
-                (other.0 & 0xF0) >> 4 == bg.0,
-            ExtendedColorValue::Unknown(None, Some(fg)) =>
-                (other.0 & 0x0F) == fg.0,
-            ExtendedColorValue::Unknown(None, None) =>
-                true,
-            ExtendedColorValue::Unknown(Some(_), Some(_)) =>
-                unreachable!(),
+            ExtendedColorValue::Known(c) => c == other,
+            ExtendedColorValue::Unknown(Some(bg), None) => (other.0 & 0xF0) >> 4 == bg.0,
+            ExtendedColorValue::Unknown(None, Some(fg)) => (other.0 & 0x0F) == fg.0,
+            ExtendedColorValue::Unknown(None, None) => true,
+            ExtendedColorValue::Unknown(Some(_), Some(_)) => unreachable!(),
         }
     }
 }
@@ -519,7 +513,9 @@ impl Resolve for ExtendedColor {
     type Output = ExtendedColorValue;
     fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         match *self {
-            ExtendedColor::Counter(ref s) => ExtendedColorValue::new(counters.get(s, &context) as u16),
+            ExtendedColor::Counter(ref s) => {
+                ExtendedColorValue::new(counters.get(s, &context) as u16)
+            }
             ExtendedColor::Literal(c) => ExtendedColorValue::new(c),
         }
     }
@@ -581,8 +577,22 @@ pub enum Command {
     If(ByteString, Operator, SignedNumeric, ByteString),
     IfCondition(Condition, ByteString, bool),
     IfAny(ExtendedColor, Thing, Param, ByteString, bool),
-    IfThingDir(ExtendedColor, Thing, Param, ModifiedDirection, ByteString, bool),
-    IfThingXY(ExtendedColor, Thing, Param, SignedNumeric, SignedNumeric, ByteString),
+    IfThingDir(
+        ExtendedColor,
+        Thing,
+        Param,
+        ModifiedDirection,
+        ByteString,
+        bool,
+    ),
+    IfThingXY(
+        ExtendedColor,
+        Thing,
+        Param,
+        SignedNumeric,
+        SignedNumeric,
+        ByteString,
+    ),
     IfAt(SignedNumeric, SignedNumeric, ByteString),
     IfDirOfPlayer(ModifiedDirection, ExtendedColor, Thing, Param, ByteString),
     Double(ByteString),
@@ -711,7 +721,14 @@ pub enum Command {
     EnemyBulletColor(Color),
     ModFadeOut,
     ModFadeIn(ByteString),
-    CopyBlock(SignedNumeric, SignedNumeric, Numeric, Numeric, SignedNumeric, SignedNumeric),
+    CopyBlock(
+        SignedNumeric,
+        SignedNumeric,
+        Numeric,
+        Numeric,
+        SignedNumeric,
+        SignedNumeric,
+    ),
     ClipInput,
     Push(ModifiedDirection),
     ScrollChar(Character, ModifiedDirection),
@@ -743,7 +760,14 @@ pub enum Command {
     StatusCounter(Numeric, ByteString),
     OverlayMode(OverlayMode),
     PutOverlay(ExtendedColor, Character, SignedNumeric, SignedNumeric),
-    CopyOverlayBlock(SignedNumeric, SignedNumeric, Numeric, Numeric, SignedNumeric, SignedNumeric),
+    CopyOverlayBlock(
+        SignedNumeric,
+        SignedNumeric,
+        Numeric,
+        Numeric,
+        SignedNumeric,
+        SignedNumeric,
+    ),
     ChangeOverlay(ExtendedColor, ExtendedColor, Option<(Character, Character)>),
     WriteOverlay(Color, ByteString, SignedNumeric, SignedNumeric),
     LoopStart,
@@ -755,37 +779,37 @@ pub enum Command {
 impl Command {
     pub fn is_cycle_ending(&self) -> bool {
         match *self {
-            Command::End |
-            Command::Die(..) |
-            Command::Wait(..) |
-            Command::Go(..) |
-            Command::Become(..) |
-            Command::GotoXY(..) |
-            Command::Explode(..) |
-            Command::MovePlayerDir(..) |
-            Command::TryDir(..) |
-            Command::CopyRobotNamed(..) |
-            Command::CopyRobotXY(..) |
-            Command::CopyRobotDir(..) |
-            Command::Slash(..) |
-            Command::Teleport(..) |
-            Command::MoveAll(..) |
-            Command::Copy(..) |
-            Command::CopyDir(..) |
-            Command::CopyBlock(..) |
-            Command::ColorFadeIn |
-            Command::ColorFadeOut |
-            Command::SwapWorld(..) |
-            Command::CopyOverlayBlock(..) => true,
+            Command::End
+            | Command::Die(..)
+            | Command::Wait(..)
+            | Command::Go(..)
+            | Command::Become(..)
+            | Command::GotoXY(..)
+            | Command::Explode(..)
+            | Command::MovePlayerDir(..)
+            | Command::TryDir(..)
+            | Command::CopyRobotNamed(..)
+            | Command::CopyRobotXY(..)
+            | Command::CopyRobotDir(..)
+            | Command::Slash(..)
+            | Command::Teleport(..)
+            | Command::MoveAll(..)
+            | Command::Copy(..)
+            | Command::CopyDir(..)
+            | Command::CopyBlock(..)
+            | Command::ColorFadeIn
+            | Command::ColorFadeOut
+            | Command::SwapWorld(..)
+            | Command::CopyOverlayBlock(..) => true,
             _ => false,
         }
     }
 
     pub fn is_message_box(&self) -> bool {
         match *self {
-            Command::MessageBoxLine(..) |
-            Command::MessageBoxOption(..) |
-            Command::BlankLine => true,
+            Command::MessageBoxLine(..) | Command::MessageBoxOption(..) | Command::BlankLine => {
+                true
+            }
             _ => false,
         }
     }
@@ -806,10 +830,7 @@ impl Parameter {
 
     fn as_bytes(&self) -> (u8, u8) {
         let w = self.as_word();
-        (
-            (w & 0x00FF) as u8,
-            ((w & 0xFF00) >> 8) as u8,
-        )
+        ((w & 0x00FF) as u8, ((w & 0xFF00) >> 8) as u8)
     }
 
     fn into_string(self) -> ByteString {
@@ -930,22 +951,27 @@ fn get_robotic_parameter(buffer: &[u8]) -> (Parameter, &[u8]) {
             let (contents, remainder) = buffer.split_at(n as usize - 1);
             assert_ne!(contents.last(), Some(&b'\0'));
             // Skip the ignored null byte.
-            (Parameter::String(ByteString(contents.to_vec())), &remainder[1..])
+            (
+                Parameter::String(ByteString(contents.to_vec())),
+                &remainder[1..],
+            )
         }
     }
 }
 
 fn one_arg<F, T>(buffer: &[u8], cmd: F) -> Command
-    where F: Fn(T) -> Command,
-          T: From<Parameter>,
+where
+    F: Fn(T) -> Command,
+    T: From<Parameter>,
 {
     cmd(get_robotic_parameter(buffer).0.into())
 }
 
 fn two_args<F, T, U>(buffer: &[u8], cmd: F) -> Command
-    where F: Fn(T, U) -> Command,
-          T: From<Parameter>,
-          U: From<Parameter>,
+where
+    F: Fn(T, U) -> Command,
+    T: From<Parameter>,
+    U: From<Parameter>,
 {
     let (param1, buffer) = get_robotic_parameter(buffer);
     let (param2, _buffer) = get_robotic_parameter(buffer);
@@ -953,10 +979,11 @@ fn two_args<F, T, U>(buffer: &[u8], cmd: F) -> Command
 }
 
 fn three_args<F, T, U, V>(buffer: &[u8], cmd: F) -> Command
-    where F: Fn(T, U, V) -> Command,
-          T: From<Parameter>,
-          U: From<Parameter>,
-          V: From<Parameter>,
+where
+    F: Fn(T, U, V) -> Command,
+    T: From<Parameter>,
+    U: From<Parameter>,
+    V: From<Parameter>,
 {
     let (param1, buffer) = get_robotic_parameter(buffer);
     let (param2, buffer) = get_robotic_parameter(buffer);
@@ -965,11 +992,12 @@ fn three_args<F, T, U, V>(buffer: &[u8], cmd: F) -> Command
 }
 
 fn four_args<F, T, U, V, W>(buffer: &[u8], cmd: F) -> Command
-    where F: Fn(T, U, V, W) -> Command,
-          T: From<Parameter>,
-          U: From<Parameter>,
-          V: From<Parameter>,
-          W: From<Parameter>,
+where
+    F: Fn(T, U, V, W) -> Command,
+    T: From<Parameter>,
+    U: From<Parameter>,
+    V: From<Parameter>,
+    W: From<Parameter>,
 {
     let (param1, buffer) = get_robotic_parameter(buffer);
     let (param2, buffer) = get_robotic_parameter(buffer);
@@ -979,29 +1007,37 @@ fn four_args<F, T, U, V, W>(buffer: &[u8], cmd: F) -> Command
 }
 
 fn five_args<F, T, U, V, W, X>(buffer: &[u8], cmd: F) -> Command
-    where F: Fn(T, U, V, W, X) -> Command,
-          T: From<Parameter>,
-          U: From<Parameter>,
-          V: From<Parameter>,
-          W: From<Parameter>,
-          X: From<Parameter>,
+where
+    F: Fn(T, U, V, W, X) -> Command,
+    T: From<Parameter>,
+    U: From<Parameter>,
+    V: From<Parameter>,
+    W: From<Parameter>,
+    X: From<Parameter>,
 {
     let (param1, buffer) = get_robotic_parameter(buffer);
     let (param2, buffer) = get_robotic_parameter(buffer);
     let (param3, buffer) = get_robotic_parameter(buffer);
     let (param4, buffer) = get_robotic_parameter(buffer);
     let (param5, _buffer) = get_robotic_parameter(buffer);
-    cmd(param1.into(), param2.into(), param3.into(), param4.into(), param5.into())
+    cmd(
+        param1.into(),
+        param2.into(),
+        param3.into(),
+        param4.into(),
+        param5.into(),
+    )
 }
 
 fn six_args<F, T, U, V, W, X, Y>(buffer: &[u8], cmd: F) -> Command
-    where F: Fn(T, U, V, W, X, Y) -> Command,
-          T: From<Parameter>,
-          U: From<Parameter>,
-          V: From<Parameter>,
-          W: From<Parameter>,
-          X: From<Parameter>,
-          Y: From<Parameter>,
+where
+    F: Fn(T, U, V, W, X, Y) -> Command,
+    T: From<Parameter>,
+    U: From<Parameter>,
+    V: From<Parameter>,
+    W: From<Parameter>,
+    X: From<Parameter>,
+    Y: From<Parameter>,
 {
     let (param1, buffer) = get_robotic_parameter(buffer);
     let (param2, buffer) = get_robotic_parameter(buffer);
@@ -1009,7 +1045,14 @@ fn six_args<F, T, U, V, W, X, Y>(buffer: &[u8], cmd: F) -> Command
     let (param4, buffer) = get_robotic_parameter(buffer);
     let (param5, buffer) = get_robotic_parameter(buffer);
     let (param6, _buffer) = get_robotic_parameter(buffer);
-    cmd(param1.into(), param2.into(), param3.into(), param4.into(), param5.into(), param6.into())
+    cmd(
+        param1.into(),
+        param2.into(),
+        param3.into(),
+        param4.into(),
+        param5.into(),
+        param6.into(),
+    )
 }
 
 fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
@@ -1035,11 +1078,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             } else {
                 None
             };
-            Command::Set(
-                param1.into(),
-                param2.into(),
-                param3.map(|p| p.into()),
-            )
+            Command::Set(param1.into(), param2.into(), param3.map(|p| p.into()))
         }
         CommandOp::Inc | CommandOp::IncRandom => {
             let (param1, buffer) = get_robotic_parameter(buffer);
@@ -1050,11 +1089,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             } else {
                 None
             };
-            Command::Inc(
-                param1.into(),
-                param2.into(),
-                param3.map(|p| p.into()),
-            )
+            Command::Inc(param1.into(), param2.into(), param3.map(|p| p.into()))
         }
         CommandOp::Dec | CommandOp::DecRandom => {
             let (param1, buffer) = get_robotic_parameter(buffer);
@@ -1065,38 +1100,22 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             } else {
                 None
             };
-            Command::Dec(
-                param1.into(),
-                param2.into(),
-                param3.map(|p| p.into()),
-            )
+            Command::Dec(param1.into(), param2.into(), param3.map(|p| p.into()))
         }
         CommandOp::Unused13 => {
             let (param1, buffer) = get_robotic_parameter(buffer);
             let (param2, _buffer) = get_robotic_parameter(buffer);
-            Command::Set(
-                param1.into(),
-                param2.into(),
-                None,
-            )
+            Command::Set(param1.into(), param2.into(), None)
         }
         CommandOp::Unused14 => {
             let (param1, buffer) = get_robotic_parameter(buffer);
             let (param2, _buffer) = get_robotic_parameter(buffer);
-            Command::Inc(
-                param1.into(),
-                param2.into(),
-                None,
-            )
+            Command::Inc(param1.into(), param2.into(), None)
         }
         CommandOp::Unused15 => {
             let (param1, buffer) = get_robotic_parameter(buffer);
             let (param2, _buffer) = get_robotic_parameter(buffer);
-            Command::Dec(
-                param1.into(),
-                param2.into(),
-                None,
-            )
+            Command::Dec(param1.into(), param2.into(), None)
         }
         CommandOp::If | CommandOp::Unused17 => four_args(buffer, Command::If),
         CommandOp::IfCondition | CommandOp::IfNotCondition => {
@@ -1155,11 +1174,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             } else {
                 None
             };
-            Command::Take(
-                param1.into(),
-                param2.into(),
-                param3.map(|p| p.into()),
-            )
+            Command::Take(param1.into(), param2.into(), param3.map(|p| p.into()))
         }
         CommandOp::EndGame => Command::EndGame,
         CommandOp::EndLife => Command::EndLife,
@@ -1198,10 +1213,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             } else {
                 None
             };
-            Command::MovePlayerDir(
-                param1.into(),
-                param2.map(|p| p.into()),
-            )
+            Command::MovePlayerDir(param1.into(), param2.map(|p| p.into()))
         }
         CommandOp::PutPlayerXY => two_args(buffer, Command::PutPlayerXY),
         CommandOp::ObsoleteIfPlayerDir | CommandOp::ObsoleteIfNotPlayerDir => {
@@ -1222,10 +1234,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::Shoot => one_arg(buffer, Command::Shoot),
         CommandOp::LayBomb | CommandOp::LayBombHigh => {
             let (param1, _buffer) = get_robotic_parameter(buffer);
-            Command::LayBomb(
-                param1.into(),
-                op == CommandOp::LayBombHigh,
-            )
+            Command::LayBomb(param1.into(), op == CommandOp::LayBombHigh)
         }
         CommandOp::ShootMissile => one_arg(buffer, Command::ShootMissile),
         CommandOp::ShootSeeker => one_arg(buffer, Command::ShootSeeker),
@@ -1259,10 +1268,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             } else {
                 None
             };
-            Command::GiveKey(
-                param1.into(),
-                param2.map(|p| p.into()),
-            )
+            Command::GiveKey(param1.into(), param2.map(|p| p.into()))
         }
         CommandOp::TakeKey | CommandOp::TakeKeyOr => {
             let (param1, buffer) = get_robotic_parameter(buffer);
@@ -1272,10 +1278,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             } else {
                 None
             };
-            Command::TakeKey(
-                param1.into(),
-                param2.map(|p| p.into()),
-            )
+            Command::TakeKey(param1.into(), param2.map(|p| p.into()))
         }
         CommandOp::Trade => five_args(buffer, Command::Trade),
         CommandOp::PutDirPlayer => four_args(buffer, Command::PutDirPlayer),
@@ -1288,21 +1291,13 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::MessageBoxOption => {
             let (param1, buffer) = get_robotic_parameter(buffer);
             let (param2, _buffer) = get_robotic_parameter(buffer);
-            Command::MessageBoxOption(
-                None,
-                param1.into(),
-                param2.into(),
-            )
+            Command::MessageBoxOption(None, param1.into(), param2.into())
         }
         CommandOp::MessageBoxMaybeOption => {
             let (param1, buffer) = get_robotic_parameter(buffer);
             let (param2, buffer) = get_robotic_parameter(buffer);
             let (param3, _buffer) = get_robotic_parameter(buffer);
-            Command::MessageBoxOption(
-                Some(param1.into()),
-                param2.into(),
-                param3.into(),
-            )
+            Command::MessageBoxOption(Some(param1.into()), param2.into(), param3.into())
         }
         CommandOp::Label => one_arg(buffer, Command::Label),
         CommandOp::Comment => one_arg(buffer, Command::Comment),
@@ -1313,11 +1308,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::IfInput | CommandOp::IfInputNot => {
             let (param1, buffer) = get_robotic_parameter(buffer);
             let (param2, _buffer) = get_robotic_parameter(buffer);
-            Command::IfInput(
-                param1.into(),
-                param2.into(),
-                op == CommandOp::IfInputNot,
-            )
+            Command::IfInput(param1.into(), param2.into(), op == CommandOp::IfInputNot)
         }
         CommandOp::IfInputMatches => two_args(buffer, Command::IfInputMatches),
         CommandOp::PlayerChar => one_arg(buffer, Command::PlayerChar),
@@ -1340,10 +1331,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             } else {
                 None
             };
-            Command::Board(
-                param1.into(),
-                param2.map(|p| p.into()),
-            )
+            Command::Board(param1.into(), param2.map(|p| p.into()))
         }
         CommandOp::CharEdit => {
             let (param1, mut buffer) = get_robotic_parameter(buffer);
@@ -1370,8 +1358,9 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             }
             Command::CharEdit(param1.into(), bytes)
         }
-        CommandOp::BecomePushable | CommandOp::BecomeNonpushable =>
-            Command::BecomePushable(op == CommandOp::BecomePushable),
+        CommandOp::BecomePushable | CommandOp::BecomeNonpushable => {
+            Command::BecomePushable(op == CommandOp::BecomePushable)
+        }
         CommandOp::Blind => one_arg(buffer, Command::Blind),
         CommandOp::FireWalker => one_arg(buffer, Command::FireWalker),
         CommandOp::FreezeTime => one_arg(buffer, Command::FreezeTime),
@@ -1379,8 +1368,9 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::Wind => one_arg(buffer, Command::Wind),
         CommandOp::Avalanche => Command::Avalanche,
         CommandOp::CopyDir => two_args(buffer, Command::CopyDir),
-        CommandOp::BecomeLavaWalker | CommandOp::BecomeNonLavaWalker =>
-            Command::BecomeLavaWalker(op == CommandOp::BecomeLavaWalker),
+        CommandOp::BecomeLavaWalker | CommandOp::BecomeNonLavaWalker => {
+            Command::BecomeLavaWalker(op == CommandOp::BecomeLavaWalker)
+        }
         CommandOp::Change => six_args(buffer, Command::Change),
         CommandOp::PlayerColor => one_arg(buffer, Command::PlayerColor),
         CommandOp::BulletColor => one_arg(buffer, Command::BulletColor),
@@ -1396,11 +1386,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::ThickArrow | CommandOp::ThinArrow => {
             let (param1, buffer) = get_robotic_parameter(buffer);
             let (param2, _buffer) = get_robotic_parameter(buffer);
-            Command::ChangeArrowChar(
-                param1.into(),
-                param2.into(),
-                op == CommandOp::ThickArrow,
-            )
+            Command::ChangeArrowChar(param1.into(), param2.into(), op == CommandOp::ThickArrow)
         }
         CommandOp::SetMaxHealth => one_arg(buffer, Command::SetMaxHealth),
         CommandOp::SavePlayerPosition | CommandOp::SavePlayerPositionN => {
@@ -1443,14 +1429,16 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::ScrollArrow => one_arg(buffer, Command::ScrollArrow),
         CommandOp::Viewport => two_args(buffer, Command::Viewport),
         CommandOp::ViewportSize => two_args(buffer, Command::ViewportSize),
-        CommandOp::RestorePlayerPositionNDuplicateSelf =>
-            one_arg(buffer, Command::RestorePlayerPositionDupSelf),
-        CommandOp::ExchangePlayerPositionNDuplicateSelf =>
-            one_arg(buffer, Command::ExchangePlayerPositionDupSelf),
-        CommandOp::PlayerBulletN |
-        CommandOp::PlayerBulletS |
-        CommandOp::PlayerBulletW |
-        CommandOp::PlayerBulletE => {
+        CommandOp::RestorePlayerPositionNDuplicateSelf => {
+            one_arg(buffer, Command::RestorePlayerPositionDupSelf)
+        }
+        CommandOp::ExchangePlayerPositionNDuplicateSelf => {
+            one_arg(buffer, Command::ExchangePlayerPositionDupSelf)
+        }
+        CommandOp::PlayerBulletN
+        | CommandOp::PlayerBulletS
+        | CommandOp::PlayerBulletW
+        | CommandOp::PlayerBulletE => {
             let (param1, _buffer) = get_robotic_parameter(buffer);
             let dir = match op {
                 CommandOp::PlayerBulletN => CardinalDirection::North,
@@ -1461,10 +1449,10 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             };
             Command::PlayerBullet(param1.into(), dir)
         }
-        CommandOp::NeutralBulletN |
-        CommandOp::NeutralBulletS |
-        CommandOp::NeutralBulletW |
-        CommandOp::NeutralBulletE => {
+        CommandOp::NeutralBulletN
+        | CommandOp::NeutralBulletS
+        | CommandOp::NeutralBulletW
+        | CommandOp::NeutralBulletE => {
             let (param1, _buffer) = get_robotic_parameter(buffer);
             let dir = match op {
                 CommandOp::NeutralBulletN => CardinalDirection::North,
@@ -1475,10 +1463,10 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             };
             Command::NeutralBullet(param1.into(), dir)
         }
-        CommandOp::EnemyBulletN |
-        CommandOp::EnemyBulletS |
-        CommandOp::EnemyBulletW |
-        CommandOp::EnemyBulletE => {
+        CommandOp::EnemyBulletN
+        | CommandOp::EnemyBulletS
+        | CommandOp::EnemyBulletW
+        | CommandOp::EnemyBulletE => {
             let (param1, _buffer) = get_robotic_parameter(buffer);
             let dir = match op {
                 CommandOp::EnemyBulletN => CardinalDirection::North,
@@ -1492,22 +1480,22 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::PlayerBulletColor => one_arg(buffer, Command::PlayerBulletColor),
         CommandOp::NeutralBulletColor => one_arg(buffer, Command::NeutralBulletColor),
         CommandOp::EnemyBulletColor => one_arg(buffer, Command::EnemyBulletColor),
-        CommandOp::Unused188 |
-        CommandOp::Unused189 |
-        CommandOp::Unused190 |
-        CommandOp::Unused191 |
-        CommandOp::Unused192 |
-        CommandOp::Unused207 |
-        CommandOp::Unused208 |
-        CommandOp::Unused209 |
-        CommandOp::Unused221 |
-        CommandOp::Unused223 |
-        CommandOp::Unused228 |
-        CommandOp::Unused234 |
-        CommandOp::Unused244 |
-        CommandOp::Unused248 |
-        CommandOp::Unused249 |
-        CommandOp::Unused250 => return None,
+        CommandOp::Unused188
+        | CommandOp::Unused189
+        | CommandOp::Unused190
+        | CommandOp::Unused191
+        | CommandOp::Unused192
+        | CommandOp::Unused207
+        | CommandOp::Unused208
+        | CommandOp::Unused209
+        | CommandOp::Unused221
+        | CommandOp::Unused223
+        | CommandOp::Unused228
+        | CommandOp::Unused234
+        | CommandOp::Unused244
+        | CommandOp::Unused248
+        | CommandOp::Unused249
+        | CommandOp::Unused250 => return None,
         CommandOp::RelSelfFirst => Command::RelSelf(Some(RelativePart::First)),
         CommandOp::RelSelfLast => Command::RelSelf(Some(RelativePart::Last)),
         CommandOp::RelPlayerFirst => Command::RelPlayer(Some(RelativePart::First)),
@@ -1523,8 +1511,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::FlipChar => two_args(buffer, Command::FlipChar),
         CommandOp::CopyChar => two_args(buffer, Command::CopyChar),
         CommandOp::ChangeSfx => two_args(buffer, Command::ChangeSfx),
-        CommandOp::ColorIntensityAll |
-        CommandOp::ColorIntensityN => {
+        CommandOp::ColorIntensityAll | CommandOp::ColorIntensityN => {
             let (param1, buffer) = if op == CommandOp::ColorIntensityN {
                 let (param, buffer) = get_robotic_parameter(buffer);
                 (Some(param), buffer)
@@ -1532,10 +1519,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
                 (None, buffer)
             };
             let (param2, _buffer) = get_robotic_parameter(buffer);
-            Command::ColorIntensity(
-                param1.map(|p| p.into()),
-                param2.into(),
-            )
+            Command::ColorIntensity(param1.map(|p| p.into()), param2.into())
         }
         CommandOp::ColorFadeOut => Command::ColorFadeOut,
         CommandOp::ColorFadeIn => Command::ColorFadeIn,
@@ -1585,8 +1569,9 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::LoopStart => Command::LoopStart,
         CommandOp::LoopFor => one_arg(buffer, Command::LoopFor),
         CommandOp::AbortLoop => Command::AbortLoop,
-        CommandOp::DisableMesgEdge | CommandOp::EnableMesgEdge =>
-            Command::MesgEdge(op == CommandOp::EnableMesgEdge),
+        CommandOp::DisableMesgEdge | CommandOp::EnableMesgEdge => {
+            Command::MesgEdge(op == CommandOp::EnableMesgEdge)
+        }
     };
     Some(cmd)
 }
@@ -1614,10 +1599,10 @@ pub(crate) fn parse_program(buffer: &[u8]) -> Vec<Command> {
         let total = total as usize;
         let (op, new_buffer) = get_byte(new_buffer);
         let cmd = CommandOp::from_u8(op).expect("unknown opcode");
-        if let Some(cmd) = parse_opcode(&new_buffer[0..total-1], cmd) {
+        if let Some(cmd) = parse_opcode(&new_buffer[0..total - 1], cmd) {
             commands.push(cmd)
         }
-        let (total_dup, new_buffer) = get_byte(&new_buffer[total-1..]);
+        let (total_dup, new_buffer) = get_byte(&new_buffer[total - 1..]);
         assert_eq!(total, total_dup as usize);
         buffer = new_buffer;
     }

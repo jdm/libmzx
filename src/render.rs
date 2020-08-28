@@ -1,21 +1,14 @@
-use itertools::{Zip, Itertools};
+use itertools::{Itertools, Zip};
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::{
-    WorldState, Board, Robot, Charset, Palette, Sensor, Thing, OverlayMode, Coordinate, Size,
-    CharId, Explosion, MessageBoxLineType, ByteString, DoorOrientation, door_from_param,
-    bullet_from_param, BulletType, CardinalDirection
+    bullet_from_param, door_from_param, Board, BulletType, ByteString, CardinalDirection, CharId,
+    Charset, Coordinate, DoorOrientation, Explosion, MessageBoxLineType, OverlayMode, Palette,
+    Robot, Sensor, Size, Thing, WorldState,
 };
 
 pub trait Renderer {
-    fn put_pixel(
-        &mut self,
-        x: usize,
-        y: usize,
-        r: u8,
-        g: u8,
-        b: u8,
-    );
+    fn put_pixel(&mut self, x: usize, y: usize, r: u8, g: u8, b: u8);
     fn clear(&mut self);
 }
 
@@ -36,8 +29,7 @@ pub fn render<R: Renderer>(
 
     let mut empty_overlay = vec![];
     let overlay = match board.overlay {
-        Some((OverlayMode::Static, ref data)) |
-        Some((OverlayMode::Normal, ref data)) => data,
+        Some((OverlayMode::Static, ref data)) | Some((OverlayMode::Normal, ref data)) => data,
         _ => {
             empty_overlay.reserve(board.width * board.height);
             for _ in 0..(board.width * board.height) {
@@ -58,7 +50,11 @@ pub fn render<R: Renderer>(
             .chunks(board.width) // per-row
             .skip(viewport.1 as usize) // ignore rows outside of viewport
             .take((display.1).1 as usize) // ignore rows outside of viewport
-            .map(|row| row.iter().skip(viewport.0 as usize).take((display.1).0 as usize))
+            .map(|row| {
+                row.iter()
+                    .skip(viewport.0 as usize)
+                    .take((display.1).0 as usize)
+            }),
     );
 
     let under = Itertools::flatten(
@@ -67,10 +63,17 @@ pub fn render<R: Renderer>(
             .chunks(board.width) // per-row
             .skip(viewport.1 as usize) // ignore rows outside of viewport
             .take((display.1).1 as usize) // ignore rows outside of viewport
-            .map(|row| row.iter().skip(viewport.0 as usize).take((display.1).0 as usize))
+            .map(|row| {
+                row.iter()
+                    .skip(viewport.0 as usize)
+                    .take((display.1).0 as usize)
+            }),
     );
 
-    let is_static = board.overlay.as_ref().map_or(false, |(o, _)| *o == OverlayMode::Static);
+    let is_static = board
+        .overlay
+        .as_ref()
+        .map_or(false, |(o, _)| *o == OverlayMode::Static);
     let overlay_viewport = if is_static {
         Coordinate(0, 0)
     } else {
@@ -82,11 +85,14 @@ pub fn render<R: Renderer>(
             .chunks(board.width) // per-row
             .skip(overlay_viewport.1 as usize) // ignore pre-viewport
             .take((display.1).1 as usize) // only iterate rows in viewport
-            .map(|row| row.iter().skip(overlay_viewport.0 as usize).take((display.1).0 as usize))
+            .map(|row| {
+                row.iter()
+                    .skip(overlay_viewport.0 as usize)
+                    .take((display.1).0 as usize)
+            }),
     );
 
-    for (pos, (level, under, overlay)) in Zip::new((level, under, overlay)).enumerate()
-    {
+    for (pos, (level, under, overlay)) in Zip::new((level, under, overlay)).enumerate() {
         let &(id, color, param) = level;
         let &(_under_id, under_color, _under_param) = under;
         let &(overlay_char, overlay_color) = overlay;
@@ -95,24 +101,23 @@ pub fn render<R: Renderer>(
         let ypos = pos as u16 / (display.1).0 as u16;
 
         let mut color = match Thing::from_u8(id).unwrap() {
-            Thing::Player => if is_title_screen {
-                0
-            } else {
-                w.char_id(CharId::PlayerColor)
-            },
-            Thing::Fire => w.char_id_offset(CharId::FireColor1, param),
-            Thing::Missile => w.char_id(CharId::MissileColor),
-            Thing::Explosion => w.char_id_offset(
-                CharId::ExplosionStage1,
-                Explosion::from_param(param).stage
-            ),
-            Thing::Bullet => {
-                match bullet_from_param(param).0 {
-                    BulletType::Player => w.char_id(CharId::PlayerBulletColor),
-                    BulletType::Enemy => w.char_id(CharId::EnemyBulletColor),
-                    BulletType::Neutral => w.char_id(CharId::NeutralBulletColor),
+            Thing::Player => {
+                if is_title_screen {
+                    0
+                } else {
+                    w.char_id(CharId::PlayerColor)
                 }
             }
+            Thing::Fire => w.char_id_offset(CharId::FireColor1, param),
+            Thing::Missile => w.char_id(CharId::MissileColor),
+            Thing::Explosion => {
+                w.char_id_offset(CharId::ExplosionStage1, Explosion::from_param(param).stage)
+            }
+            Thing::Bullet => match bullet_from_param(param).0 {
+                BulletType::Player => w.char_id(CharId::PlayerBulletColor),
+                BulletType::Enemy => w.char_id(CharId::EnemyBulletColor),
+                BulletType::Neutral => w.char_id(CharId::NeutralBulletColor),
+            },
             Thing::Scroll => w.message_color,
             _ => color,
         };
@@ -128,10 +133,22 @@ pub fn render<R: Renderer>(
                 &robots,
                 &board.sensors,
                 &w.idchars,
-                board_x.checked_sub(1).map(|x| board.thing_at(&Coordinate(x, board_y))),
-                if (board_x as usize) < board.width - 1 { Some(board.thing_at(&Coordinate(board_x + 1, board_y))) } else { None },
-                board_y.checked_sub(1).map(|y| board.thing_at(&Coordinate(board_x, y))),
-                if (board_y as usize) < board.height - 1 { Some(board.thing_at(&Coordinate(board_x, board_y + 1))) } else { None },
+                board_x
+                    .checked_sub(1)
+                    .map(|x| board.thing_at(&Coordinate(x, board_y))),
+                if (board_x as usize) < board.width - 1 {
+                    Some(board.thing_at(&Coordinate(board_x + 1, board_y)))
+                } else {
+                    None
+                },
+                board_y
+                    .checked_sub(1)
+                    .map(|y| board.thing_at(&Coordinate(board_x, y))),
+                if (board_y as usize) < board.height - 1 {
+                    Some(board.thing_at(&Coordinate(board_x, board_y + 1)))
+                } else {
+                    None
+                },
                 w.player_face_dir,
             )
         } else {
@@ -155,7 +172,7 @@ pub fn render<R: Renderer>(
             ((display.0).1 as u16 + ypos) as usize,
             charset,
             palette,
-            renderer
+            renderer,
         );
     }
 
@@ -177,7 +194,7 @@ pub fn render<R: Renderer>(
                 board.message_row as usize,
                 charset,
                 palette,
-                renderer
+                renderer,
             );
             msg_x += 1;
         }
@@ -205,7 +222,7 @@ pub fn render<R: Renderer>(
                 board.message_row as usize,
                 charset,
                 palette,
-                renderer
+                renderer,
             );
         }
     }
@@ -213,10 +230,7 @@ pub fn render<R: Renderer>(
 
 pub enum MessageBoxLine {
     Text(ByteString, MessageBoxLineType),
-    Option {
-        label: ByteString,
-        text: ByteString
-    },
+    Option { label: ByteString, text: ByteString },
 }
 
 pub fn draw_messagebox<R: Renderer>(
@@ -239,63 +253,237 @@ pub fn draw_messagebox<R: Renderer>(
     const CONTENT_H: usize = DIALOG_H - 6;
 
     let mut y = DIALOG_Y;
-    draw_char(0xDA, 0x00, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer); // .-
+    draw_char(
+        0xDA, 0x00, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer,
+    ); // .-
     for x in 1..DIALOG_W {
-        draw_char(0xC4, 0x00, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // -
+        draw_char(
+            0xC4,
+            0x00,
+            0x08,
+            DIALOG_X + x,
+            y,
+            &w.charset,
+            &w.palette,
+            renderer,
+        ); // -
     }
-    draw_char(0xBF, 0x07, 0x08, DIALOG_X + DIALOG_W, y, &w.charset, &w.palette, renderer); // -.
+    draw_char(
+        0xBF,
+        0x07,
+        0x08,
+        DIALOG_X + DIALOG_W,
+        y,
+        &w.charset,
+        &w.palette,
+        renderer,
+    ); // -.
 
     y += 1;
-    draw_char(0xB3, 0x00, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer); // |
+    draw_char(
+        0xB3, 0x00, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer,
+    ); // |
     for x in 1..DIALOG_W {
-        draw_char(0x20, 0x00, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // ' '
+        draw_char(
+            0x20,
+            0x00,
+            0x08,
+            DIALOG_X + x,
+            y,
+            &w.charset,
+            &w.palette,
+            renderer,
+        ); // ' '
     }
-    draw_char(0xB3, 0x0F, 0x08, DIALOG_X + DIALOG_W, y, &w.charset, &w.palette, renderer); // |
+    draw_char(
+        0xB3,
+        0x0F,
+        0x08,
+        DIALOG_X + DIALOG_W,
+        y,
+        &w.charset,
+        &w.palette,
+        renderer,
+    ); // |
     for (x, c) in title.iter().enumerate() {
-        draw_char(*c, 0x0F, 0x08, DIALOG_X + (DIALOG_W - title.len()) / 2 + x, y, &w.charset, &w.palette, renderer);
+        draw_char(
+            *c,
+            0x0F,
+            0x08,
+            DIALOG_X + (DIALOG_W - title.len()) / 2 + x,
+            y,
+            &w.charset,
+            &w.palette,
+            renderer,
+        );
     }
 
     y += 1;
-    draw_char(0xDA, 0x0F, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer); // .-
+    draw_char(
+        0xDA, 0x0F, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer,
+    ); // .-
     for x in 1..DIALOG_W {
-        draw_char(0xC4, 0x0F, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // -
+        draw_char(
+            0xC4,
+            0x0F,
+            0x08,
+            DIALOG_X + x,
+            y,
+            &w.charset,
+            &w.palette,
+            renderer,
+        ); // -
     }
-    draw_char(0xD9, 0x0F, 0x08, DIALOG_X + DIALOG_W, y, &w.charset, &w.palette, renderer); // -/
+    draw_char(
+        0xD9,
+        0x0F,
+        0x08,
+        DIALOG_X + DIALOG_W,
+        y,
+        &w.charset,
+        &w.palette,
+        renderer,
+    ); // -/
 
     y += 1;
 
     for y_off in 0..CONTENT_H {
-        draw_char(0xB3, 0x0F, 0x08, DIALOG_X, y + y_off, &w.charset, &w.palette, renderer); // |
+        draw_char(
+            0xB3,
+            0x0F,
+            0x08,
+            DIALOG_X,
+            y + y_off,
+            &w.charset,
+            &w.palette,
+            renderer,
+        ); // |
         for x in 1..DIALOG_W {
-            draw_char(0x20, 0x00, 0x08, DIALOG_X + x, y + y_off, &w.charset, &w.palette, renderer);
+            draw_char(
+                0x20,
+                0x00,
+                0x08,
+                DIALOG_X + x,
+                y + y_off,
+                &w.charset,
+                &w.palette,
+                renderer,
+            );
         }
         if y_off == CONTENT_H / 2 {
-            draw_char(0x10, 0x00, 0x08, DIALOG_X + 1, y + y_off, &w.charset, &w.palette, renderer); // >
-            draw_char(0x11, 0x00, 0x08, DIALOG_X + DIALOG_W - 1, y + y_off, &w.charset, &w.palette, renderer); // <
+            draw_char(
+                0x10,
+                0x00,
+                0x08,
+                DIALOG_X + 1,
+                y + y_off,
+                &w.charset,
+                &w.palette,
+                renderer,
+            ); // >
+            draw_char(
+                0x11,
+                0x00,
+                0x08,
+                DIALOG_X + DIALOG_W - 1,
+                y + y_off,
+                &w.charset,
+                &w.palette,
+                renderer,
+            ); // <
         }
-        draw_char(0xB3, 0x00, 0x08, DIALOG_X + DIALOG_W, y + y_off, &w.charset, &w.palette, renderer); // |
+        draw_char(
+            0xB3,
+            0x00,
+            0x08,
+            DIALOG_X + DIALOG_W,
+            y + y_off,
+            &w.charset,
+            &w.palette,
+            renderer,
+        ); // |
     }
 
     y += CONTENT_H;
-    draw_char(0xDA, 0x00, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer); // .-
+    draw_char(
+        0xDA, 0x00, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer,
+    ); // .-
     for x in 1..DIALOG_W {
-        draw_char(0xC4, 0x00, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // -
+        draw_char(
+            0xC4,
+            0x00,
+            0x08,
+            DIALOG_X + x,
+            y,
+            &w.charset,
+            &w.palette,
+            renderer,
+        ); // -
     }
-    draw_char(0xD9, 0x00, 0x08, DIALOG_X + DIALOG_W, y, &w.charset, &w.palette, renderer); // -/
+    draw_char(
+        0xD9,
+        0x00,
+        0x08,
+        DIALOG_X + DIALOG_W,
+        y,
+        &w.charset,
+        &w.palette,
+        renderer,
+    ); // -/
 
     y += 1;
-    draw_char(0xB3, 0x00, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer); // |
+    draw_char(
+        0xB3, 0x00, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer,
+    ); // |
     for x in 1..DIALOG_W {
-        draw_char(0x20, 0x00, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // -
+        draw_char(
+            0x20,
+            0x00,
+            0x08,
+            DIALOG_X + x,
+            y,
+            &w.charset,
+            &w.palette,
+            renderer,
+        ); // -
     }
-    draw_char(0xB3, 0x0F, 0x08, DIALOG_X + DIALOG_W, y, &w.charset, &w.palette, renderer); // |
+    draw_char(
+        0xB3,
+        0x0F,
+        0x08,
+        DIALOG_X + DIALOG_W,
+        y,
+        &w.charset,
+        &w.palette,
+        renderer,
+    ); // |
 
     y += 1;
-    draw_char(0xC0, 0x07, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer); // \-
+    draw_char(
+        0xC0, 0x07, 0x08, DIALOG_X, y, &w.charset, &w.palette, renderer,
+    ); // \-
     for x in 1..DIALOG_W {
-        draw_char(0xC4, 0x0F, 0x08, DIALOG_X + x, y, &w.charset, &w.palette, renderer); // -
+        draw_char(
+            0xC4,
+            0x0F,
+            0x08,
+            DIALOG_X + x,
+            y,
+            &w.charset,
+            &w.palette,
+            renderer,
+        ); // -
     }
-    draw_char(0xD9, 0x0F, 0x08, DIALOG_X + DIALOG_W, y, &w.charset, &w.palette, renderer); // -/
+    draw_char(
+        0xD9,
+        0x0F,
+        0x08,
+        DIALOG_X + DIALOG_W,
+        y,
+        &w.charset,
+        &w.palette,
+        renderer,
+    ); // -/
 
     let start = (pos as isize - CONTENT_H as isize / 2).max(0) as usize;
     let end = (start + (CONTENT_H / 2 + pos + 1).min(CONTENT_H)).min(lines.len());
@@ -316,25 +504,43 @@ pub fn draw_messagebox<R: Renderer>(
                         y_start + y_off,
                         &w.charset,
                         &w.palette,
-                        renderer
+                        renderer,
                     );
                 }
             }
-            MessageBoxLine::Text(ref s, MessageBoxLineType::Color) => {
-                draw_fancy_message_box_line(
-                    s, false, false, START_X, y_start + y_off, LIMIT, &w.charset, &w.palette, renderer,
-                )
-            }
-            MessageBoxLine::Text(ref s, MessageBoxLineType::Center) => {
-                draw_fancy_message_box_line(
-                    s, true, false, START_X, y_start + y_off, LIMIT, &w.charset, &w.palette, renderer,
-                )
-            }
-            MessageBoxLine::Option { ref text, .. } => {
-                draw_fancy_message_box_line(
-                    text, false, true, START_X, y_start + y_off, LIMIT, &w.charset, &w.palette, renderer,
-                )
-            }
+            MessageBoxLine::Text(ref s, MessageBoxLineType::Color) => draw_fancy_message_box_line(
+                s,
+                false,
+                false,
+                START_X,
+                y_start + y_off,
+                LIMIT,
+                &w.charset,
+                &w.palette,
+                renderer,
+            ),
+            MessageBoxLine::Text(ref s, MessageBoxLineType::Center) => draw_fancy_message_box_line(
+                s,
+                true,
+                false,
+                START_X,
+                y_start + y_off,
+                LIMIT,
+                &w.charset,
+                &w.palette,
+                renderer,
+            ),
+            MessageBoxLine::Option { ref text, .. } => draw_fancy_message_box_line(
+                text,
+                false,
+                true,
+                START_X,
+                y_start + y_off,
+                LIMIT,
+                &w.charset,
+                &w.palette,
+                renderer,
+            ),
         };
     }
 }
@@ -356,7 +562,9 @@ fn draw_fancy_message_box_line<R: Renderer>(
     }
 
     if center {
-        let len = text.color_text().fold(0, |acc, (chars, _bg, _fg)| acc + chars.len());
+        let len = text
+            .color_text()
+            .fold(0, |acc, (chars, _bg, _fg)| acc + chars.len());
         x_off += (limit - len) / 2;
     }
 
@@ -385,7 +593,7 @@ fn draw_char<R: Renderer>(
     y: usize,
     charset: &Charset,
     palette: &Palette,
-    renderer: &mut R
+    renderer: &mut R,
 ) {
     let char_bytes = charset.nth(ch);
     for (y_off, byte) in char_bytes.iter().enumerate() {
@@ -455,7 +663,7 @@ fn char_from_id(
                 (true, true, true, false) => 202,
                 (true, true, false, true) => 203,
                 (true, true, true, true) => 206,
-            }
+            };
         }
         Thing::Web => {
             let check = |t| t != Thing::Space;
@@ -476,7 +684,7 @@ fn char_from_id(
                 (true, true, true, false) => 193,
                 (true, true, false, true) => 194,
                 (true, true, true, true) => 197,
-            }
+            };
         }
         Thing::CustomBlock => return param,
         Thing::Breakaway => CharId::Breakaway,
@@ -506,7 +714,13 @@ fn char_from_id(
         Thing::Potion => CharId::Potion,
         Thing::Energizer => CharId::Energizer,
         Thing::Goop => CharId::Goop,
-        Thing::Ammo => if param < 10 { CharId::SmallAmmo } else { CharId::LargeAmmo },
+        Thing::Ammo => {
+            if param < 10 {
+                CharId::SmallAmmo
+            } else {
+                CharId::LargeAmmo
+            }
+        }
         Thing::Bomb => CharId::Bomb,
         Thing::LitBomb => CharId::LitBombAnim1, // TODO: lit bomb animation
         Thing::Explosion => CharId::Explosion,
@@ -524,11 +738,12 @@ fn char_from_id(
         }
         Thing::Stairs => CharId::Stairs,
         Thing::Cave => CharId::Cave,
-        Thing::CWRotate => CharId::CwAnim1, //TODO animate
+        Thing::CWRotate => CharId::CwAnim1,   //TODO animate
         Thing::CCWRotate => CharId::CcwAnim1, //TODO animate
         Thing::Gate => CharId::Gate,
         Thing::OpenGate => CharId::OpenGate,
-        Thing::Transport => match param { //TODO animate
+        Thing::Transport => match param {
+            //TODO animate
             0 => CharId::NTransportAnim1,
             1 => CharId::STransportAnim1,
             2 => CharId::ETransportAnim1,
@@ -548,27 +763,25 @@ fn char_from_id(
             2 => CharId::EThickArrow,
             3 => CharId::WThickArrow,
             _ => unreachable!("unexpected param for {:?}: {}", thing, param),
-        }
+        },
         Thing::SliderNS => CharId::SliderNS,
         Thing::SliderEW => CharId::SliderEW,
         Thing::Lazer => CharId::HorizontalLazerAnim1, //TODO: differentiate horizontal/vertical
         Thing::LazerGun => CharId::LazerGun,
-        Thing::Bullet => {
-            match bullet_from_param(param) {
-                (BulletType::Player, CardinalDirection::North) => CharId::NPlayerBullet,
-                (BulletType::Player, CardinalDirection::South) => CharId::SPlayerBullet,
-                (BulletType::Player, CardinalDirection::East) => CharId::EPlayerBullet,
-                (BulletType::Player, CardinalDirection::West) => CharId::WPlayerBullet,
-                (BulletType::Enemy, CardinalDirection::North) => CharId::NEnemyBullet,
-                (BulletType::Enemy, CardinalDirection::South) => CharId::SEnemyBullet,
-                (BulletType::Enemy, CardinalDirection::East) => CharId::EEnemyBullet,
-                (BulletType::Enemy, CardinalDirection::West) => CharId::WEnemyBullet,
-                (BulletType::Neutral, CardinalDirection::North) => CharId::NNeutralBullet,
-                (BulletType::Neutral, CardinalDirection::South) => CharId::SNeutralBullet,
-                (BulletType::Neutral, CardinalDirection::East) => CharId::ENeutralBullet,
-                (BulletType::Neutral, CardinalDirection::West) => CharId::WNeutralBullet,
-            }
-        }
+        Thing::Bullet => match bullet_from_param(param) {
+            (BulletType::Player, CardinalDirection::North) => CharId::NPlayerBullet,
+            (BulletType::Player, CardinalDirection::South) => CharId::SPlayerBullet,
+            (BulletType::Player, CardinalDirection::East) => CharId::EPlayerBullet,
+            (BulletType::Player, CardinalDirection::West) => CharId::WPlayerBullet,
+            (BulletType::Enemy, CardinalDirection::North) => CharId::NEnemyBullet,
+            (BulletType::Enemy, CardinalDirection::South) => CharId::SEnemyBullet,
+            (BulletType::Enemy, CardinalDirection::East) => CharId::EEnemyBullet,
+            (BulletType::Enemy, CardinalDirection::West) => CharId::WEnemyBullet,
+            (BulletType::Neutral, CardinalDirection::North) => CharId::NNeutralBullet,
+            (BulletType::Neutral, CardinalDirection::South) => CharId::SNeutralBullet,
+            (BulletType::Neutral, CardinalDirection::East) => CharId::ENeutralBullet,
+            (BulletType::Neutral, CardinalDirection::West) => CharId::WNeutralBullet,
+        },
         Thing::Fire => return idchars[CharId::FireAnim1.to_usize().unwrap() + param as usize],
         Thing::Forest => CharId::Forest,
         Thing::Life => CharId::LifeAnim1, //TODO animate
@@ -587,7 +800,7 @@ fn char_from_id(
         Thing::CustomHurt => return param,
         Thing::Text => return param,
         Thing::ShootingFire => CharId::SpitFireAnim1, //TODO animate
-        Thing::Seeker => CharId::SeekerAnim1, //TODO animate
+        Thing::Seeker => CharId::SeekerAnim1,         //TODO animate
         Thing::Snake => CharId::Snake,
         Thing::Eye => CharId::Eye,
         Thing::Thief => CharId::Thief,
@@ -630,7 +843,7 @@ fn char_from_id(
             1 => CharId::PlayerSouth,
             2 => CharId::PlayerEast,
             _ => CharId::PlayerWest,
-        }
+        },
     };
     idchars[char_id.to_usize().unwrap()]
 }

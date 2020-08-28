@@ -1,6 +1,10 @@
-use crate::{Board, ByteString, CardinalDirection, Coordinate, Counters, Explosion, ExplosionResult, ExtendedColorValue, ExtendedParam, KeyPress, MessageBoxLine, Robot, RunStatus, Thing, WorldState, adjust_coordinate, bullet_from_param};
 use crate::audio::AudioEngine;
-use crate::robot::{BuiltInLabel, RobotId, Robots, send_robot_to_label, update_robot};
+use crate::robot::{send_robot_to_label, update_robot, BuiltInLabel, RobotId, Robots};
+use crate::{
+    adjust_coordinate, bullet_from_param, Board, ByteString, CardinalDirection, Coordinate,
+    Counters, Explosion, ExplosionResult, ExtendedColorValue, ExtendedParam, KeyPress,
+    MessageBoxLine, Robot, RunStatus, Thing, WorldState,
+};
 use num_traits::ToPrimitive;
 use std::iter;
 use std::path::Path;
@@ -31,7 +35,13 @@ pub fn enter_board(
     }
     let old_pos = board.player_pos;
     if old_pos != player_pos {
-        move_level_to(board, robots, &old_pos, &player_pos, &mut *state.update_done);
+        move_level_to(
+            board,
+            robots,
+            &old_pos,
+            &player_pos,
+            &mut *state.update_done,
+        );
     }
     board.player_pos = player_pos;
     reset_view(board);
@@ -73,15 +83,13 @@ pub fn put_thing(
     update_done: &mut [bool],
 ) {
     let color = match color {
-        ExtendedColorValue::Known(c) =>
-            c.0,
+        ExtendedColorValue::Known(c) => c.0,
         // TODO: have a table of default foreground colors for things,
         //       get the current background color at destination.
-        ExtendedColorValue::Unknown(Some(_), None) |
-        ExtendedColorValue::Unknown(None, Some(_)) |
-        ExtendedColorValue::Unknown(None, None) |
-        ExtendedColorValue::Unknown(Some(_), Some(_)) =>
-            0x07, //HACK
+        ExtendedColorValue::Unknown(Some(_), None)
+        | ExtendedColorValue::Unknown(None, Some(_))
+        | ExtendedColorValue::Unknown(None, None)
+        | ExtendedColorValue::Unknown(Some(_), Some(_)) => 0x07, //HACK
     };
 
     // TODO: have a table of default parameters for things.
@@ -162,7 +170,7 @@ pub fn update_board(
     for y in 0..board.height {
         for x in 0..board.width {
             if state.update_done[y * board.width + x] {
-                debug!("already updated {},{}", x,y);
+                debug!("already updated {},{}", x, y);
                 continue;
             }
 
@@ -185,7 +193,7 @@ pub fn update_board(
                         board,
                         board_id,
                         robots,
-                        RobotId::from(board.level_at(&coord).2)
+                        RobotId::from(board.level_at(&coord).2),
                     );
                     if change.is_some() {
                         return change;
@@ -206,11 +214,7 @@ pub fn update_board(
                                 CardinalDirection::West,
                             ];
                             for dir in &dirs {
-                                let adjusted = adjust_coordinate(
-                                    coord,
-                                    board,
-                                    *dir,
-                                );
+                                let adjusted = adjust_coordinate(coord, board, *dir);
                                 let coord = match adjusted {
                                     Some(coord) => coord,
                                     None => continue,
@@ -223,7 +227,7 @@ pub fn update_board(
                                         0x00,
                                         Thing::Explosion,
                                         explosion.to_param(),
-                                        &mut *state.update_done
+                                        &mut *state.update_done,
                                     );
                                 } else if thing.is_robot() {
                                     let robot_id = RobotId::from(board.level_at(&coord).2);
@@ -239,18 +243,9 @@ pub fn update_board(
 
                     if explosion.stage == 3 {
                         let (thing, color) = match board.explosion_result {
-                            ExplosionResult::Nothing => (
-                                Thing::Space,
-                                0x07,
-                            ),
-                            ExplosionResult::Ash => (
-                                Thing::Floor,
-                                0x08,
-                            ),
-                            ExplosionResult::Fire => (
-                                Thing::Fire,
-                                0x0C,
-                            ),
+                            ExplosionResult::Nothing => (Thing::Space, 0x07),
+                            ExplosionResult::Ash => (Thing::Floor, 0x08),
+                            ExplosionResult::Fire => (Thing::Fire, 0x0C),
                         };
                         put_at(board, &coord, color, thing, 0x00, &mut *state.update_done);
                     } else {
@@ -289,11 +284,7 @@ pub fn update_board(
                             CardinalDirection::West,
                         ];
                         for dir in &dirs {
-                            let adjusted = adjust_coordinate(
-                                coord,
-                                board,
-                                *dir,
-                            );
+                            let adjusted = adjust_coordinate(coord, board, *dir);
                             let coord = match adjusted {
                                 Some(coord) => coord,
                                 None => continue,
@@ -303,15 +294,14 @@ pub fn update_board(
                             let level = board.level_at(&coord);
                             let thing_id = level.0;
 
-                            let spread =
-                                (thing == Thing::Space && board.fire_burns_space) ||
-                                (thing_id >= Thing::Fake.to_u8().unwrap() &&
-                                 thing_id <= Thing::ThickWeb.to_u8().unwrap() &&
-                                 board.fire_burns_fakes) ||
-                                (thing == Thing::Tree && board.fire_burns_trees) ||
-                                (level.1 == 0x06 &&
-                                 board.fire_burns_brown &&
-                                 thing_id < Thing::Sensor.to_u8().unwrap());
+                            let spread = (thing == Thing::Space && board.fire_burns_space)
+                                || (thing_id >= Thing::Fake.to_u8().unwrap()
+                                    && thing_id <= Thing::ThickWeb.to_u8().unwrap()
+                                    && board.fire_burns_fakes)
+                                || (thing == Thing::Tree && board.fire_burns_trees)
+                                || (level.1 == 0x06
+                                    && board.fire_burns_brown
+                                    && thing_id < Thing::Sensor.to_u8().unwrap());
 
                             if spread {
                                 put_at(
@@ -341,20 +331,13 @@ pub fn update_board(
                     let cur_wait = param & 0xE0;
                     let stage = param & 0x1F;
                     const OPEN_DOOR_MOVE: &[(i8, i8)] = &[
-                        WEST, NORTH, EAST, NORTH,
-                        WEST, SOUTH, EAST, SOUTH,
-                        IDLE, IDLE, IDLE, IDLE,
-                        IDLE, IDLE, IDLE, IDLE,
-                        EAST, SOUTH, WEST, SOUTH,
-                        EAST, NORTH, WEST, NORTH,
-                        SOUTH, EAST, SOUTH, WEST,
-                        NORTH, EAST, NORTH, WEST,
+                        WEST, NORTH, EAST, NORTH, WEST, SOUTH, EAST, SOUTH, IDLE, IDLE, IDLE, IDLE,
+                        IDLE, IDLE, IDLE, IDLE, EAST, SOUTH, WEST, SOUTH, EAST, NORTH, WEST, NORTH,
+                        SOUTH, EAST, SOUTH, WEST, NORTH, EAST, NORTH, WEST,
                     ];
                     const OPEN_DOOR_WAIT: &[u8] = &[
-                        32 , 32 , 32 , 32 , 32 , 32 , 32 , 32 ,
-                        224, 224, 224, 224, 224, 224, 224, 224,
-                        224, 224, 224, 224, 224, 224, 224, 224,
-                        32 , 32 , 32 , 32 , 32 , 32 , 32 , 32
+                        32, 32, 32, 32, 32, 32, 32, 32, 224, 224, 224, 224, 224, 224, 224, 224,
+                        224, 224, 224, 224, 224, 224, 224, 224, 32, 32, 32, 32, 32, 32, 32, 32,
                     ];
                     let door_wait = OPEN_DOOR_WAIT[stage as usize];
                     let door_move = OPEN_DOOR_MOVE[stage as usize];
@@ -372,7 +355,14 @@ pub fn update_board(
                         if door_move != IDLE {
                             // FIXME: support pushing
                             // FIXME: check for blocked, act appropriately.
-                            move_level(board, all_robots, &coord, door_move.0, door_move.1, &mut *state.update_done);
+                            move_level(
+                                board,
+                                all_robots,
+                                &coord,
+                                door_move.0,
+                                door_move.1,
+                                &mut *state.update_done,
+                            );
                         }
                     } else {
                         board.level_at_mut(&coord).2 = param + 0x20;
@@ -400,7 +390,13 @@ pub fn update_board(
                                 _ => (),
                             }
                         } else {
-                            move_level_to(board, all_robots, &coord, &new_pos, &mut *state.update_done);
+                            move_level_to(
+                                board,
+                                all_robots,
+                                &coord,
+                                &new_pos,
+                                &mut *state.update_done,
+                            );
                         }
                     } else {
                         board.remove_thing_at(&coord);

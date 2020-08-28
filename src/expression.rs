@@ -183,13 +183,19 @@ pub(crate) fn evaluate_expression(
     let mut tokens = vec![];
     let mut state = ExprState::Start;
     for &c in expr {
-        let (new_state, token) = state.transition(Some(c)).unwrap();
+        let (new_state, token) = match state.transition(Some(c)) {
+            Ok(a) => a,
+            Err(()) => panic!("Error evaluating {}", std::str::from_utf8(expr).unwrap()),
+        };
         state = new_state;
         if let Some(token) = token {
             tokens.push(token);
         }
     }
-    let (state, token) = state.transition(None).unwrap();
+    let (state, token) = match state.transition(None) {
+        Ok(a) => a,
+        Err(()) => panic!("Error ending {}", std::str::from_utf8(expr).unwrap()),
+    };
     assert_eq!(state, ExprState::End);
     if let Some(token) = token {
         tokens.push(token);

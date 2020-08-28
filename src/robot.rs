@@ -695,9 +695,9 @@ fn run_one_command(
 
         Command::ScrollViewXY(ref x, ref y) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
-            let x = x.resolve(counters, context);
-            let y = y.resolve(counters, context);
-            board.scroll_offset = Coordinate(x as u16, y as u16);
+            let coord = mode.resolve_xy(x, y, counters, context, RelativePart::First);
+            debug!("scrolling to {},{}", coord.0, coord.1);
+            board.scroll_offset = coord;
         }
 
         Command::ScrollView(ref dir, ref n) => {

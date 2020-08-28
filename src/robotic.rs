@@ -55,7 +55,7 @@ impl Resolve for Param {
     type Output = ExtendedParam;
     fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         let v = match *self {
-            Param::Counter(ref s) => counters.get(s, context) as u16,
+            Param::Counter(ref s) => counters.get(s, &context) as u16,
             Param::Literal(p) => p,
         };
         if v == 256 {
@@ -420,7 +420,7 @@ impl Resolve for Byte {
     type Output = u8;
     fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         match *self {
-            Byte::Counter(ref s) => counters.get(s, context) as u8,
+            Byte::Counter(ref s) => counters.get(s, &context) as u8,
             Byte::Literal(b) => b,
         }
     }
@@ -436,7 +436,7 @@ impl Resolve for Numeric {
     type Output = u32;
     fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         match *self {
-            Numeric::Counter(ref s) => counters.get(s, context) as u32,
+            Numeric::Counter(ref s) => counters.get(s, &context) as u32,
             Numeric::Literal(u) => u as u32,
         }
     }
@@ -452,7 +452,7 @@ impl Resolve for SignedNumeric {
     type Output = i32;
     fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         match *self {
-            SignedNumeric::Counter(ref s) => counters.get(s, context),
+            SignedNumeric::Counter(ref s) => counters.get(s, &context),
             SignedNumeric::Literal(u) => u as i32,
         }
     }
@@ -468,7 +468,7 @@ impl Resolve for Character {
     type Output = u8;
     fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         match *self {
-            Character::Counter(ref s) => counters.get(s, context) as u8,
+            Character::Counter(ref s) => counters.get(s, &context) as u8,
             Character::Literal(u) => u,
         }
     }
@@ -519,7 +519,7 @@ impl Resolve for ExtendedColor {
     type Output = ExtendedColorValue;
     fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         match *self {
-            ExtendedColor::Counter(ref s) => ExtendedColorValue::new(counters.get(s, context) as u16),
+            ExtendedColor::Counter(ref s) => ExtendedColorValue::new(counters.get(s, &context) as u16),
             ExtendedColor::Literal(c) => ExtendedColorValue::new(c),
         }
     }
@@ -544,7 +544,7 @@ impl Resolve for Color {
     type Output = ColorValue;
     fn resolve<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> Self::Output {
         match *self {
-            Color::Counter(ref s) => ColorValue(counters.get(s, context) as u8),
+            Color::Counter(ref s) => ColorValue(counters.get(s, &context) as u8),
             Color::Literal(c) => c,
         }
     }

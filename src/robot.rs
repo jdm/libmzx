@@ -216,7 +216,7 @@ pub(crate) trait Evaluator {
 
 impl Evaluator for ByteString {
     fn eval<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> EvaluatedByteString {
-        EvaluatedByteString(self.evaluate(counters, context))
+        EvaluatedByteString(self.evaluate(counters, &context))
     }
 }
 
@@ -755,7 +755,7 @@ fn run_one_command(
 
         Command::Set(ref s, ref n, ref n2) => {
             let robot = robots.get_mut(robot_id);
-            let context = CounterContextMut::from(
+            let mut context = CounterContextMut::from(
                 board, robot, state
             );
             let mut val = n.resolve(counters, context.as_immutable()) as i32;
@@ -764,83 +764,83 @@ fn run_one_command(
                 let range = (upper - val).abs() as u32;
                 val += rand::random::<u32>().checked_rem(range).unwrap_or(0) as i32;
             }
-            counters.set(s.clone(), context, val);
+            counters.set(s.clone(), &mut context, val);
         }
 
         Command::Dec(ref s, ref n, ref n2) => {
             let context = CounterContext::from(
                 board, robots.get(robot_id), state
             );
-            let initial = counters.get(s, context);
+            let initial = counters.get(s, &context);
             let mut val = n.resolve(counters, context) as i32;
             if let Some(ref n2) = *n2 {
                 let upper = n2.resolve(counters, context);
                 let range = (upper - val).abs() as u32;
                 val += rand::random::<u32>().checked_rem(range).unwrap_or(0) as i32;
             }
-            let context = CounterContextMut::from(
+            let mut context = CounterContextMut::from(
                 board, robots.get_mut(robot_id), state
             );
-            counters.set(s.clone(), context, initial.wrapping_sub(val));
+            counters.set(s.clone(), &mut context, initial.wrapping_sub(val));
         }
 
         Command::Inc(ref s, ref n, ref n2) => {
             let context = CounterContext::from(
                 board, robots.get(robot_id), state
             );
-            let initial = counters.get(s, context);
+            let initial = counters.get(s, &context);
             let mut val = n.resolve(counters, context);
             if let Some(ref n2) = *n2 {
                 let upper = n2.resolve(counters, context);
                 let range = (upper - val).abs() as u32;
                 val += rand::random::<u32>().checked_rem(range).unwrap_or(0) as i32;
             }
-            let context = CounterContextMut::from(
+            let mut context = CounterContextMut::from(
                 board, robots.get_mut(robot_id), state
             );
-            counters.set(s.clone(), context, initial.wrapping_add(val));
+            counters.set(s.clone(), &mut context, initial.wrapping_add(val));
         }
 
         Command::Multiply(ref s, ref n) => {
             let context = CounterContext::from(
                 board, robots.get(robot_id), state
             );
-            let initial = counters.get(s, context);
+            let initial = counters.get(s, &context);
             let val = n.resolve(counters, context);
-            let context = CounterContextMut::from(
+            let mut context = CounterContextMut::from(
                 board, robots.get_mut(robot_id), state
             );
-            counters.set(s.clone(), context, initial.wrapping_mul(val));
+            counters.set(s.clone(), &mut context, initial.wrapping_mul(val));
         }
 
         Command::Divide(ref s, ref n) => {
             let context = CounterContext::from(
                 board, robots.get(robot_id), state
             );
-            let initial = counters.get(s, context);
+            let initial = counters.get(s, &context);
             let val = n.resolve(counters, context);
-            let context = CounterContextMut::from(
+            let mut context = CounterContextMut::from(
                 board, robots.get_mut(robot_id), state
             );
-            counters.set(s.clone(), context, initial.checked_div(val).unwrap_or(initial));
+            counters.set(s.clone(), &mut context, initial.checked_div(val).unwrap_or(initial));
         }
 
         Command::Modulo(ref s, ref n) => {
             let context = CounterContext::from(
                 board, robots.get(robot_id), state
             );
-            let initial = counters.get(s, context);
+            let initial = counters.get(s, &context);
             let val = n.resolve(counters, context);
-            let context = CounterContextMut::from(
+            let mut context = CounterContextMut::from(
                 board, robots.get_mut(robot_id), state
             );
-            counters.set(s.clone(), context, initial.checked_rem(val).unwrap_or(initial));
+            counters.set(s.clone(), &mut context, initial.checked_rem(val).unwrap_or(initial));
         }
 
         Command::If(ref s, op, ref n, ref l) => {
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
-            let val = counters.get(s, context);
+            let val = counters.get(s, &context);
             let cmp = n.resolve(counters, context);
             let l = l.eval(counters, context);
             let result = match op {
@@ -1131,7 +1131,7 @@ fn run_one_command(
             let context = CounterContext::from(
                 board, robots.get(robot_id), state
             );
-            let r = r.evaluate(counters, context);
+            let r = r.evaluate(counters, &context);
             let l = l.eval(counters, context);
             let mut result = CommandResult::Advance;
             robots.foreach(|robot, id| {
@@ -1301,8 +1301,8 @@ fn run_one_command(
                 board, robots.get(robot_id), state
             );
             let coord = Coordinate(
-                counters.get(&BuiltInCounter::Xpos.into(), context) as u16,
-                counters.get(&BuiltInCounter::Ypos.into(), context) as u16,
+                counters.get(&BuiltInCounter::Xpos.into(), &context) as u16,
+                counters.get(&BuiltInCounter::Ypos.into(), &context) as u16,
             );
             let mode = Relative::Coordinate(*part, coord);
             return CommandResult::IgnoreLine(Some(Update::Mode(mode)));
@@ -1433,7 +1433,7 @@ fn run_one_command(
                 RelativePart::First,
             );
             let c = c.resolve(counters, context);
-            let s = s.evaluate(counters, context);
+            let s = s.evaluate(counters, &context);
             board.write_overlay(&pos, &s, c.0);
         }
 
@@ -1522,7 +1522,7 @@ fn run_one_command(
             let context = CounterContext::from(
                 board, robots.get(robot_id), state
             );
-            board.message_line = s.evaluate(counters, context);
+            board.message_line = s.evaluate(counters, &context);
             board.remaining_message_cycles = 80;
         }
 
@@ -1608,7 +1608,7 @@ fn run_one_command(
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
             return CommandResult::IgnoreLine(Some(Update::MessageBox(
-                Some(MessageBoxLine::Text(s.evaluate(counters, context), line_type))
+                Some(MessageBoxLine::Text(s.evaluate(counters, &context), line_type))
             )));
         }
 
@@ -1616,13 +1616,13 @@ fn run_one_command(
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
             let should_display = counter.as_ref().map_or(true, |counter| {
-                counters.get(&counter.evaluate(counters, context), context) != 0
+                counters.get(&counter.evaluate(counters, &context), &context) != 0
             });
             if should_display {
                 return CommandResult::IgnoreLine(Some(Update::MessageBox(
                     Some(MessageBoxLine::Option {
-                        label: label.evaluate(counters, context),
-                        text: text.evaluate(counters, context),
+                        label: label.evaluate(counters, &context),
+                        text: text.evaluate(counters, &context),
                     })
                 )));
             } else {
@@ -1633,7 +1633,7 @@ fn run_one_command(
         Command::Mod(ref m) => {
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
-            let m = m.evaluate(counters, context).into_string();
+            let m = m.evaluate(counters, &context).into_string();
             audio.load_module(&m);
             board.mod_file = m;
         }
@@ -1641,7 +1641,7 @@ fn run_one_command(
         Command::ModFadeIn(ref m) => {
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
-            let m = m.evaluate(counters, context).into_string();
+            let m = m.evaluate(counters, &context).into_string();
             audio.mod_fade_in(&m);
             board.mod_file = m;
         }

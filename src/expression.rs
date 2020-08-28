@@ -276,8 +276,8 @@ mod test {
         let mut counters = Counters::new();
         counters.set("countername".into(), &mut TestLocalCounters, 5);
         assert_eq!(
-            evaluate_expression(b"'countername'", &Counters::new(), &TestLocalCounters).0,
-            b"-5"
+            evaluate_expression(b"'countername'", &counters, &TestLocalCounters).0,
+            b"5"
         );
     }
 }

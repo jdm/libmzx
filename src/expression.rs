@@ -280,4 +280,14 @@ mod test {
             b"5"
         );
     }
+
+    #[test]
+    fn expr_var_add() {
+        let mut counters = Counters::new();
+        counters.set("countername".into(), &mut TestLocalCounters, 50);
+        assert_eq!(
+            evaluate_expression(b"'countername' - 10", &counters, &TestLocalCounters).0,
+            b"40"
+        );
+    }
 }

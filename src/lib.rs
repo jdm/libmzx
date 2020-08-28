@@ -551,13 +551,19 @@ impl Counters {
                 .map(|c| c.to_ascii_lowercase())
                 .collect(),
         );
-        let name = name.evaluate(self, context);
-        debug!("getting {:?}", name);
-        if let Some(local) = LocalCounter::from(&name) {
+        let result = name.evaluate(self, context);
+        if name.as_bytes().first() == Some(&b'(') {
+            if let Ok(val) = result.to_string().parse::<i32>() {
+                return val;
+            }
+        }
+
+        debug!("getting {:?}", result);
+        if let Some(local) = LocalCounter::from(&result) {
             debug!("getting local counter");
             context.local_counter(local)
         } else {
-            *self.counters.get(&name).unwrap_or(&0)
+            *self.counters.get(&result).unwrap_or(&0)
         }
     }
 }

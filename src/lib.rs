@@ -401,6 +401,16 @@ impl Board {
     }
 }
 
+trait CounterContextExt {
+    fn local_counter(&self, counter: LocalCounter) -> i32;
+}
+
+impl<'a> CounterContextExt for CounterContext<'a> {
+    fn local_counter(&self, counter: LocalCounter) -> i32 {
+        CounterContext::local_counter(self, counter)
+    }
+}
+
 #[derive(Copy, Clone)]
 pub struct CounterContext<'a> {
     board: &'a Board,
@@ -595,7 +605,7 @@ impl ByteString {
     }
 
     pub fn into_string(self) -> String {
-        String::from_utf8(self.0).expect("Invalid UTF8 string")
+        self.0.into_iter().map(|c| c as char).collect()
     }
 
     pub fn to_string(&self) -> String {
@@ -636,28 +646,167 @@ impl ByteString {
 
     pub fn evaluate<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> ByteString {
         let bytes = self.as_bytes();
-        if bytes.iter().find(|b| **b == b'&').is_none() {
-            return self.clone();
-        }
-
         let mut new_bytes = vec![];
         let mut start = None;
+        let mut expressions = vec![];
         for (idx, &c) in bytes.iter().enumerate() {
+            if c == b'(' {
+                expressions.push(vec![]);
+                continue;
+            } else if c == b')' {
+                if let Some(expression) = expressions.pop() {
+                    let result = evaluate_expression(&expression, counters, &context);
+                    let cur_bytes = expressions.last_mut().unwrap_or(&mut new_bytes);
+                    cur_bytes.extend(result.as_bytes());
+                    continue;
+                }
+            }
+
+            let cur_bytes = expressions.last_mut().unwrap_or(&mut new_bytes);
+
             if c == b'&' {
                 if let Some(start_idx) = start {
                     let name = ByteString(bytes[start_idx..idx].to_owned());
                     let value = counters.get(&name, context).to_string();
-                    new_bytes.extend(value.as_bytes());
+                    cur_bytes.extend(value.as_bytes());
                     start = None;
                 } else {
                     start = Some(idx + 1);
                 }
             } else if start.is_none() {
-                new_bytes.push(c);
+                cur_bytes.push(c);
             }
         }
         ByteString(new_bytes)
     }
+}
+
+#[derive(Copy, Clone)]
+enum ExprOp {
+    Plus,
+    Minus,
+}
+
+#[derive(Copy, Clone)]
+enum Token {
+    Constant(i32),
+    Operator(ExprOp),
+}
+
+#[derive(Copy, Clone)]
+enum ExprState {
+    Start,
+    Constant(i32),
+    Operator(ExprOp),
+    End,
+}
+
+impl ExprState {
+    fn transition(&mut self, byte: Option<u8>) -> Result<Option<Token>, ()> {
+        match *self {
+            ExprState::Start => {
+                let byte = match byte {
+                    Some(b) => b,
+                    None => {
+                        *self = ExprState::End;
+                        return Ok(None);
+                    }
+                };
+                if byte == b' ' {
+                    // No change
+                } else if byte >= b'0' && byte <= b'9' {
+                    *self = ExprState::Constant((byte - b'0') as i32);
+                } else if byte == b'-' {
+                    *self = ExprState::Operator(ExprOp::Minus);
+                } else {
+                    return Err(());
+                }
+            }
+            ExprState::Constant(v) => {
+                let byte = match byte {
+                    Some(b) => b,
+                    None => {
+                        *self = ExprState::End;
+                        return Ok(Some(Token::Constant(v)));
+                    }
+                };
+                if byte == b' ' {
+                    // No change
+                } else if byte >= b'0' && byte <= b'9' {
+                    *self = ExprState::Constant(v * 10 + (byte - b'0') as i32);
+                } else if byte == b'+' {
+                    *self = ExprState::Operator(ExprOp::Plus);
+                    return Ok(Some(Token::Constant(v)));
+                } else if byte == b'-' {
+                    *self = ExprState::Operator(ExprOp::Minus);
+                    return Ok(Some(Token::Constant(v)));
+                } else {
+                    return Err(());
+                }
+            }
+            ExprState::Operator(op) => {
+                let byte = match byte {
+                    Some(b) => b,
+                    None => {
+                        *self = ExprState::End;
+                        return Ok(None);
+                    }
+                };
+                if byte == b' ' {
+                    // No change
+                } else if byte >= b'0' && byte <= b'9' {
+                    *self = ExprState::Constant((byte - b'0') as i32);
+                    return Ok(Some(Token::Operator(op)));
+                } else {
+                    return Err(());
+                }
+            }
+            ExprState::End => {
+                return Err(());
+            }
+        }
+        Ok(None)
+    }
+}
+
+fn evaluate_expression(expr: &[u8], _counters: &Counters, _context: &dyn CounterContextExt) -> ByteString {
+    assert_ne!(expr.get(0), Some(&b'('));
+    //let mut bytes = vec![];
+    let mut tokens = vec![];
+    let mut state = ExprState::Start;
+    for &c in expr {
+        match state.transition(Some(c)).unwrap() {
+            None => {},
+            Some(token) => tokens.push(token),
+        }
+    }
+    match state.transition(None).unwrap() {
+        None => {}
+        Some(token) => tokens.push(token),
+    }
+    let mut value = None;
+    let mut current_op = None;
+    for token in tokens {
+        match token {
+            Token::Constant(v) => match (value, current_op) {
+                (None, None) | (None, Some(ExprOp::Plus)) => value = Some(v),
+                (None, Some(ExprOp::Minus)) => value = Some(-v),
+                (Some(current_val), Some(o)) => {
+                    match o {
+                        ExprOp::Plus => value = Some(current_val + v),
+                        ExprOp::Minus => value = Some(current_val - v),
+                    }
+                    current_op = None;
+                }
+                (Some(_), None) => unimplemented!(),
+            }
+            Token::Operator(o) => match (value, current_op) {
+                (Some(_), None) | (None, None) => current_op = Some(o),
+                (None, Some(_)) | (Some(_), Some(_)) => unimplemented!(),
+            }
+        }
+    }
+    ByteString(value.unwrap_or(0).to_string().into_bytes())
 }
 
 pub struct ColorStringIterator<'a> {
@@ -2267,5 +2416,40 @@ mod tests {
         f.read_to_end(&mut v).unwrap();
         let world = load_world(&v).unwrap();
         assert_eq!(world.title, "~d@8Bernard the Bard");
+    }
+
+    use super::*;
+
+    struct TestLocalCounters;
+
+    impl CounterContextExt for TestLocalCounters {
+        fn local_counter(&self, _counter: LocalCounter) -> i32 {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn expr_constant() {
+        assert_eq!(evaluate_expression(b"5", &Counters::new(), &TestLocalCounters).0, b"5");
+    }
+
+    #[test]
+    fn expr_add_constants() {
+        assert_eq!(evaluate_expression(b"5 + 10", &Counters::new(), &TestLocalCounters).0, b"15");
+    }
+
+    #[test]
+    fn expr_add_multiple_constants() {
+        assert_eq!(evaluate_expression(b"5 + 10 + 20", &Counters::new(), &TestLocalCounters).0, b"35");
+    }
+
+    #[test]
+    fn expr_sub_multiple_constants() {
+        assert_eq!(evaluate_expression(b"5 - 10 - 20", &Counters::new(), &TestLocalCounters).0, b"-25");
+    }
+
+    #[test]
+    fn expr_leading_neg() {
+        assert_eq!(evaluate_expression(b"-5", &Counters::new(), &TestLocalCounters).0, b"-5");
     }
 }

@@ -35,6 +35,9 @@ impl<'a> CounterContextMutExt for CounterContextMut<'a> {
 enum ExprOp {
     Plus,
     Minus,
+    Multiply,
+    Divide,
+    Modulo,
 }
 
 enum Token {
@@ -88,6 +91,12 @@ impl ExprState {
                     Ok((ExprState::Operator(ExprOp::Plus), Some(Token::Constant(v))))
                 } else if byte == b'-' {
                     Ok((ExprState::Operator(ExprOp::Minus), Some(Token::Constant(v))))
+                } else if byte == b'*' {
+                    Ok((ExprState::Operator(ExprOp::Multiply), Some(Token::Constant(v))))
+                } else if byte == b'/' {
+                    Ok((ExprState::Operator(ExprOp::Divide), Some(Token::Constant(v))))
+                } else if byte == b'%' {
+                    Ok((ExprState::Operator(ExprOp::Modulo), Some(Token::Constant(v))))
                 } else {
                     Err(())
                 }
@@ -141,6 +150,21 @@ impl ExprState {
                         ExprState::Operator(ExprOp::Minus),
                         Some(Token::Variable(var)),
                     ))
+                } else if byte == b'*' {
+                    Ok((
+                        ExprState::Operator(ExprOp::Multiply),
+                        Some(Token::Variable(var)),
+                    ))
+                } else if byte == b'/' {
+                    Ok((
+                        ExprState::Operator(ExprOp::Divide),
+                        Some(Token::Variable(var)),
+                    ))
+                } else if byte == b'%' {
+                    Ok((
+                        ExprState::Operator(ExprOp::Modulo),
+                        Some(Token::Variable(var)),
+                    ))
                 } else {
                     Err(())
                 }
@@ -172,33 +196,52 @@ pub(crate) fn evaluate_expression(
     }
     let mut value = None;
     let mut current_op = None;
+    // TODO: handle dividing by a negative number
     for token in tokens {
         match token {
             Token::Constant(v) => match (value, current_op) {
-                (None, None) | (None, Some(ExprOp::Plus)) => value = Some(v),
-                (None, Some(ExprOp::Minus)) => value = Some(-v),
+                (None, None) | (None, Some(ExprOp::Plus)) => {
+                    value = Some(v);
+                    current_op = None;
+                }
+                (None, Some(ExprOp::Minus)) => {
+                    value = Some(-v);
+                    current_op = None;
+                }
                 (Some(current_val), Some(o)) => {
                     match o {
                         ExprOp::Plus => value = Some(current_val + v),
                         ExprOp::Minus => value = Some(current_val - v),
+                        ExprOp::Multiply => value = Some(current_val * v),
+                        ExprOp::Divide => value = Some(current_val / v),
+                        ExprOp::Modulo => value = Some(current_val % v),
                     }
                     current_op = None;
                 }
-                (Some(_), None) => unimplemented!(),
+                (Some(_), None) | (None, Some(_)) => unimplemented!(),
             },
             Token::Variable(name) => {
                 let var_val = counters.get(&ByteString(name), context);
                 match (value, current_op) {
-                    (None, None) | (None, Some(ExprOp::Plus)) => value = Some(var_val),
-                    (None, Some(ExprOp::Minus)) => value = Some(-var_val),
+                    (None, None) | (None, Some(ExprOp::Plus)) => {
+                        value = Some(var_val);
+                        current_op = None;
+                    }
+                    (None, Some(ExprOp::Minus)) => {
+                        value = Some(-var_val);
+                        current_op = None;
+                    }
                     (Some(current_val), Some(o)) => {
                         match o {
                             ExprOp::Plus => value = Some(current_val + var_val),
                             ExprOp::Minus => value = Some(current_val - var_val),
+                            ExprOp::Multiply => value = Some(current_val * var_val),
+                            ExprOp::Divide => value = Some(current_val / var_val),
+                            ExprOp::Modulo => value = Some(current_val % var_val),
                         }
                         current_op = None;
                     }
-                    (Some(_), None) => unimplemented!(),
+                    (Some(_), None) | (None, Some(_)) => unimplemented!(),
                 }
             }
             Token::Operator(o) => match (value, current_op) {
@@ -268,6 +311,30 @@ mod test {
         assert_eq!(
             evaluate_expression(b"-5", &Counters::new(), &TestLocalCounters).0,
             b"-5"
+        );
+    }
+
+    #[test]
+    fn expr_mult() {
+        assert_eq!(
+            evaluate_expression(b"-5 * 5", &Counters::new(), &TestLocalCounters).0,
+            b"-25"
+        );
+    }
+
+    #[test]
+    fn expr_div() {
+        assert_eq!(
+            evaluate_expression(b"-5 / 5", &Counters::new(), &TestLocalCounters).0,
+            b"-1"
+        );
+    }
+
+    #[test]
+    fn expr_mod() {
+        assert_eq!(
+            evaluate_expression(b"12 % 5", &Counters::new(), &TestLocalCounters).0,
+            b"2"
         );
     }
 

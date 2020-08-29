@@ -38,6 +38,9 @@ enum ExprOp {
     Multiply,
     Divide,
     Modulo,
+    BitOr,
+    BitAnd,
+    BitXor,
 }
 
 enum Token {
@@ -97,6 +100,12 @@ impl ExprState {
                     Ok((ExprState::Operator(ExprOp::Divide), Some(Token::Constant(v))))
                 } else if byte == b'%' {
                     Ok((ExprState::Operator(ExprOp::Modulo), Some(Token::Constant(v))))
+                } else if byte == b'a' {
+                    Ok((ExprState::Operator(ExprOp::BitAnd), Some(Token::Constant(v))))
+                } else if byte == b'o' {
+                    Ok((ExprState::Operator(ExprOp::BitOr), Some(Token::Constant(v))))
+                } else if byte == b'x' {
+                    Ok((ExprState::Operator(ExprOp::BitXor), Some(Token::Constant(v))))
                 } else {
                     Err(())
                 }
@@ -165,6 +174,21 @@ impl ExprState {
                         ExprState::Operator(ExprOp::Modulo),
                         Some(Token::Variable(var)),
                     ))
+                } else if byte == b'a' {
+                    Ok((
+                        ExprState::Operator(ExprOp::BitAnd),
+                        Some(Token::Variable(var)),
+                    ))
+                } else if byte == b'o' {
+                    Ok((
+                        ExprState::Operator(ExprOp::BitOr),
+                        Some(Token::Variable(var)),
+                    ))
+                } else if byte == b'x' {
+                    Ok((
+                        ExprState::Operator(ExprOp::BitXor),
+                        Some(Token::Variable(var)),
+                    ))
                 } else {
                     Err(())
                 }
@@ -185,7 +209,7 @@ pub(crate) fn evaluate_expression(
     for &c in expr {
         let (new_state, token) = match state.transition(Some(c)) {
             Ok(a) => a,
-            Err(()) => panic!("Error evaluating {}", std::str::from_utf8(expr).unwrap()),
+            Err(()) => panic!("Error evaluating {} at {}", std::str::from_utf8(expr).unwrap(), c as char),
         };
         state = new_state;
         if let Some(token) = token {
@@ -221,6 +245,9 @@ pub(crate) fn evaluate_expression(
                         ExprOp::Multiply => value = Some(current_val * v),
                         ExprOp::Divide => value = Some(current_val / v),
                         ExprOp::Modulo => value = Some(current_val % v),
+                        ExprOp::BitAnd => value = Some(current_val & v),
+                        ExprOp::BitOr => value = Some(current_val | v),
+                        ExprOp::BitXor => value = Some(current_val ^ v),
                     }
                     current_op = None;
                 }
@@ -244,6 +271,9 @@ pub(crate) fn evaluate_expression(
                             ExprOp::Multiply => value = Some(current_val * var_val),
                             ExprOp::Divide => value = Some(current_val / var_val),
                             ExprOp::Modulo => value = Some(current_val % var_val),
+                            ExprOp::BitAnd => value = Some(current_val & var_val),
+                            ExprOp::BitOr => value = Some(current_val | var_val),
+                            ExprOp::BitXor => value = Some(current_val ^ var_val),
                         }
                         current_op = None;
                     }

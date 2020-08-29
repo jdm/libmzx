@@ -79,6 +79,7 @@ impl ExprState {
                     Err(())
                 }
             }
+
             ExprState::Constant(v) => {
                 let byte = match byte {
                     Some(b) => b,
@@ -95,21 +96,37 @@ impl ExprState {
                 } else if byte == b'-' {
                     Ok((ExprState::Operator(ExprOp::Minus), Some(Token::Constant(v))))
                 } else if byte == b'*' {
-                    Ok((ExprState::Operator(ExprOp::Multiply), Some(Token::Constant(v))))
+                    Ok((
+                        ExprState::Operator(ExprOp::Multiply),
+                        Some(Token::Constant(v)),
+                    ))
                 } else if byte == b'/' {
-                    Ok((ExprState::Operator(ExprOp::Divide), Some(Token::Constant(v))))
+                    Ok((
+                        ExprState::Operator(ExprOp::Divide),
+                        Some(Token::Constant(v)),
+                    ))
                 } else if byte == b'%' {
-                    Ok((ExprState::Operator(ExprOp::Modulo), Some(Token::Constant(v))))
+                    Ok((
+                        ExprState::Operator(ExprOp::Modulo),
+                        Some(Token::Constant(v)),
+                    ))
                 } else if byte == b'a' {
-                    Ok((ExprState::Operator(ExprOp::BitAnd), Some(Token::Constant(v))))
+                    Ok((
+                        ExprState::Operator(ExprOp::BitAnd),
+                        Some(Token::Constant(v)),
+                    ))
                 } else if byte == b'o' {
                     Ok((ExprState::Operator(ExprOp::BitOr), Some(Token::Constant(v))))
                 } else if byte == b'x' {
-                    Ok((ExprState::Operator(ExprOp::BitXor), Some(Token::Constant(v))))
+                    Ok((
+                        ExprState::Operator(ExprOp::BitXor),
+                        Some(Token::Constant(v)),
+                    ))
                 } else {
                     Err(())
                 }
             }
+
             ExprState::Operator(op) => {
                 let byte = match byte {
                     Some(b) => b,
@@ -128,6 +145,7 @@ impl ExprState {
                     Err(())
                 }
             }
+
             ExprState::Variable(mut var) => {
                 let byte = match byte {
                     Some(b) => b,
@@ -140,6 +158,7 @@ impl ExprState {
                     Ok((ExprState::VariableName(var), None))
                 }
             }
+
             ExprState::VariableName(var) => {
                 let byte = match byte {
                     Some(b) => b,
@@ -193,6 +212,7 @@ impl ExprState {
                     Err(())
                 }
             }
+
             ExprState::End => Err(()),
         }
     }
@@ -209,7 +229,11 @@ pub(crate) fn evaluate_expression(
     for &c in expr {
         let (new_state, token) = match state.transition(Some(c)) {
             Ok(a) => a,
-            Err(()) => panic!("Error evaluating {} at {}", std::str::from_utf8(expr).unwrap(), c as char),
+            Err(()) => panic!(
+                "Error evaluating {} at {}",
+                std::str::from_utf8(expr).unwrap(),
+                c as char
+            ),
         };
         state = new_state;
         if let Some(token) = token {

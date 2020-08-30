@@ -41,6 +41,12 @@ enum ExprOp {
     BitOr,
     BitAnd,
     BitXor,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
+    Equal,
+    NotEqual,
 }
 
 enum Token {
@@ -122,6 +128,26 @@ impl ExprState {
                         ExprState::Operator(ExprOp::BitXor),
                         Some(Token::Constant(v)),
                     ))
+                } else if byte == b'>' {
+                    Ok((
+                        ExprState::Operator(ExprOp::Greater),
+                        Some(Token::Constant(v)),
+                    ))
+                } else if byte == b'<' {
+                    Ok((
+                        ExprState::Operator(ExprOp::Less),
+                        Some(Token::Constant(v)),
+                    ))
+                } else if byte == b'=' {
+                    Ok((
+                        ExprState::Operator(ExprOp::Equal),
+                        Some(Token::Constant(v)),
+                    ))
+                } else if byte == b'!' {
+                    Ok((
+                        ExprState::Operator(ExprOp::NotEqual),
+                        Some(Token::Constant(v)),
+                    ))
                 } else {
                     Err(())
                 }
@@ -132,6 +158,7 @@ impl ExprState {
                     Some(b) => b,
                     None => return Ok((ExprState::End, None)),
                 };
+                // TODO: !, unary
                 if byte == b' ' {
                     Ok((ExprState::Operator(op), None))
                 } else if byte >= b'0' && byte <= b'9' {
@@ -141,6 +168,14 @@ impl ExprState {
                     ))
                 } else if byte == b'\'' {
                     Ok((ExprState::Variable(vec![]), Some(Token::Operator(op))))
+                } else if byte == b'=' {
+                    match op {
+                        ExprOp::Greater => Ok((ExprState::Operator(ExprOp::GreaterEqual), None)),
+                        ExprOp::Less => Ok((ExprState::Operator(ExprOp::LessEqual), None)),
+                        // FIXME: this allows !============, also ! without following =
+                        ExprOp::NotEqual => Ok((ExprState::Operator(ExprOp::NotEqual), None)),
+                        _ => Err(()),
+                    }
                 } else {
                     Err(())
                 }
@@ -206,6 +241,26 @@ impl ExprState {
                 } else if byte == b'x' {
                     Ok((
                         ExprState::Operator(ExprOp::BitXor),
+                        Some(Token::Variable(var)),
+                    ))
+                } else if byte == b'>' {
+                    Ok((
+                        ExprState::Operator(ExprOp::Greater),
+                        Some(Token::Variable(var)),
+                    ))
+                } else if byte == b'<' {
+                    Ok((
+                        ExprState::Operator(ExprOp::Less),
+                        Some(Token::Variable(var)),
+                    ))
+                } else if byte == b'=' {
+                    Ok((
+                        ExprState::Operator(ExprOp::Equal),
+                        Some(Token::Variable(var)),
+                    ))
+                } else if byte == b'!' {
+                    Ok((
+                        ExprState::Operator(ExprOp::NotEqual),
                         Some(Token::Variable(var)),
                     ))
                 } else {
@@ -313,6 +368,12 @@ pub(crate) fn evaluate_expression(
                         ExprOp::BitAnd => value = Some(current_val & v),
                         ExprOp::BitOr => value = Some(current_val | v),
                         ExprOp::BitXor => value = Some(current_val ^ v),
+                        ExprOp::Greater => value = Some((current_val > v) as i32),
+                        ExprOp::GreaterEqual => value = Some((current_val >= v) as i32),
+                        ExprOp::Less => value = Some((current_val < v) as i32),
+                        ExprOp::LessEqual => value = Some((current_val <= v) as i32),
+                        ExprOp::Equal => value = Some((current_val == v) as i32),
+                        ExprOp::NotEqual => value = Some((current_val != v) as i32),
                     }
                     current_op = None;
                 }
@@ -340,6 +401,12 @@ pub(crate) fn evaluate_expression(
                             ExprOp::BitAnd => value = Some(current_val & var_val),
                             ExprOp::BitOr => value = Some(current_val | var_val),
                             ExprOp::BitXor => value = Some(current_val ^ var_val),
+                            ExprOp::Greater => value = Some((current_val > var_val) as i32),
+                            ExprOp::GreaterEqual => value = Some((current_val >= var_val) as i32),
+                            ExprOp::Less => value = Some((current_val < var_val) as i32),
+                            ExprOp::LessEqual => value = Some((current_val <= var_val) as i32),
+                            ExprOp::Equal => value = Some((current_val == var_val) as i32),
+                            ExprOp::NotEqual => value = Some((current_val != var_val) as i32),
                         }
                         current_op = None;
                     }

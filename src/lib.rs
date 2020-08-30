@@ -84,6 +84,7 @@ pub struct WorldState {
     pub health: i32,
     pub lives: i32,
     pub keys: u32,
+    pub ammo: i32,
     pub update_done: Vec<bool>, // FIXME: this belongs in mzxplay, not libmzx
 }
 
@@ -450,6 +451,10 @@ impl<'a> CounterContext<'a> {
             }
             LocalCounter::PlayerX => self.board.player_pos.0 as i32,
             LocalCounter::PlayerY => self.board.player_pos.1 as i32,
+            LocalCounter::ScrolledX => self.board.scroll_offset.0 as i32,
+            LocalCounter::ScrolledY => self.board.scroll_offset.1 as i32,
+            LocalCounter::BoardW => self.board.width as i32,
+            LocalCounter::BoardH => self.board.height as i32,
             // TODO: support command prefixes for ThisX and ThisY
             LocalCounter::ThisX => self.robot.position.0 as i32,
             LocalCounter::ThisY => self.robot.position.1 as i32,
@@ -460,6 +465,7 @@ impl<'a> CounterContext<'a> {
             LocalCounter::KeyPressed => self.state.key_pressed,
             LocalCounter::Health => self.state.health,
             LocalCounter::Lives => self.state.lives,
+            LocalCounter::Ammo => self.state.ammo,
         }
     }
 }
@@ -500,11 +506,16 @@ impl<'a> CounterContextMut<'a> {
             LocalCounter::PlayerFaceDir => Some(&mut self.state.player_face_dir),
             LocalCounter::Health => Some(&mut self.state.health),
             LocalCounter::Lives => Some(&mut self.state.lives),
+            LocalCounter::Ammo => Some(&mut self.state.ammo),
             LocalCounter::HorizPld
             | LocalCounter::VertPld
             | LocalCounter::PlayerDist
             | LocalCounter::PlayerX
             | LocalCounter::PlayerY
+            | LocalCounter::BoardW
+            | LocalCounter::BoardH
+            | LocalCounter::ScrolledX
+            | LocalCounter::ScrolledY
             | LocalCounter::ThisX
             | LocalCounter::ThisY
             | LocalCounter::ThisColor
@@ -1698,7 +1709,12 @@ pub enum LocalCounter {
     PlayerFaceDir,
     KeyPressed,
     Health,
+    Ammo,
     Lives,
+    BoardW,
+    BoardH,
+    ScrolledX,
+    ScrolledY,
 }
 
 impl LocalCounter {
@@ -1712,12 +1728,17 @@ impl LocalCounter {
             b"playerdist" => LocalCounter::PlayerDist,
             b"thisx" => LocalCounter::ThisX,
             b"thisy" => LocalCounter::ThisY,
+            b"board_w" => LocalCounter::BoardW,
+            b"board_h" => LocalCounter::BoardH,
+            b"scrolledx" => LocalCounter::ScrolledX,
+            b"scrolledy" => LocalCounter::ScrolledY,
             b"bullettype" => LocalCounter::BulletType,
             b"thiscolor" => LocalCounter::ThisColor,
             b"thischar" => LocalCounter::ThisChar,
             b"playerfacedir" => LocalCounter::PlayerFaceDir,
             b"key_pressed" => LocalCounter::KeyPressed,
             b"health" => LocalCounter::Health,
+            b"ammo" => LocalCounter::Ammo,
             b"lives" => LocalCounter::Lives,
             b"playerx" => LocalCounter::PlayerX,
             b"playery" => LocalCounter::PlayerY,
@@ -2312,6 +2333,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
             key_pressed: 0,
             lives: 3,
             health: 100,
+            ammo: 0,
             keys: 0,
             update_done: vec![],
         },

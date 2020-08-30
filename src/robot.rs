@@ -386,12 +386,11 @@ pub fn update_robot(
             }
         }
 
-        if lines_run >= CYCLES || !robot.alive || robot.current_line as usize >= robot.program.len()
-        {
+        if lines_run >= CYCLES || !robot.alive {
             break None;
         }
-        let cmd = robot.program[robot.current_line as usize].clone();
-        if !message_box_lines.is_empty() && !cmd.is_message_box() {
+        let cmd = robot.program.get(robot.current_line as usize).cloned();
+        if !message_box_lines.is_empty() && !cmd.as_ref().map_or(false, Command::is_message_box) {
             // TODO: restore execution from current robot and cycle.
             break Some(GameStateChange::MessageBox(
                 message_box_lines,
@@ -399,6 +398,11 @@ pub fn update_robot(
                 Some(robot_id),
             ));
         }
+
+        let cmd = match cmd {
+            Some(cmd) => cmd,
+            None => break None,
+        };
 
         debug!("evaluating {:?} ({})", cmd, robot.current_line);
 

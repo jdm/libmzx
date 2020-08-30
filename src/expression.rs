@@ -223,10 +223,44 @@ pub(crate) fn evaluate_expression(
     counters: &Counters,
     context: &dyn CounterContextExt,
 ) -> ByteString {
-    assert_ne!(expr.get(0), Some(&b'('));
     let mut tokens = vec![];
     let mut state = ExprState::Start;
-    for &c in expr {
+    let mut idx = 0usize;
+    let mut input = expr.to_vec();
+    loop {
+        let c = match input.get(idx) {
+            Some(c) => *c,
+            None => break,
+        };
+
+        // Handle nested expressions:
+        if c == b'(' {
+            let mut end = None;
+            let mut nesting = 0;
+            let start = idx;
+            // Find the complete expression string, including all sub-nested expressions:
+            for (j, c) in input[start..].iter().enumerate() {
+                if *c == b'(' {
+                    nesting += 1;
+                } else if *c == b')' {
+                    nesting -= 1;
+                    if nesting == 0 {
+                        end = Some(start + j);
+                        break;
+                    }
+                }
+            }
+
+            // If there is a complete expression present, evaluate it and replace it
+            // with the evaluated value, then continue parsing the result.
+            if let Some(end) = end {
+                let result = evaluate_expression(&input[start + 1..end], counters, context);
+                input.splice(start..=end, result.0.into_iter());
+                continue;
+            }
+        }
+
+        // Feed the current byte of the expression to the parser.
         let (new_state, token) = match state.transition(Some(c)) {
             Ok(a) => a,
             Err(()) => panic!(
@@ -239,7 +273,12 @@ pub(crate) fn evaluate_expression(
         if let Some(token) = token {
             tokens.push(token);
         }
+
+        // Parse the next byte of the expression.
+        idx += 1;
     }
+
+    // Notify the parser that we're at the end of the expression input.
     let (state, token) = match state.transition(None) {
         Ok(a) => a,
         Err(()) => panic!("Error ending {}", std::str::from_utf8(expr).unwrap()),
@@ -248,6 +287,8 @@ pub(crate) fn evaluate_expression(
     if let Some(token) = token {
         tokens.push(token);
     }
+
+    // Process the tokens that were parsed from the expression input.
     let mut value = None;
     let mut current_op = None;
     // TODO: handle dividing by a negative number
@@ -277,6 +318,7 @@ pub(crate) fn evaluate_expression(
                 }
                 (Some(_), None) | (None, Some(_)) => unimplemented!(),
             },
+
             Token::Variable(name) => {
                 let var_val = counters.get(&ByteString(name), context);
                 match (value, current_op) {
@@ -304,12 +346,14 @@ pub(crate) fn evaluate_expression(
                     (Some(_), None) | (None, Some(_)) => unimplemented!(),
                 }
             }
+
             Token::Operator(o) => match (value, current_op) {
                 (Some(_), None) | (None, None) => current_op = Some(o),
                 (None, Some(_)) | (Some(_), Some(_)) => unimplemented!(),
             },
         }
     }
+
     ByteString(value.unwrap_or(0).to_string().into_bytes())
 }
 
@@ -415,6 +459,33 @@ mod test {
         assert_eq!(
             evaluate_expression(b"'countername' - 10", &counters, &TestLocalCounters).0,
             b"40"
+        );
+    }
+
+    #[test]
+    fn expr_inner_expression() {
+        assert_eq!(
+            evaluate_expression(b"(5 * 3)", &Counters::new(), &TestLocalCounters).0,
+            b"15"
+        );
+    }
+
+    #[test]
+    fn expr_subexpression() {
+        assert_eq!(
+            evaluate_expression(b"10 - (5 * 3)", &Counters::new(), &TestLocalCounters).0,
+            b"-5"
+        );
+    }
+
+    #[test]
+    fn expr_var_subexpression() {
+        let mut counters = Counters::new();
+        counters.set("boo".into(), &mut TestLocalCounters, 5);
+        counters.set("countername5".into(), &mut TestLocalCounters, 50);
+        assert_eq!(
+            evaluate_expression(b"'countername('boo')'", &counters, &TestLocalCounters).0,
+            b"50"
         );
     }
 }

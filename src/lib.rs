@@ -1572,6 +1572,7 @@ pub struct Robot {
     pub alive: bool,
     pub status: RunStatus,
     pub local: [i32; 32],
+    stack: Vec<u16>,
 }
 
 impl Robot {
@@ -1598,6 +1599,7 @@ impl Robot {
             alive: true,
             status: RunStatus::NotRun,
             local: [0; 32],
+            stack: vec![], // FIXME: check if copying copies stack
         }
     }
 
@@ -1943,6 +1945,7 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
         alive: true,
         status: RunStatus::NotRun,
         local: [0; 32],
+        stack: vec![],
     };
     (robot, buffer)
 }

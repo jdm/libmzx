@@ -1792,14 +1792,29 @@ pub fn send_robot_to_label<S: Into<EvaluatedByteString>>(robot: &mut Robot, labe
     jump_robot_to_label(robot, label)
 }
 
+/// Returns a boolean indiciating whether the program counter has already advanced to the
+/// subsequent line.
+// TODO: make this return an enum instead.
 pub fn jump_robot_to_label<S: Into<EvaluatedByteString>>(robot: &mut Robot, label: S) -> bool {
     let label = label.into();
+    if label.as_bytes() == b"#return" {
+        if let Some(line) = robot.stack.pop() {
+            debug!("jumping to previous stack position");
+            robot.current_loc = 0;
+            robot.current_line = line;
+            return true;
+        }
+    }
     let label_pos = robot
         .program
         .iter()
         .position(|c| c == &Command::Label(label.deref().clone()));
     if let Some(pos) = label_pos {
         debug!("jumping {:?} to {:?}", robot.name, label);
+        if label.as_bytes().get(0) == Some(&b'#') {
+            debug!("saving stack position");
+            robot.stack.push(robot.current_line + 1);
+        }
         robot.current_loc = 0;
         robot.current_line = pos as u16 + 1;
         true

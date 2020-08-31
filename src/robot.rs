@@ -624,6 +624,20 @@ fn run_one_command(
             }
         }
 
+        Command::ColorFadeOut => {
+            //FIXME: Hack?
+            for &mut (_, ref mut intensity) in &mut state.palette.colors {
+                *intensity = 0.;
+            }
+        }
+
+        Command::ColorFadeIn => {
+            //FIXME: Hack? Probably should respect pre-fade intensity values.
+            for &mut (_, ref mut intensity) in &mut state.palette.colors {
+                *intensity = 1.;
+            }
+        }
+
         Command::SetColor(ref c, ref r, ref g, ref b) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let c = c.resolve(counters, context);

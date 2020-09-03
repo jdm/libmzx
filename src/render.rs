@@ -123,7 +123,7 @@ pub fn render<R: Renderer>(
         };
 
         let overlay_visible = overlay_char != b' ';
-        let overlay_see_through = overlay_color / num_colors == 0 && overlay_color != 0x00;
+        let overlay_see_through = overlay_color / num_colors == 0;
         let ch = if !overlay_visible {
             let board_x = viewport.0 + xpos;
             let board_y = viewport.1 + ypos;

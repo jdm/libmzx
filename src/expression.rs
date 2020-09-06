@@ -38,6 +38,7 @@ enum ExprOp {
     Multiply,
     Divide,
     Modulo,
+    Pow,
     BitOr,
     BitAnd,
     BitXor,
@@ -114,6 +115,11 @@ impl ExprState {
                 } else if byte == b'%' {
                     Ok((
                         ExprState::Operator(ExprOp::Modulo),
+                        Some(Token::Constant(v)),
+                    ))
+                } else if byte == b'^' {
+                    Ok((
+                        ExprState::Operator(ExprOp::Pow),
                         Some(Token::Constant(v)),
                     ))
                 } else if byte == b'a' {
@@ -226,6 +232,11 @@ impl ExprState {
                 } else if byte == b'%' {
                     Ok((
                         ExprState::Operator(ExprOp::Modulo),
+                        Some(Token::Variable(var)),
+                    ))
+                } else if byte == b'^' {
+                    Ok((
+                        ExprState::Operator(ExprOp::Pow),
                         Some(Token::Variable(var)),
                     ))
                 } else if byte == b'a' {
@@ -365,6 +376,7 @@ pub(crate) fn evaluate_expression(
                         ExprOp::Multiply => value = Some(current_val * v),
                         ExprOp::Divide => value = Some(current_val / v),
                         ExprOp::Modulo => value = Some(current_val % v),
+                        ExprOp::Pow => value = Some(current_val.pow(v as u32)), // FIXME: what does ^ with negative values?
                         ExprOp::BitAnd => value = Some(current_val & v),
                         ExprOp::BitOr => value = Some(current_val | v),
                         ExprOp::BitXor => value = Some(current_val ^ v),
@@ -398,6 +410,7 @@ pub(crate) fn evaluate_expression(
                             ExprOp::Multiply => value = Some(current_val * var_val),
                             ExprOp::Divide => value = Some(current_val / var_val),
                             ExprOp::Modulo => value = Some(current_val % var_val),
+                            ExprOp::Pow => value = Some(current_val.pow(var_val as u32)), //FIXME:  what does ^ do with negative values?
                             ExprOp::BitAnd => value = Some(current_val & var_val),
                             ExprOp::BitOr => value = Some(current_val | var_val),
                             ExprOp::BitXor => value = Some(current_val ^ var_val),

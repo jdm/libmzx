@@ -613,6 +613,12 @@ impl<'a> From<&'a str> for ByteString {
     }
 }
 
+impl<'a> From<&[u8]> for ByteString {
+    fn from(v: &[u8]) -> ByteString {
+        ByteString(v.to_vec())
+    }
+}
+
 impl From<Vec<u8>> for ByteString {
     fn from(v: Vec<u8>) -> ByteString {
         ByteString(v)

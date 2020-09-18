@@ -610,6 +610,8 @@ fn run_one_command(
         }
 
         Command::LoadCharSet(ref c) => {
+            let context = CounterContext::from(board, robots.get(robot_id), state);
+            let c = c.evaluate(counters, &context);
             //TODO: handle partial charset offsets correctly.
             let path = world_path.join(c.to_string());
             match File::open(&path) {
@@ -667,6 +669,8 @@ fn run_one_command(
         }
 
         Command::LoadPalette(ref p) => {
+            let context = CounterContext::from(board, robots.get(robot_id), state);
+            let p = p.evaluate(counters, &context);
             let path = world_path.join(p.to_string());
             match File::open(&path) {
                 Ok(mut file) => {
@@ -791,7 +795,8 @@ fn run_one_command(
                 let range = (upper - val).abs() as u32;
                 val += rand::random::<u32>().checked_rem(range).unwrap_or(0) as i32;
             }
-            counters.set(s.clone(), &mut context, val);
+            let s = s.evaluate(counters, &context);
+            counters.set(s, &mut context, val);
         }
 
         Command::Dec(ref s, ref n, ref n2) => {
@@ -804,7 +809,8 @@ fn run_one_command(
                 val += rand::random::<u32>().checked_rem(range).unwrap_or(0) as i32;
             }
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
-            counters.set(s.clone(), &mut context, initial.wrapping_sub(val));
+            let s = s.evaluate(counters, &context);
+            counters.set(s, &mut context, initial.wrapping_sub(val));
         }
 
         Command::Inc(ref s, ref n, ref n2) => {
@@ -817,7 +823,8 @@ fn run_one_command(
                 val += rand::random::<u32>().checked_rem(range).unwrap_or(0) as i32;
             }
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
-            counters.set(s.clone(), &mut context, initial.wrapping_add(val));
+            let s = s.evaluate(counters, &context);
+            counters.set(s, &mut context, initial.wrapping_add(val));
         }
 
         Command::Multiply(ref s, ref n) => {
@@ -825,7 +832,8 @@ fn run_one_command(
             let initial = counters.get(s, &context);
             let val = n.resolve(counters, context);
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
-            counters.set(s.clone(), &mut context, initial.wrapping_mul(val));
+            let s = s.evaluate(counters, &context);
+            counters.set(s, &mut context, initial.wrapping_mul(val));
         }
 
         Command::Divide(ref s, ref n) => {
@@ -833,8 +841,9 @@ fn run_one_command(
             let initial = counters.get(s, &context);
             let val = n.resolve(counters, context);
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
+            let s = s.evaluate(counters, &context);
             counters.set(
-                s.clone(),
+                s,
                 &mut context,
                 initial.checked_div(val).unwrap_or(initial),
             );
@@ -845,8 +854,9 @@ fn run_one_command(
             let initial = counters.get(s, &context);
             let val = n.resolve(counters, context);
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
+            let s = s.evaluate(counters, &context);
             counters.set(
-                s.clone(),
+                s,
                 &mut context,
                 initial.checked_rem(val).unwrap_or(initial),
             );
@@ -855,7 +865,8 @@ fn run_one_command(
         Command::If(ref s, op, ref n, ref l) => {
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
-            let val = counters.get(s, &context);
+            let s = s.evaluate(counters, &context);
+            let val = counters.get(&s, &context);
             let cmp = n.resolve(counters, context);
             let l = l.eval(counters, context);
             let result = match op {
@@ -1107,6 +1118,7 @@ fn run_one_command(
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
             let n = n.resolve(counters, context);
+            let l = l.evaluate(counters, &context);
             for _ in 0..n {
                 let label = robot
                     .program
@@ -1122,6 +1134,7 @@ fn run_one_command(
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
             let n = n.resolve(counters, context);
+            let l = l.evaluate(counters, &context);
             for _ in 0..n {
                 let label = robot
                     .program
@@ -1324,12 +1337,13 @@ fn run_one_command(
 
         Command::Teleport(ref b, ref x, ref y) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
+            let b = b.evaluate(counters, &context);
             let coord = Coordinate(
                 x.resolve(counters, context) as u16,
                 y.resolve(counters, context) as u16,
             );
             return CommandResult::AdvanceAndChangeState(GameStateChange::Teleport(
-                b.clone(),
+                b,
                 coord,
             ));
         }
@@ -1465,7 +1479,9 @@ fn run_one_command(
         }
 
         Command::CopyRobotNamed(ref name) => {
-            let source_id = robots.find(name);
+            let context = CounterContext::from(board, robots.get(robot_id), state);
+            let name = name.evaluate(counters, &context);
+            let source_id = robots.find(&name);
             if let Some(source_id) = source_id {
                 copy_robot(source_id, robot_id, robots, board);
             }

@@ -695,7 +695,15 @@ impl ByteString {
                 continue;
             } else if c == b')' {
                 if let Some(expression) = expressions.pop() {
-                    let result = expression::evaluate_expression(&expression, counters, context);
+                    let result = match expression::evaluate_expression(&expression, counters, context) {
+                        Ok(result) => result,
+                        Err(input) => {
+                            let mut result = b"(".to_vec();
+                            result.extend(input.0.into_iter());
+                            result.extend(&b")"[..]);
+                            ByteString(result)
+                        }
+                    };
                     let cur_bytes = expressions.last_mut().unwrap_or(&mut new_bytes);
                     cur_bytes.extend(result.as_bytes());
                     continue;
@@ -717,6 +725,8 @@ impl ByteString {
                 cur_bytes.push(c);
             }
         }
+        //TODO: handle outstanding expression bytes
+
         ByteString(new_bytes)
     }
 }

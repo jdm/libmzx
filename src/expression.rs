@@ -288,7 +288,7 @@ pub(crate) fn evaluate_expression(
     expr: &[u8],
     counters: &Counters,
     context: &dyn CounterContextExt,
-) -> ByteString {
+) -> Result<ByteString, ByteString> {
     let mut tokens = vec![];
     let mut state = ExprState::Start;
     let mut idx = 0usize;
@@ -320,7 +320,7 @@ pub(crate) fn evaluate_expression(
             // If there is a complete expression present, evaluate it and replace it
             // with the evaluated value, then continue parsing the result.
             if let Some(end) = end {
-                let result = evaluate_expression(&input[start + 1..end], counters, context);
+                let result = evaluate_expression(&input[start + 1..end], counters, context)?;
                 input.splice(start..=end, result.0.into_iter());
                 continue;
             }
@@ -329,11 +329,14 @@ pub(crate) fn evaluate_expression(
         // Feed the current byte of the expression to the parser.
         let (new_state, token) = match state.transition(Some(c)) {
             Ok(a) => a,
-            Err(()) => panic!(
-                "Error evaluating {} at {}",
-                std::str::from_utf8(expr).unwrap(),
-                c as char
-            ),
+            Err(()) => {
+                warn!(
+                    "Error evaluating {} at {}",
+                    std::str::from_utf8(expr).unwrap(),
+                    c as char
+                );
+                return Err(input.into());
+            }
         };
         state = new_state;
         if let Some(token) = token {
@@ -347,7 +350,10 @@ pub(crate) fn evaluate_expression(
     // Notify the parser that we're at the end of the expression input.
     let (state, token) = match state.transition(None) {
         Ok(a) => a,
-        Err(()) => panic!("Error ending {}", std::str::from_utf8(expr).unwrap()),
+        Err(()) => {
+            warn!("Error ending {}", std::str::from_utf8(expr).unwrap());
+            return Err(input.into());
+        }
     };
     assert_eq!(state, ExprState::End);
     if let Some(token) = token {
@@ -434,7 +440,7 @@ pub(crate) fn evaluate_expression(
         }
     }
 
-    ByteString(value.unwrap_or(0).to_string().into_bytes())
+    Ok(ByteString(value.unwrap_or(0).to_string().into_bytes()))
 }
 
 #[cfg(test)]

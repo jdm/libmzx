@@ -1783,10 +1783,10 @@ pub enum RunStatus {
 }
 
 #[derive(Debug)]
-pub enum WorldError<'a> {
+pub enum WorldError {
     Protected,
     TooNewVersion,
-    UnrecognizedVersion(&'a [u8]),
+    UnrecognizedVersion([u8; 3]),
     CharsetTooSmall,
     UnhandledSFX,
     TooManyBoards(u8),
@@ -1801,8 +1801,8 @@ pub enum BoardError {
     UnknownSaveRestriction(u8),
 }
 
-impl<'a> From<BoardError> for WorldError<'a> {
-    fn from(err: BoardError) -> WorldError<'a> {
+impl From<BoardError> for WorldError {
+    fn from(err: BoardError) -> WorldError {
         WorldError::Board(err)
     }
 }
@@ -2211,17 +2211,142 @@ fn load_board(
     ))
 }
 
-pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
-    let original_buffer = buffer;
+const MAX_PASSWORD_LENGTH: usize = 15;
+static MAGIC_CODE: &[u8; MAX_PASSWORD_LENGTH] = b"\xE6\x52\xEB\xF2\x6D\x4D\x4A\xB7\x87\xB2\x92\x88\xDE\x91\x24";
+const WORLD_BLOCK_1_SIZE: usize = 4129;
+const WORLD_BLOCK_2_SIZE: usize = 72;
+const LEGACY_BOARD_NAME_SIZE: usize = 25;
 
-    let (title, buffer) = get_null_terminated_string(buffer, 25);
+fn decrypt_block(buffer: &[u8], block_len: usize, xor_val: u8) -> (Vec<u8>, &[u8]) {
+    let (buffer, rest) = buffer.split_at(block_len);
+    assert_eq!(buffer.len(), block_len);
+    let decrypted = buffer.iter().map(|b| b ^ xor_val).take(block_len).collect();
+    (decrypted, rest)
+}
+
+fn decrypt_and_fix_offset(buffer: &[u8], xor_d: i32) -> (Vec<u8>, &[u8]) {
+    let (mut offset, buffer) = get_dword(buffer);
+    assert!(offset as i32 != -1);
+    offset ^= xor_d as u32;
+    offset -= MAX_PASSWORD_LENGTH as u32;
+    let mut bytes = vec![0; 4];
+    LittleEndian::write_u32(&mut bytes[..], offset);
+    (bytes, buffer)
+}
+
+fn get_pw_xor_code(password: &mut [u8], protection: u8) -> i32 {
+    let mut work = 85;
+    let start = password.iter().position(|&b| b == b'\0');
+    if let Some(start) = start {
+        for b in password.iter_mut().skip(start) {
+            *b = 0;
+        }
+    }
+    for (i, b) in password.iter().enumerate() {
+        work <<= 1;
+        if work > 255 {
+            work ^= 257;
+        }
+        if i & 1 != 0 {
+            work += *b as i8 as i32;
+            if work > 255 {
+                work ^= 257;
+            }
+        } else {
+            work ^= *b as i8 as i32;
+        }
+    }
+    work += protection as i8 as i32;
+    if work > 255 {
+        work ^= 257;
+    }
+
+    work <<= 1;
+    if work > 255 {
+        work ^= 257;
+    }
+
+    if work == 0 {
+        work = 85;
+    }
+    work
+}
+
+pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
+    let mut original_buffer = buffer;
+
+    let (title, buffer) = get_null_terminated_string(buffer, LEGACY_BOARD_NAME_SIZE);
     debug!("loading world {:?}", title);
 
-    let (protection, buffer) = get_bool(buffer);
-    if protection {
-        return Err(WorldError::Protected);
+    let mut decrypted_buffer;
+    let (protection, mut buffer) = get_byte(buffer);
+    if protection != 0 {
+        let (password, tmp_buffer) = buffer.split_at(MAX_PASSWORD_LENGTH);
+        let mut password: Vec<_> = password.iter().zip(&MAGIC_CODE[..]).map(|(byte, magic)| {
+            let a = byte ^ magic;
+            let b = a as i8 - (0x12 + protection) as i8;
+            b as u8 ^ 0x8D
+        }).collect();
+        let xor_val = get_pw_xor_code(&mut *password, protection) as u8;
+        let xor_w: i16 = xor_val as i16 | (xor_val as i16) << 8;
+        let xor_d: i32 = xor_val as i32 | (xor_val as i32) << 8 | (xor_val as i32) << 16 | (xor_val as i32) << 24;
+        decrypted_buffer = vec![];
+        // null terminated title
+        let mut extended_title = [0; LEGACY_BOARD_NAME_SIZE];
+        extended_title[..title.len()].copy_from_slice(&*title);
+        decrypted_buffer.extend(&extended_title[..]);
+
+        // protection method
+        decrypted_buffer.push(0);
+
+        let skip_start = decrypted_buffer.len();
+
+        // signature
+        decrypted_buffer.extend(&[b'M', b'\x02', b'\x11']);
+        let (_, tmp_buffer) = get_byte(tmp_buffer);
+        let (_, tmp_buffer) = get_byte(tmp_buffer);
+        let (_, tmp_buffer) = get_byte(tmp_buffer);
+        let (decrypted, tmp_buffer) = decrypt_block(tmp_buffer, WORLD_BLOCK_1_SIZE + WORLD_BLOCK_2_SIZE , xor_val);
+        decrypted_buffer.extend(&*decrypted);
+
+        let (offset, tmp_buffer) = decrypt_and_fix_offset(tmp_buffer, xor_d);
+        decrypted_buffer.extend(&*offset);
+
+        let (mut num_boards, mut tmp_buffer) = get_byte(tmp_buffer);
+        num_boards ^= xor_val;
+        decrypted_buffer.push(num_boards);
+
+        if num_boards == 0 {
+            let (mut sfx_length, tmp_buffer2) = get_word(tmp_buffer);
+            sfx_length ^= xor_w as u16;
+            let mut bytes = [0; 2];
+            LittleEndian::write_u16(&mut bytes[..], sfx_length);
+            decrypted_buffer.extend(&bytes[..]);
+            let (sfx_data, tmp_buffer2) = decrypt_block(tmp_buffer2, sfx_length as usize, xor_val);
+            decrypted_buffer.extend(&*sfx_data);
+            let (new_num_boards, tmp_buffer2) = get_byte(tmp_buffer2);
+            num_boards = new_num_boards ^ xor_val;
+            decrypted_buffer.push(num_boards);
+            tmp_buffer = tmp_buffer2;
+        }
+
+        let (board_titles, mut tmp_buffer) = decrypt_block(tmp_buffer, LEGACY_BOARD_NAME_SIZE * num_boards as usize, xor_val);
+        decrypted_buffer.extend(&*board_titles);
+        for _ in 0..num_boards {
+            let (board_length, tmp_buffer2) = get_dword(tmp_buffer);
+            let mut bytes = [0; 4];
+            LittleEndian::write_u32(&mut bytes[..], board_length ^ xor_d as u32);
+            decrypted_buffer.extend(&bytes[..]);
+            let (offset, tmp_buffer2) = decrypt_and_fix_offset(tmp_buffer2, xor_d);
+            decrypted_buffer.extend(&*offset);
+            tmp_buffer = tmp_buffer2;
+        }
+        let (decrypted, tmp_buffer) = decrypt_block(tmp_buffer, tmp_buffer.len(), xor_val);
+        assert_eq!(tmp_buffer.len(), 0);
+        decrypted_buffer.extend(&*decrypted);
+        buffer = &decrypted_buffer[skip_start..];
+        original_buffer = &decrypted_buffer;
     }
-    // TODO: decrypt protected worlds
 
     let (signature, buffer) = buffer.split_at(3);
     let version = match (signature[0], signature[1], signature[2]) {
@@ -2229,7 +2354,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
         (b'M', b'Z', b'2') => 0x0205,
         (b'M', b'Z', b'A') => 0x0208,
         (b'M', a, b) if a > 1 && a < 10 => ((a as u32) << 8) + (b as u32),
-        _ => return Err(WorldError::UnrecognizedVersion(signature)),
+        (a, b, c) => return Err(WorldError::UnrecognizedVersion([a, b, c])),
     };
 
     if version > LEGACY_WORLD_VERSION {
@@ -2301,7 +2426,7 @@ pub fn load_world<'a>(buffer: &'a [u8]) -> Result<World, WorldError<'a>> {
     let mut titles = vec![];
     let mut boards = vec![];
     for _ in 0..num_boards {
-        let (title, new_buffer) = get_null_terminated_string(buffer, 25);
+        let (title, new_buffer) = get_null_terminated_string(buffer, LEGACY_BOARD_NAME_SIZE);
         buffer = new_buffer;
 
         titles.push(title);

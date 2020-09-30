@@ -527,16 +527,38 @@ impl<'a> CounterContextMut<'a> {
 
 pub struct Counters {
     counters: HashMap<ByteString, i32>,
+    strings: HashMap<ByteString, ByteString>,
 }
 
 impl Counters {
     pub fn new() -> Counters {
         Counters {
             counters: HashMap::new(),
+            strings: HashMap::new(),
         }
     }
 
+    pub fn set_string(&mut self, name: ByteString, context: &mut dyn CounterContextMutExt, value: ByteString) {
+        //TODO: handle #N, +N, .N suffixes
+        assert!(name.is_string_name(), "Setting non-string {:?} to \"{:?}\"", name, value);
+        // Skip the leading $ when evaluating the string name.
+        let name = ByteString(
+            name.as_bytes()
+                .iter()
+                .skip(1)
+                .map(|c| c.to_ascii_lowercase())
+                .collect(),
+        );
+        let mut name = name.evaluate(self, context.as_immutable());
+        name.0.insert(0, b'$');
+        debug!("setting {:?} to \"{:?}\"", name, value);
+        self.strings.insert(name, value);
+    }
+
     pub fn set(&mut self, name: ByteString, context: &mut dyn CounterContextMutExt, value: i32) {
+        if name.is_string_name() {
+            error!("Setting counter {:?} to integer value", name);
+        }
         let name = ByteString(
             name.as_bytes()
                 .iter()
@@ -556,6 +578,9 @@ impl Counters {
     }
 
     pub fn get(&self, name: &ByteString, context: &dyn CounterContextExt) -> i32 {
+        if name.is_string_name() {
+            error!("Getting string {:?} as integer value", name);
+        }
         let name = ByteString(
             name.as_bytes()
                 .iter()
@@ -576,6 +601,23 @@ impl Counters {
         } else {
             *self.counters.get(&result).unwrap_or(&0)
         }
+    }
+
+    pub fn get_string(&self, name: &ByteString, context: &dyn CounterContextExt) -> ByteString {
+        //TODO: handle #N, +N, .N suffixes
+        assert!(name.is_string_name(), "Getting non-string {:?}", name);
+        // Get the name without the leading $
+        let name = ByteString(
+            name.as_bytes()
+                .iter()
+                .skip(1)
+                .map(|c| c.to_ascii_lowercase())
+                .collect(),
+        );
+        let mut result = name.evaluate(self, context);
+        result.0.insert(0, b'$');
+        debug!("getting string {:?}", result);
+        self.strings.get(&result).cloned().unwrap_or(ByteString::default())
     }
 }
 
@@ -607,9 +649,21 @@ impl<'a> Into<ByteString> for &'a ByteString {
     }
 }
 
+impl From<ByteString> for Vec<u8> {
+    fn from(bytes: ByteString) -> Vec<u8> {
+        bytes.0
+    }
+}
+
 impl<'a> From<&'a str> for ByteString {
     fn from(v: &'a str) -> ByteString {
         ByteString(v.as_bytes().to_vec())
+    }
+}
+
+impl<'a> From<String> for ByteString {
+    fn from(v: String) -> ByteString {
+        ByteString(v.into_bytes())
     }
 }
 
@@ -648,6 +702,10 @@ impl PartialEq<&str> for ByteString {
 }
 
 impl ByteString {
+    pub fn is_string_name(&self) -> bool {
+        self.as_bytes().first() == Some(&b'$')
+    }
+
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_ref()
     }
@@ -721,8 +779,12 @@ impl ByteString {
             if c == b'&' {
                 if let Some(start_idx) = start {
                     let name = ByteString(bytes[start_idx..idx].to_owned());
-                    let value = counters.get(&name, context).to_string();
-                    cur_bytes.extend(value.as_bytes());
+                    let value = if name.is_string_name() {
+                        counters.get_string(&name, context).into()
+                    } else {
+                        counters.get(&name, context).to_string().into_bytes()
+                    };
+                    cur_bytes.extend(&value);
                     start = None;
                 } else {
                     start = Some(idx + 1);
@@ -733,7 +795,11 @@ impl ByteString {
         }
         //TODO: handle outstanding expression bytes
 
-        ByteString(new_bytes)
+        let result = ByteString(new_bytes);
+        if result.is_string_name() {
+            return counters.get_string(&result, context);
+        }
+        result
     }
 }
 
@@ -2502,6 +2568,9 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
 
 #[cfg(test)]
 mod tests {
+    use crate::{ByteString, Counters};
+    use crate::expression::test::TestLocalCounters;
+
     #[test]
     fn it_works() {
         use super::load_world;
@@ -2513,5 +2582,33 @@ mod tests {
         f.read_to_end(&mut v).unwrap();
         let world = load_world(&v).unwrap();
         assert_eq!(world.title, "~d@8Bernard the Bard");
+    }
+
+    #[test]
+    fn string_counter() {
+        let mut c = Counters::new();
+        let name: ByteString = "$a".into();
+        let bytes: ByteString = "test string".into();
+        c.set_string(name.clone(), &mut TestLocalCounters, bytes.clone());
+        assert_eq!(c.get_string(&name, &TestLocalCounters), bytes);
+    }
+
+    #[test]
+    fn string_counter_interpolate() {
+        let mut c = Counters::new();
+        c.set("bar".into(), &mut TestLocalCounters, 5);
+        let name: ByteString = "$a&bar&".into();
+        let bytes: ByteString = "test string".into();
+        c.set_string(name.clone(), &mut TestLocalCounters, bytes.clone());
+        assert_eq!(c.get_string(&name, &TestLocalCounters), bytes);
+    }
+
+    #[test]
+    fn eval_with_string() {
+        let mut c = Counters::new();
+        let bytes: ByteString = "test string".into();
+        c.set_string("$a".into(), &mut TestLocalCounters, bytes.clone());
+        let s: ByteString = "&$a&".into();
+        assert_eq!(s.evaluate(&c, &TestLocalCounters), bytes);
     }
 }

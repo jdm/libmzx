@@ -787,19 +787,35 @@ fn run_one_command(
         }
 
         Command::Set(ref s, ref n, ref n2) => {
+            //TODO: handle special counters such as LOAD_ROBOT, SAVE_ROBOT, FREAD_OPEN, etc.
             let robot = robots.get_mut(robot_id);
             let mut context = CounterContextMut::from(board, robot, state);
-            let mut val = n.resolve(counters, context.as_immutable()) as i32;
+            let s = s.evaluate(counters, &context);
+            // A random range always treats both values as numeric counters.
             if let Some(ref n2) = *n2 {
+                let mut val = n.resolve(counters, context.as_immutable()) as i32;
                 let upper = n2.resolve(counters, context.as_immutable());
                 let range = (upper - val).abs() as u32;
                 val += rand::random::<u32>().checked_rem(range).unwrap_or(0) as i32;
+                if s.is_string_name() {
+                    counters.set_string(s, &mut context, val.to_string().into());
+                } else {
+                    counters.set(s, &mut context, val);
+                }
+            } else if s.is_string_name() {
+                let str_val = match n {
+                    SignedNumeric::Counter(ref s2) => s2.evaluate(counters, &context),
+                    SignedNumeric::Literal(i) => i.to_string().into(),
+                };
+                counters.set_string(s, &mut context, str_val);
+            } else {
+                let val = n.resolve(counters, context.as_immutable()) as i32;
+                counters.set(s, &mut context, val);
             }
-            let s = s.evaluate(counters, &context);
-            counters.set(s, &mut context, val);
         }
 
         Command::Dec(ref s, ref n, ref n2) => {
+            //TODO: handle string truncation
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let initial = counters.get(s, &context);
             let mut val = n.resolve(counters, context) as i32;
@@ -814,6 +830,7 @@ fn run_one_command(
         }
 
         Command::Inc(ref s, ref n, ref n2) => {
+            //TODO: handle string appending
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let initial = counters.get(s, &context);
             let mut val = n.resolve(counters, context);
@@ -863,6 +880,8 @@ fn run_one_command(
         }
 
         Command::If(ref s, op, ref n, ref l) => {
+            //TODO: handle string equality
+            //TODO: handle ===, ?=, ?==
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
             let s = s.evaluate(counters, &context);
@@ -1073,6 +1092,8 @@ fn run_one_command(
         }
 
         Command::PutOverlay(ref c, ref ch, ref x, ref y) => {
+            //TODO: handle @ prefix for MZM files
+            //TODO: handle @$ prefix for string counnters
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let c = c.resolve(counters, context);
             let ch = ch.resolve(counters, context);
@@ -1395,6 +1416,7 @@ fn run_one_command(
 
         Command::CopyBlock(ref src_x, ref src_y, ref w, ref h, ref dst_x, ref dst_y)
         | Command::CopyOverlayBlock(ref src_x, ref src_y, ref w, ref h, ref dst_x, ref dst_y) => {
+            //TODO: handle copying to @$string destination
             let overlay = if let Command::CopyOverlayBlock(..) = cmd {
                 true
             } else {

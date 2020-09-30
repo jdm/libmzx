@@ -444,10 +444,10 @@ pub(crate) fn evaluate_expression(
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use super::*;
 
-    struct TestLocalCounters;
+    pub(crate) struct TestLocalCounters;
 
     impl CounterContextExt for TestLocalCounters {
         fn local_counter(&self, _counter: LocalCounter) -> i32 {
@@ -570,7 +570,7 @@ mod test {
         counters.set("boo".into(), &mut TestLocalCounters, 5);
         counters.set("countername5".into(), &mut TestLocalCounters, 50);
         assert_eq!(
-            evaluate_expression(b"'countername('boo')'", &counters, &TestLocalCounters).0,
+            evaluate_expression(b"'countername('boo')'", &counters, &TestLocalCounters).unwrap().0,
             b"50"
         );
     }

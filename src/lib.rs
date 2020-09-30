@@ -28,6 +28,7 @@ use self::robotic::parse_program;
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Zip;
 use num_traits::{FromPrimitive, ToPrimitive};
+use std::cmp::{Ordering, PartialOrd};
 use std::collections::HashMap;
 use std::default::Default;
 use std::fmt;
@@ -714,7 +715,33 @@ impl PartialEq<&str> for ByteString {
     }
 }
 
+impl PartialOrd for ByteString {
+    fn partial_cmp(&self, other: &ByteString) -> Option<Ordering> {
+        match self.0.len().partial_cmp(&other.0.len()) {
+            Some(Ordering::Equal) => {
+                for (a, b) in self.as_bytes().iter().zip(other.as_bytes().iter()) {
+                    match a.partial_cmp(b) {
+                        Some(Ordering::Equal) => {}
+                        c => return c,
+                    }
+                }
+                Some(Ordering::Equal)
+            }
+            c => c,
+        }
+    }
+}
+
 impl ByteString {
+    pub fn case_sensitive_eq(&self, other: &ByteString) -> bool {
+        self.as_bytes().len() == other.as_bytes().len()
+            && self
+                .as_bytes()
+                .iter()
+                .zip(other.as_bytes().iter())
+                .all(|(a, b)| a == b)
+    }
+
     pub fn is_string_name(&self) -> bool {
         self.as_bytes().first() == Some(&b'$')
     }
@@ -762,6 +789,18 @@ impl ByteString {
     }
 
     pub fn evaluate(&self, counters: &Counters, context: &dyn CounterContextExt) -> ByteString {
+        let result = self.evaluate_for_name(counters, context);
+        if result.is_string_name() {
+            return counters.get_string(&result, context);
+        }
+        result
+    }
+
+    pub fn evaluate_for_name(
+        &self,
+        counters: &Counters,
+        context: &dyn CounterContextExt,
+    ) -> ByteString {
         let bytes = self.as_bytes();
         let mut new_bytes = vec![];
         let mut start = None;
@@ -809,11 +848,7 @@ impl ByteString {
         }
         //TODO: handle outstanding expression bytes
 
-        let result = ByteString(new_bytes);
-        if result.is_string_name() {
-            return counters.get_string(&result, context);
-        }
-        result
+        ByteString(new_bytes)
     }
 }
 
@@ -2637,5 +2672,28 @@ mod tests {
         c.set_string("$a".into(), &mut TestLocalCounters, bytes.clone());
         let s: ByteString = "&$a&".into();
         assert_eq!(s.evaluate(&c, &TestLocalCounters), bytes);
+    }
+
+    #[test]
+    fn bytestring_cmp() {
+        let s: ByteString = "a".into();
+        let s2: ByteString = "a".into();
+        assert!(s <= s2 && s >= s2);
+
+        let s: ByteString = "a".into();
+        let s2: ByteString = "b".into();
+        assert!(s < s2 && s2 > s);
+
+        let s: ByteString = "aa".into();
+        let s2: ByteString = "a".into();
+        assert!(s > s2 && s2 < s);
+
+        let s: ByteString = "A".into();
+        let s2: ByteString = "a".into();
+        assert!(!s.case_sensitive_eq(&s2));
+
+        let s: ByteString = "A".into();
+        let s2: ByteString = "a".into();
+        assert_eq!(s, s2);
     }
 }

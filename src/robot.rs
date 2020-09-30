@@ -223,7 +223,7 @@ pub(crate) trait Evaluator {
 
 impl Evaluator for ByteString {
     fn eval<'a>(&self, counters: &Counters, context: CounterContext<'a>) -> EvaluatedByteString {
-        EvaluatedByteString(self.evaluate(counters, &context))
+        EvaluatedByteString(self.evaluate_for_name(counters, &context))
     }
 }
 
@@ -790,7 +790,7 @@ fn run_one_command(
             //TODO: handle special counters such as LOAD_ROBOT, SAVE_ROBOT, FREAD_OPEN, etc.
             let robot = robots.get_mut(robot_id);
             let mut context = CounterContextMut::from(board, robot, state);
-            let s = s.evaluate(counters, &context);
+            let s = s.evaluate_for_name(counters, &context);
             // A random range always treats both values as numeric counters.
             if let Some(ref n2) = *n2 {
                 let mut val = n.resolve(counters, context.as_immutable()) as i32;
@@ -825,7 +825,7 @@ fn run_one_command(
                 val += rand::random::<u32>().checked_rem(range).unwrap_or(0) as i32;
             }
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
-            let s = s.evaluate(counters, &context);
+            let s = s.evaluate_for_name(counters, &context);
             counters.set(s, &mut context, initial.wrapping_sub(val));
         }
 
@@ -840,7 +840,7 @@ fn run_one_command(
                 val += rand::random::<u32>().checked_rem(range).unwrap_or(0) as i32;
             }
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
-            let s = s.evaluate(counters, &context);
+            let s = s.evaluate_for_name(counters, &context);
             counters.set(s, &mut context, initial.wrapping_add(val));
         }
 
@@ -849,7 +849,7 @@ fn run_one_command(
             let initial = counters.get(s, &context);
             let val = n.resolve(counters, context);
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
-            let s = s.evaluate(counters, &context);
+            let s = s.evaluate_for_name(counters, &context);
             counters.set(s, &mut context, initial.wrapping_mul(val));
         }
 
@@ -858,7 +858,7 @@ fn run_one_command(
             let initial = counters.get(s, &context);
             let val = n.resolve(counters, context);
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
-            let s = s.evaluate(counters, &context);
+            let s = s.evaluate_for_name(counters, &context);
             counters.set(s, &mut context, initial.checked_div(val).unwrap_or(initial));
         }
 
@@ -867,26 +867,40 @@ fn run_one_command(
             let initial = counters.get(s, &context);
             let val = n.resolve(counters, context);
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
-            let s = s.evaluate(counters, &context);
+            let s = s.evaluate_for_name(counters, &context);
             counters.set(s, &mut context, initial.checked_rem(val).unwrap_or(initial));
         }
 
         Command::If(ref s, op, ref n, ref l) => {
-            //TODO: handle string equality
             //TODO: handle ===, ?=, ?==
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
-            let s = s.evaluate(counters, &context);
-            let val = counters.get(&s, &context);
-            let cmp = n.resolve(counters, context);
+            let val = s.evaluate(counters, &context);
             let l = l.eval(counters, context);
-            let result = match op {
-                Operator::Equals => val == cmp,
-                Operator::NotEquals => val != cmp,
-                Operator::LessThan => val < cmp,
-                Operator::GreaterThan => val > cmp,
-                Operator::LessThanEquals => val <= cmp,
-                Operator::GreaterThanEquals => val >= cmp,
+            let result = if s.is_string_name() {
+                let cmp = match n {
+                    SignedNumeric::Counter(ref b) => b.evaluate(counters, &context),
+                    SignedNumeric::Literal(i) => i.to_string().into(),
+                };
+                match op {
+                    Operator::Equals => val.case_sensitive_eq(&cmp),
+                    Operator::NotEquals => !val.case_sensitive_eq(&cmp),
+                    Operator::LessThan => val < cmp,
+                    Operator::GreaterThan => val > cmp,
+                    Operator::LessThanEquals => val <= cmp,
+                    Operator::GreaterThanEquals => val >= cmp,
+                }
+            } else {
+                let val = counters.get(&val, &context);
+                let cmp = n.resolve(counters, context);
+                match op {
+                    Operator::Equals => val == cmp,
+                    Operator::NotEquals => val != cmp,
+                    Operator::LessThan => val < cmp,
+                    Operator::GreaterThan => val > cmp,
+                    Operator::LessThanEquals => val <= cmp,
+                    Operator::GreaterThanEquals => val >= cmp,
+                }
             };
             if result {
                 if jump_robot_to_label(robot, l) {
@@ -1131,7 +1145,7 @@ fn run_one_command(
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
             let n = n.resolve(counters, context);
-            let l = l.evaluate(counters, &context);
+            let l = l.evaluate_for_name(counters, &context);
             for _ in 0..n {
                 let label = robot
                     .program
@@ -1147,7 +1161,7 @@ fn run_one_command(
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
             let n = n.resolve(counters, context);
-            let l = l.evaluate(counters, &context);
+            let l = l.evaluate_for_name(counters, &context);
             for _ in 0..n {
                 let label = robot
                     .program
@@ -1164,7 +1178,7 @@ fn run_one_command(
 
         Command::Send(ref r, ref l) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
-            let r = r.evaluate(counters, &context);
+            let r = r.evaluate_for_name(counters, &context);
             let l = l.eval(counters, context);
             let mut result = CommandResult::Advance;
             robots.foreach(|robot, id| {
@@ -1350,7 +1364,7 @@ fn run_one_command(
 
         Command::Teleport(ref b, ref x, ref y) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
-            let b = b.evaluate(counters, &context);
+            let b = b.evaluate_for_name(counters, &context);
             let coord = Coordinate(
                 x.resolve(counters, context) as u16,
                 y.resolve(counters, context) as u16,
@@ -1453,7 +1467,7 @@ fn run_one_command(
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let pos = mode.resolve_xy(x, y, counters, context, RelativePart::First);
             let c = c.resolve(counters, context);
-            let s = s.evaluate(counters, &context);
+            let s = s.evaluate_for_name(counters, &context);
             board.write_overlay(&pos, &s, c.0);
         }
 
@@ -1491,7 +1505,7 @@ fn run_one_command(
 
         Command::CopyRobotNamed(ref name) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
-            let name = name.evaluate(counters, &context);
+            let name = name.evaluate_for_name(counters, &context);
             let source_id = robots.find(&name);
             if let Some(source_id) = source_id {
                 copy_robot(source_id, robot_id, robots, board);
@@ -1522,7 +1536,7 @@ fn run_one_command(
 
         Command::MessageLine(ref s) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
-            board.message_line = s.evaluate(counters, &context);
+            board.message_line = s.evaluate_for_name(counters, &context);
             board.remaining_message_cycles = 80;
         }
 
@@ -1612,7 +1626,7 @@ fn run_one_command(
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
             return CommandResult::IgnoreLine(Some(Update::MessageBox(Some(
-                MessageBoxLine::Text(s.evaluate(counters, &context), line_type),
+                MessageBoxLine::Text(s.evaluate_for_name(counters, &context), line_type),
             ))));
         }
 
@@ -1620,13 +1634,13 @@ fn run_one_command(
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
             let should_display = counter.as_ref().map_or(true, |counter| {
-                counters.get(&counter.evaluate(counters, &context), &context) != 0
+                counters.get(&counter.evaluate_for_name(counters, &context), &context) != 0
             });
             if should_display {
                 return CommandResult::IgnoreLine(Some(Update::MessageBox(Some(
                     MessageBoxLine::Option {
-                        label: label.evaluate(counters, &context),
-                        text: text.evaluate(counters, &context),
+                        label: label.evaluate_for_name(counters, &context),
+                        text: text.evaluate_for_name(counters, &context),
                     },
                 ))));
             } else {
@@ -1637,7 +1651,7 @@ fn run_one_command(
         Command::Mod(ref m) => {
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
-            let m = m.evaluate(counters, &context).into_string();
+            let m = m.evaluate_for_name(counters, &context).into_string();
             audio.load_module(&m);
             board.mod_file = m;
         }
@@ -1645,7 +1659,7 @@ fn run_one_command(
         Command::ModFadeIn(ref m) => {
             let robot = robots.get_mut(robot_id);
             let context = CounterContext::from(board, robot, state);
-            let m = m.evaluate(counters, &context).into_string();
+            let m = m.evaluate_for_name(counters, &context).into_string();
             audio.mod_fade_in(&m);
             board.mod_file = m;
         }

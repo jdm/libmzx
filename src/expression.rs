@@ -467,7 +467,7 @@ mod test {
     #[test]
     fn expr_constant() {
         assert_eq!(
-            evaluate_expression(b"5", &Counters::new(), &TestLocalCounters).0,
+            evaluate_expression(b"5", &Counters::new(), &TestLocalCounters).unwrap().0,
             b"5"
         );
     }
@@ -475,7 +475,7 @@ mod test {
     #[test]
     fn expr_add_constants() {
         assert_eq!(
-            evaluate_expression(b"5 + 10", &Counters::new(), &TestLocalCounters).0,
+            evaluate_expression(b"5 + 10", &Counters::new(), &TestLocalCounters).unwrap().0,
             b"15"
         );
     }
@@ -483,7 +483,7 @@ mod test {
     #[test]
     fn expr_add_multiple_constants() {
         assert_eq!(
-            evaluate_expression(b"5 + 10 + 20", &Counters::new(), &TestLocalCounters).0,
+            evaluate_expression(b"5 + 10 + 20", &Counters::new(), &TestLocalCounters).unwrap().0,
             b"35"
         );
     }
@@ -491,7 +491,7 @@ mod test {
     #[test]
     fn expr_sub_multiple_constants() {
         assert_eq!(
-            evaluate_expression(b"5 - 10 - 20", &Counters::new(), &TestLocalCounters).0,
+            evaluate_expression(b"5 - 10 - 20", &Counters::new(), &TestLocalCounters).unwrap().0,
             b"-25"
         );
     }
@@ -499,7 +499,7 @@ mod test {
     #[test]
     fn expr_leading_neg() {
         assert_eq!(
-            evaluate_expression(b"-5", &Counters::new(), &TestLocalCounters).0,
+            evaluate_expression(b"-5", &Counters::new(), &TestLocalCounters).unwrap().0,
             b"-5"
         );
     }
@@ -507,7 +507,7 @@ mod test {
     #[test]
     fn expr_mult() {
         assert_eq!(
-            evaluate_expression(b"-5 * 5", &Counters::new(), &TestLocalCounters).0,
+            evaluate_expression(b"-5 * 5", &Counters::new(), &TestLocalCounters).unwrap().0,
             b"-25"
         );
     }
@@ -515,7 +515,7 @@ mod test {
     #[test]
     fn expr_div() {
         assert_eq!(
-            evaluate_expression(b"-5 / 5", &Counters::new(), &TestLocalCounters).0,
+            evaluate_expression(b"-5 / 5", &Counters::new(), &TestLocalCounters).unwrap().0,
             b"-1"
         );
     }
@@ -523,7 +523,7 @@ mod test {
     #[test]
     fn expr_mod() {
         assert_eq!(
-            evaluate_expression(b"12 % 5", &Counters::new(), &TestLocalCounters).0,
+            evaluate_expression(b"12 % 5", &Counters::new(), &TestLocalCounters).unwrap().0,
             b"2"
         );
     }
@@ -533,7 +533,7 @@ mod test {
         let mut counters = Counters::new();
         counters.set("countername".into(), &mut TestLocalCounters, 5);
         assert_eq!(
-            evaluate_expression(b"'countername'", &counters, &TestLocalCounters).0,
+            evaluate_expression(b"'countername'", &counters, &TestLocalCounters).unwrap().0,
             b"5"
         );
     }
@@ -543,7 +543,7 @@ mod test {
         let mut counters = Counters::new();
         counters.set("countername".into(), &mut TestLocalCounters, 50);
         assert_eq!(
-            evaluate_expression(b"'countername' - 10", &counters, &TestLocalCounters).0,
+            evaluate_expression(b"'countername' - 10", &counters, &TestLocalCounters).unwrap().0,
             b"40"
         );
     }
@@ -551,7 +551,7 @@ mod test {
     #[test]
     fn expr_inner_expression() {
         assert_eq!(
-            evaluate_expression(b"(5 * 3)", &Counters::new(), &TestLocalCounters).0,
+            evaluate_expression(b"(5 * 3)", &Counters::new(), &TestLocalCounters).unwrap().0,
             b"15"
         );
     }
@@ -559,7 +559,7 @@ mod test {
     #[test]
     fn expr_subexpression() {
         assert_eq!(
-            evaluate_expression(b"10 - (5 * 3)", &Counters::new(), &TestLocalCounters).0,
+            evaluate_expression(b"10 - (5 * 3)", &Counters::new(), &TestLocalCounters).unwrap().0,
             b"-5"
         );
     }

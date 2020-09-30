@@ -538,9 +538,19 @@ impl Counters {
         }
     }
 
-    pub fn set_string(&mut self, name: ByteString, context: &mut dyn CounterContextMutExt, value: ByteString) {
+    pub fn set_string(
+        &mut self,
+        name: ByteString,
+        context: &mut dyn CounterContextMutExt,
+        value: ByteString,
+    ) {
         //TODO: handle #N, +N, .N suffixes
-        assert!(name.is_string_name(), "Setting non-string {:?} to \"{:?}\"", name, value);
+        assert!(
+            name.is_string_name(),
+            "Setting non-string {:?} to \"{:?}\"",
+            name,
+            value
+        );
         // Skip the leading $ when evaluating the string name.
         let name = ByteString(
             name.as_bytes()
@@ -617,7 +627,10 @@ impl Counters {
         let mut result = name.evaluate(self, context);
         result.0.insert(0, b'$');
         debug!("getting string {:?}", result);
-        self.strings.get(&result).cloned().unwrap_or(ByteString::default())
+        self.strings
+            .get(&result)
+            .cloned()
+            .unwrap_or(ByteString::default())
     }
 }
 
@@ -759,15 +772,16 @@ impl ByteString {
                 continue;
             } else if c == b')' {
                 if let Some(expression) = expressions.pop() {
-                    let result = match expression::evaluate_expression(&expression, counters, context) {
-                        Ok(result) => result,
-                        Err(input) => {
-                            let mut result = b"(".to_vec();
-                            result.extend(input.0.into_iter());
-                            result.extend(&b")"[..]);
-                            ByteString(result)
-                        }
-                    };
+                    let result =
+                        match expression::evaluate_expression(&expression, counters, context) {
+                            Ok(result) => result,
+                            Err(input) => {
+                                let mut result = b"(".to_vec();
+                                result.extend(input.0.into_iter());
+                                result.extend(&b")"[..]);
+                                ByteString(result)
+                            }
+                        };
                     let cur_bytes = expressions.last_mut().unwrap_or(&mut new_bytes);
                     cur_bytes.extend(result.as_bytes());
                     continue;
@@ -2278,7 +2292,8 @@ fn load_board(
 }
 
 const MAX_PASSWORD_LENGTH: usize = 15;
-static MAGIC_CODE: &[u8; MAX_PASSWORD_LENGTH] = b"\xE6\x52\xEB\xF2\x6D\x4D\x4A\xB7\x87\xB2\x92\x88\xDE\x91\x24";
+static MAGIC_CODE: &[u8; MAX_PASSWORD_LENGTH] =
+    b"\xE6\x52\xEB\xF2\x6D\x4D\x4A\xB7\x87\xB2\x92\x88\xDE\x91\x24";
 const WORLD_BLOCK_1_SIZE: usize = 4129;
 const WORLD_BLOCK_2_SIZE: usize = 72;
 const LEGACY_BOARD_NAME_SIZE: usize = 25;
@@ -2348,14 +2363,21 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
     let (protection, mut buffer) = get_byte(buffer);
     if protection != 0 {
         let (password, tmp_buffer) = buffer.split_at(MAX_PASSWORD_LENGTH);
-        let mut password: Vec<_> = password.iter().zip(&MAGIC_CODE[..]).map(|(byte, magic)| {
-            let a = byte ^ magic;
-            let b = a as i8 - (0x12 + protection) as i8;
-            b as u8 ^ 0x8D
-        }).collect();
+        let mut password: Vec<_> = password
+            .iter()
+            .zip(&MAGIC_CODE[..])
+            .map(|(byte, magic)| {
+                let a = byte ^ magic;
+                let b = a as i8 - (0x12 + protection) as i8;
+                b as u8 ^ 0x8D
+            })
+            .collect();
         let xor_val = get_pw_xor_code(&mut *password, protection) as u8;
         let xor_w: i16 = xor_val as i16 | (xor_val as i16) << 8;
-        let xor_d: i32 = xor_val as i32 | (xor_val as i32) << 8 | (xor_val as i32) << 16 | (xor_val as i32) << 24;
+        let xor_d: i32 = xor_val as i32
+            | (xor_val as i32) << 8
+            | (xor_val as i32) << 16
+            | (xor_val as i32) << 24;
         decrypted_buffer = vec![];
         // null terminated title
         let mut extended_title = [0; LEGACY_BOARD_NAME_SIZE];
@@ -2372,7 +2394,8 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
         let (_, tmp_buffer) = get_byte(tmp_buffer);
         let (_, tmp_buffer) = get_byte(tmp_buffer);
         let (_, tmp_buffer) = get_byte(tmp_buffer);
-        let (decrypted, tmp_buffer) = decrypt_block(tmp_buffer, WORLD_BLOCK_1_SIZE + WORLD_BLOCK_2_SIZE , xor_val);
+        let (decrypted, tmp_buffer) =
+            decrypt_block(tmp_buffer, WORLD_BLOCK_1_SIZE + WORLD_BLOCK_2_SIZE, xor_val);
         decrypted_buffer.extend(&*decrypted);
 
         let (offset, tmp_buffer) = decrypt_and_fix_offset(tmp_buffer, xor_d);
@@ -2396,7 +2419,11 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
             tmp_buffer = tmp_buffer2;
         }
 
-        let (board_titles, mut tmp_buffer) = decrypt_block(tmp_buffer, LEGACY_BOARD_NAME_SIZE * num_boards as usize, xor_val);
+        let (board_titles, mut tmp_buffer) = decrypt_block(
+            tmp_buffer,
+            LEGACY_BOARD_NAME_SIZE * num_boards as usize,
+            xor_val,
+        );
         decrypted_buffer.extend(&*board_titles);
         for _ in 0..num_boards {
             let (board_length, tmp_buffer2) = get_dword(tmp_buffer);
@@ -2568,8 +2595,8 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ByteString, Counters};
     use crate::expression::test::TestLocalCounters;
+    use crate::{ByteString, Counters};
 
     #[test]
     fn it_works() {

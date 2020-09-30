@@ -859,11 +859,7 @@ fn run_one_command(
             let val = n.resolve(counters, context);
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
             let s = s.evaluate(counters, &context);
-            counters.set(
-                s,
-                &mut context,
-                initial.checked_div(val).unwrap_or(initial),
-            );
+            counters.set(s, &mut context, initial.checked_div(val).unwrap_or(initial));
         }
 
         Command::Modulo(ref s, ref n) => {
@@ -872,11 +868,7 @@ fn run_one_command(
             let val = n.resolve(counters, context);
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
             let s = s.evaluate(counters, &context);
-            counters.set(
-                s,
-                &mut context,
-                initial.checked_rem(val).unwrap_or(initial),
-            );
+            counters.set(s, &mut context, initial.checked_rem(val).unwrap_or(initial));
         }
 
         Command::If(ref s, op, ref n, ref l) => {
@@ -1363,10 +1355,7 @@ fn run_one_command(
                 x.resolve(counters, context) as u16,
                 y.resolve(counters, context) as u16,
             );
-            return CommandResult::AdvanceAndChangeState(GameStateChange::Teleport(
-                b,
-                coord,
-            ));
+            return CommandResult::AdvanceAndChangeState(GameStateChange::Teleport(b, coord));
         }
 
         Command::SavePlayerPosition(ref n) => {

@@ -118,10 +118,7 @@ impl ExprState {
                         Some(Token::Constant(v)),
                     ))
                 } else if byte == b'^' {
-                    Ok((
-                        ExprState::Operator(ExprOp::Pow),
-                        Some(Token::Constant(v)),
-                    ))
+                    Ok((ExprState::Operator(ExprOp::Pow), Some(Token::Constant(v))))
                 } else if byte == b'a' {
                     Ok((
                         ExprState::Operator(ExprOp::BitAnd),
@@ -140,15 +137,9 @@ impl ExprState {
                         Some(Token::Constant(v)),
                     ))
                 } else if byte == b'<' {
-                    Ok((
-                        ExprState::Operator(ExprOp::Less),
-                        Some(Token::Constant(v)),
-                    ))
+                    Ok((ExprState::Operator(ExprOp::Less), Some(Token::Constant(v))))
                 } else if byte == b'=' {
-                    Ok((
-                        ExprState::Operator(ExprOp::Equal),
-                        Some(Token::Constant(v)),
-                    ))
+                    Ok((ExprState::Operator(ExprOp::Equal), Some(Token::Constant(v))))
                 } else if byte == b'!' {
                     Ok((
                         ExprState::Operator(ExprOp::NotEqual),
@@ -235,10 +226,7 @@ impl ExprState {
                         Some(Token::Variable(var)),
                     ))
                 } else if byte == b'^' {
-                    Ok((
-                        ExprState::Operator(ExprOp::Pow),
-                        Some(Token::Variable(var)),
-                    ))
+                    Ok((ExprState::Operator(ExprOp::Pow), Some(Token::Variable(var))))
                 } else if byte == b'a' {
                     Ok((
                         ExprState::Operator(ExprOp::BitAnd),
@@ -467,7 +455,9 @@ pub(crate) mod test {
     #[test]
     fn expr_constant() {
         assert_eq!(
-            evaluate_expression(b"5", &Counters::new(), &TestLocalCounters).unwrap().0,
+            evaluate_expression(b"5", &Counters::new(), &TestLocalCounters)
+                .unwrap()
+                .0,
             b"5"
         );
     }
@@ -475,7 +465,9 @@ pub(crate) mod test {
     #[test]
     fn expr_add_constants() {
         assert_eq!(
-            evaluate_expression(b"5 + 10", &Counters::new(), &TestLocalCounters).unwrap().0,
+            evaluate_expression(b"5 + 10", &Counters::new(), &TestLocalCounters)
+                .unwrap()
+                .0,
             b"15"
         );
     }
@@ -483,7 +475,9 @@ pub(crate) mod test {
     #[test]
     fn expr_add_multiple_constants() {
         assert_eq!(
-            evaluate_expression(b"5 + 10 + 20", &Counters::new(), &TestLocalCounters).unwrap().0,
+            evaluate_expression(b"5 + 10 + 20", &Counters::new(), &TestLocalCounters)
+                .unwrap()
+                .0,
             b"35"
         );
     }
@@ -491,7 +485,9 @@ pub(crate) mod test {
     #[test]
     fn expr_sub_multiple_constants() {
         assert_eq!(
-            evaluate_expression(b"5 - 10 - 20", &Counters::new(), &TestLocalCounters).unwrap().0,
+            evaluate_expression(b"5 - 10 - 20", &Counters::new(), &TestLocalCounters)
+                .unwrap()
+                .0,
             b"-25"
         );
     }
@@ -499,7 +495,9 @@ pub(crate) mod test {
     #[test]
     fn expr_leading_neg() {
         assert_eq!(
-            evaluate_expression(b"-5", &Counters::new(), &TestLocalCounters).unwrap().0,
+            evaluate_expression(b"-5", &Counters::new(), &TestLocalCounters)
+                .unwrap()
+                .0,
             b"-5"
         );
     }
@@ -507,7 +505,9 @@ pub(crate) mod test {
     #[test]
     fn expr_mult() {
         assert_eq!(
-            evaluate_expression(b"-5 * 5", &Counters::new(), &TestLocalCounters).unwrap().0,
+            evaluate_expression(b"-5 * 5", &Counters::new(), &TestLocalCounters)
+                .unwrap()
+                .0,
             b"-25"
         );
     }
@@ -515,7 +515,9 @@ pub(crate) mod test {
     #[test]
     fn expr_div() {
         assert_eq!(
-            evaluate_expression(b"-5 / 5", &Counters::new(), &TestLocalCounters).unwrap().0,
+            evaluate_expression(b"-5 / 5", &Counters::new(), &TestLocalCounters)
+                .unwrap()
+                .0,
             b"-1"
         );
     }
@@ -523,7 +525,9 @@ pub(crate) mod test {
     #[test]
     fn expr_mod() {
         assert_eq!(
-            evaluate_expression(b"12 % 5", &Counters::new(), &TestLocalCounters).unwrap().0,
+            evaluate_expression(b"12 % 5", &Counters::new(), &TestLocalCounters)
+                .unwrap()
+                .0,
             b"2"
         );
     }
@@ -533,7 +537,9 @@ pub(crate) mod test {
         let mut counters = Counters::new();
         counters.set("countername".into(), &mut TestLocalCounters, 5);
         assert_eq!(
-            evaluate_expression(b"'countername'", &counters, &TestLocalCounters).unwrap().0,
+            evaluate_expression(b"'countername'", &counters, &TestLocalCounters)
+                .unwrap()
+                .0,
             b"5"
         );
     }
@@ -543,7 +549,9 @@ pub(crate) mod test {
         let mut counters = Counters::new();
         counters.set("countername".into(), &mut TestLocalCounters, 50);
         assert_eq!(
-            evaluate_expression(b"'countername' - 10", &counters, &TestLocalCounters).unwrap().0,
+            evaluate_expression(b"'countername' - 10", &counters, &TestLocalCounters)
+                .unwrap()
+                .0,
             b"40"
         );
     }
@@ -551,7 +559,9 @@ pub(crate) mod test {
     #[test]
     fn expr_inner_expression() {
         assert_eq!(
-            evaluate_expression(b"(5 * 3)", &Counters::new(), &TestLocalCounters).unwrap().0,
+            evaluate_expression(b"(5 * 3)", &Counters::new(), &TestLocalCounters)
+                .unwrap()
+                .0,
             b"15"
         );
     }
@@ -559,7 +569,9 @@ pub(crate) mod test {
     #[test]
     fn expr_subexpression() {
         assert_eq!(
-            evaluate_expression(b"10 - (5 * 3)", &Counters::new(), &TestLocalCounters).unwrap().0,
+            evaluate_expression(b"10 - (5 * 3)", &Counters::new(), &TestLocalCounters)
+                .unwrap()
+                .0,
             b"-5"
         );
     }
@@ -570,7 +582,9 @@ pub(crate) mod test {
         counters.set("boo".into(), &mut TestLocalCounters, 5);
         counters.set("countername5".into(), &mut TestLocalCounters, 50);
         assert_eq!(
-            evaluate_expression(b"'countername('boo')'", &counters, &TestLocalCounters).unwrap().0,
+            evaluate_expression(b"'countername('boo')'", &counters, &TestLocalCounters)
+                .unwrap()
+                .0,
             b"50"
         );
     }

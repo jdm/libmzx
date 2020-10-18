@@ -52,8 +52,8 @@ enum WorldFile {
     Palette,
     BoardLevel(u8, Plane),
     BoardUnder(u8, Plane),
-    /*BoardOverlayChar(u8),
-    BoardOverlayColor(u8),*/
+    BoardOverlayChar(u8),
+    BoardOverlayColor(u8),
 }
 
 impl WorldFile {
@@ -65,8 +65,8 @@ impl WorldFile {
             WorldFile::Palette => "pal".to_owned(),
             WorldFile::BoardLevel(bid, plane) => format!("b{:02x}b{}", bid, plane.as_str()),
             WorldFile::BoardUnder(bid, plane) => format!("b{:02x}u{}", bid, plane.as_str()),
-            /*WorldFile::BoardOverlayChar(bid) => format!("b{:02x}och", bid),
-            WorldFile::BoardOverlayColor(bid) => format!("b{:02x}oco", bid),*/
+            WorldFile::BoardOverlayChar(bid) => format!("b{:02x}och", bid),
+            WorldFile::BoardOverlayColor(bid) => format!("b{:02x}oco", bid),
             WorldFile::Properties(file) => file.to_string(),
         }
     }
@@ -131,6 +131,12 @@ pub(crate) fn load_zip_world(buffer: &[u8]) -> Result<World, WorldError> {
         let under_color = zip.read_known_file(WorldFile::BoardUnder(i, Plane::Color)).unwrap();
         world.boards[i as usize].under = Zip::new((under_id, under_color, under_param))
             .collect();
+
+        if let Some((_, ref mut overlay)) = world.boards[i as usize].overlay {
+            let overlay_char = zip.read_known_file(WorldFile::BoardOverlayChar(i)).unwrap();
+            let overlay_color = zip.read_known_file(WorldFile::BoardOverlayColor(i)).unwrap();
+            *overlay = overlay_char.into_iter().zip(overlay_color).collect();
+        }
 
         let mut robots = vec![];
         for r in 0..world.boards[i as usize].robot_range.1 {

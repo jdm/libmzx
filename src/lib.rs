@@ -2030,7 +2030,7 @@ impl LocalCounter {
 
 impl Robot {}
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum RunStatus {
     NotRun,
     FinishedRunning,

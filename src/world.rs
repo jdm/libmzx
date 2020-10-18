@@ -21,9 +21,9 @@ impl PropFile {
         match self {
             PropFile::World => "world".to_owned(),
             PropFile::Board(bid) => format!("b{:02x}", bid),
-            PropFile::BoardRobot(bid, rid) => format!("b{:02x}r{:x}", bid, rid),
-            /*PropFile::BoardScroll(bid, sid) => format!("b{:02x}sc{:x}", bid, sid),
-            PropFile::BoardSensor(bid, sid) => format!("b{:02x}se{:x}", bid, sid),*/
+            PropFile::BoardRobot(bid, rid) => format!("b{:02x}r{:02x}", bid, rid),
+            /*PropFile::BoardScroll(bid, sid) => format!("b{:02x}sc{:02x}", bid, sid),
+            PropFile::BoardSensor(bid, sid) => format!("b{:02x}se{:02x}", bid, sid),*/
         }
     }
 }
@@ -79,7 +79,7 @@ trait ReadFile {
 impl<R: Read + Seek> ReadFile for ZipArchive<R> {
     fn read_known_file(&mut self, f: WorldFile) -> Result<Vec<u8>, ()> {
         println!("opening {:?}", f.to_string());
-        let mut file = self.by_name(&f.to_string()).unwrap();
+        let mut file = self.by_name(&f.to_string()).map_err(|_| ())?;
         let mut contents = vec![];
         file.read_to_end(&mut contents).unwrap();
         Ok(contents)
@@ -140,7 +140,13 @@ pub(crate) fn load_zip_world(buffer: &[u8]) -> Result<World, WorldError> {
 
         let mut robots = vec![];
         for r in 0..world.boards[i as usize].robot_range.1 {
-            let robot_props = zip.read_known_file(WorldFile::Properties(PropFile::BoardRobot(i, r as u8))).unwrap();
+            let robot_props = match zip.read_known_file(WorldFile::Properties(PropFile::BoardRobot(i, r as u8 + 1))) {
+                Ok(r) => r,
+                Err(_) => {
+                    robots.push(Robot::default());
+                    continue;
+                }
+            };
             let robot = load_robot(&robot_props).unwrap();
             robots.push(robot);
         }
@@ -428,7 +434,6 @@ impl BoardProp {
             },
             BoardProp::Robots(count) => {
                 board.robot_range = (world.all_robots.len(), count as usize);
-                world.all_robots.resize_with(world.all_robots.len() + count as usize, Default::default);
             }
             BoardProp::Mod(file) => board.mod_file = file.into_string(),
             BoardProp::ViewX(x) => board.upper_left_viewport.0 = x,

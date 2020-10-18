@@ -1,0 +1,434 @@
+use crate::{
+    CHARSET_BUFFER_SIZE, LEGACY_BOARD_NAME_SIZE, LEGACY_ROBOT_NAME_SIZE,
+    Board, ByteString, OverlayMode, Robot, World, WorldError,
+    get_byte, get_word, get_dword, get_null_terminated_string, load_palette,
+};
+use crate::robotic::{Command, parse_program};
+use itertools::Zip;
+use std::io::{Cursor, Read, Seek};
+use zip::ZipArchive;
+
+enum PropFile {
+    World,
+    Board(u8),
+    BoardRobot(u8, u8),
+    /*BoardScroll(u8, u8),
+    BoardSensor(u8, u8),*/
+}
+
+impl PropFile {
+    fn to_string(&self) -> String {
+        match self {
+            PropFile::World => "world".to_owned(),
+            PropFile::Board(bid) => format!("b{:02x}", bid),
+            PropFile::BoardRobot(bid, rid) => format!("b{:02x}r{:x}", bid, rid),
+            /*PropFile::BoardScroll(bid, sid) => format!("b{:02x}sc{:x}", bid, sid),
+            PropFile::BoardSensor(bid, sid) => format!("b{:02x}se{:x}", bid, sid),*/
+        }
+    }
+}
+
+enum Plane {
+    Id,
+    Param,
+    Color,
+}
+
+impl Plane {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Plane::Id => "id",
+            Plane::Param => "pr",
+            Plane::Color => "co",
+        }
+    }
+}
+
+enum WorldFile {
+    GlobalRobot,
+    //CustomSfx,
+    Properties(PropFile),
+    CharSets,
+    Palette,
+    BoardLevel(u8, Plane),
+    BoardUnder(u8, Plane),
+    /*BoardOverlayChar(u8),
+    BoardOverlayColor(u8),*/
+}
+
+impl WorldFile {
+    fn to_string(&self) -> String {
+        match self {
+            WorldFile::GlobalRobot => "gr".to_owned(),
+            /*WorldFile::CustomSfx => "sfx".to_owned(),*/
+            WorldFile::CharSets => "chars".to_owned(),
+            WorldFile::Palette => "pal".to_owned(),
+            WorldFile::BoardLevel(bid, plane) => format!("b{:02x}b{}", bid, plane.as_str()),
+            WorldFile::BoardUnder(bid, plane) => format!("b{:02x}u{}", bid, plane.as_str()),
+            /*WorldFile::BoardOverlayChar(bid) => format!("b{:02x}och", bid),
+            WorldFile::BoardOverlayColor(bid) => format!("b{:02x}oco", bid),*/
+            WorldFile::Properties(file) => file.to_string(),
+        }
+    }
+}
+
+trait ReadFile {
+    fn read_known_file(&mut self, f: WorldFile) -> Result<Vec<u8>, ()>;
+}
+
+impl<R: Read + Seek> ReadFile for ZipArchive<R> {
+    fn read_known_file(&mut self, f: WorldFile) -> Result<Vec<u8>, ()> {
+        println!("opening {:?}", f.to_string());
+        let mut file = self.by_name(&f.to_string()).unwrap();
+        let mut contents = vec![];
+        file.read_to_end(&mut contents).unwrap();
+        Ok(contents)
+    }
+}
+
+pub(crate) fn load_zip_world(buffer: &[u8]) -> Result<World, WorldError> {
+    let buffer = Cursor::new(buffer);
+    let mut zip = ZipArchive::new(buffer).unwrap();
+
+    for name in zip.file_names() {
+        println!("file: {:?}", name);
+    }
+
+    let world_props = zip.read_known_file(WorldFile::Properties(PropFile::World)).unwrap();
+    let mut world = load_world_info(&world_props).unwrap();
+
+    let global_robot_props = zip.read_known_file(WorldFile::GlobalRobot).unwrap();
+    let global_robot = load_robot(&global_robot_props).unwrap();
+    world.all_robots.push(global_robot);
+
+    let charset = zip.read_known_file(WorldFile::CharSets).unwrap();
+    //XXXjdm support all the reserved charsets
+    world.state.charset.data.copy_from_slice(&charset[0..CHARSET_BUFFER_SIZE]);
+    world.state.initial_charset.data.copy_from_slice(&charset[0..CHARSET_BUFFER_SIZE]);
+    println!("{:?}", world.state.charset);
+
+    let palette = zip.read_known_file(WorldFile::Palette).unwrap();
+    let palette = load_palette(&palette[0..16*3]); //XXXjdm support larger palettes
+    world.state.palette = palette.clone();
+    world.state.initial_palette = palette;
+
+    for i in 0..world.boards.len() as u8 {
+        let board_props = match zip.read_known_file(WorldFile::Properties(PropFile::Board(i))) {
+            Ok(props) => props,
+            Err(_) => continue,
+        };
+        let board = load_board(&board_props, &mut world).unwrap();
+        world.boards[i as usize] = board;
+
+        let level_id = zip.read_known_file(WorldFile::BoardLevel(i, Plane::Id)).unwrap();
+        let level_param = zip.read_known_file(WorldFile::BoardLevel(i, Plane::Param)).unwrap();
+        let level_color = zip.read_known_file(WorldFile::BoardLevel(i, Plane::Color)).unwrap();
+        world.boards[i as usize].level = Zip::new((level_id, level_color, level_param))
+            .collect();
+
+        let under_id = zip.read_known_file(WorldFile::BoardUnder(i, Plane::Id)).unwrap();
+        let under_param = zip.read_known_file(WorldFile::BoardUnder(i, Plane::Param)).unwrap();
+        let under_color = zip.read_known_file(WorldFile::BoardUnder(i, Plane::Color)).unwrap();
+        world.boards[i as usize].under = Zip::new((under_id, under_color, under_param))
+            .collect();
+
+        let mut robots = vec![];
+        for r in 0..world.boards[i as usize].robot_range.1 {
+            let robot_props = zip.read_known_file(WorldFile::Properties(PropFile::BoardRobot(i, r as u8))).unwrap();
+            let robot = load_robot(&robot_props).unwrap();
+            robots.push(robot);
+        }
+
+        world.boards[i as usize].init(&mut robots);
+        world.all_robots.extend(robots);
+    }
+
+    Ok(world)
+}
+
+#[derive(Debug)]
+enum WorldProp {
+    Name(ByteString),
+    WorldVersion(u16),
+    FileVersion(u16),
+    //SaveStartBoard(u8),
+    //SaveHasTemp(u8),
+    NumberOfBoards(u8),
+    IdBlock([u8; 323]),
+    /*IdMissileColor(u8),
+    IdBulletColors([u8; 3]),*/
+    IdBlock2([u8; 128]),
+    /*StatusCounters([ByteString; 6]),
+    EdgeColor(u8),
+    FirstBoard(u8),
+    EndgameBoard(u8),
+    DeathBoard(u8),
+    EndgameTeleportX(u16),
+    EndgameTeleportY(u16),
+    GameOverSfx(bool),
+    DeathTeleportX(u16),
+    DeathTeleportY(u16),
+    StartingLives(u16),
+    LivesLimit(u16),
+    StartingHealth(u16),
+    HealthLimit(u16),
+    EnemyBulletsHurtOthers(bool),
+    ClearMessagesOnExit(bool),
+    PlayFromSwapWorld(bool),*/
+}
+
+impl WorldProp {
+    //const END: u16 = 0x0000;
+    const WORLD_NAME: u16 = 0x0001;
+    const WORLD_VERSION: u16 = 0x0002;
+    const FILE_VERSION: u16 = 0x0003;
+    //const SAVE_START: u16 = 0x0004;
+    //const SAVE_HAS_TEMPORARY: u16 = 0x0005;
+    const NUM_BOARDS: u16 = 0x0008;
+    const CHAR_ID_BLOCK_1: u16 = 0x0010;
+    /*const CHAR_ID_MISSILE: u16 = 0x0011;
+    const CHAR_ID_BULLETS: u16 = 0x0012;*/
+    const CHAR_ID_BLOCK_3: u16 = 0x0013;
+    /*const STATUS_COUNTERS: u16 = 0x0018;
+    const EDGE_COLOR: u16 = 0x0020;
+    const FIRST_BOARD: u16 = 0x0021;
+    const ENDGAME_BOARD: u16 = 0x0022;
+    const DEATH_BOARD: u16 = 0x0023;*/
+}
+
+const END_PROP: u16 = 0x0000;
+
+fn next_prop<T>(
+    mut buffer: &[u8],
+    read: fn(u16, &[u8]) -> Result<T, ()>
+) -> Result<(Option<T>, &[u8]), ()>
+{
+    loop {
+        let (id, tmp_buffer) = get_word(buffer);
+        if id == END_PROP {
+            return Ok((None, tmp_buffer));
+        }
+        let (size, tmp_buffer) = get_dword(tmp_buffer);
+        let (data, tmp_buffer) = tmp_buffer.split_at(size as usize);
+        if let Ok(prop) = read(id, data) {
+            return Ok((Some(prop), tmp_buffer));
+        }
+        buffer = tmp_buffer;
+    }
+}
+
+impl WorldProp {
+    fn read(id: u16, buffer: &[u8]) -> Result<WorldProp, ()> {
+        Ok(match id {
+            WorldProp::WORLD_NAME =>
+                WorldProp::Name(get_null_terminated_string(buffer, LEGACY_BOARD_NAME_SIZE).0),
+            WorldProp::WORLD_VERSION => WorldProp::WorldVersion(get_word(buffer).0),
+            WorldProp::FILE_VERSION => WorldProp::FileVersion(get_word(buffer).0),
+            WorldProp::NUM_BOARDS => WorldProp::NumberOfBoards(get_byte(buffer).0),
+            WorldProp::CHAR_ID_BLOCK_1 => {
+                let mut block = [0; 323];
+                block.copy_from_slice(buffer);
+                WorldProp::IdBlock(block)
+            }
+            WorldProp::CHAR_ID_BLOCK_3 => {
+                let mut block = [0; 128];
+                block.copy_from_slice(buffer);
+                WorldProp::IdBlock2(block)
+            }
+            _ => return Err(()),
+        })
+    }
+
+    fn apply(self, world: &mut World) {
+        match self {
+            WorldProp::Name(name) => world.title = name,
+            WorldProp::WorldVersion(v) => world.version = v as u32, //XXXjdm
+            WorldProp::FileVersion(_v) => {},
+            WorldProp::NumberOfBoards(b) => world.boards.resize_with(b as usize, Default::default),
+            WorldProp::IdBlock(block) => world.state.idchars[0..323].copy_from_slice(&block),
+            WorldProp::IdBlock2(block) => {
+                let start = world.state.idchars.len()-128;
+                let end = world.state.idchars.len();
+                world.state.idchars[start..end].copy_from_slice(&block)
+            }
+            //_ => unimplemented!(),
+        }
+    }
+}
+
+fn load_world_info(mut buffer: &[u8]) -> Result<World, ()> {
+    let mut world = World::default();
+    loop {
+        let (prop, tmp_buffer) = next_prop(buffer, WorldProp::read).unwrap();
+        match prop {
+            Some(prop) => {
+                println!("{:?}", prop);
+                prop.apply(&mut world);
+            }
+            None => break,
+        }
+        buffer = tmp_buffer;
+    }
+    
+    Ok(world)
+}
+
+#[derive(Debug)]
+enum RobotProp {
+    Name(ByteString),
+    Char(u8),
+    X(i16),
+    Y(i16),
+    Program(Vec<Command>),
+}
+
+impl RobotProp {
+    const NAME: u16 = 0x0001;
+    const CHAR: u16 = 0x0002;
+    const X_ID: u16 = 0x0003;
+    const Y_ID: u16 = 0x0004;
+    const PROGRAM: u16 = 0x00FF;
+
+    fn read(id: u16, buffer: &[u8]) -> Result<RobotProp, ()> {
+        Ok(match id {
+            RobotProp::NAME =>
+                RobotProp::Name(get_null_terminated_string(buffer, LEGACY_ROBOT_NAME_SIZE).0),
+            RobotProp::CHAR => RobotProp::Char(get_byte(buffer).0),
+            RobotProp::X_ID => RobotProp::X(get_word(buffer).0 as i16),
+            RobotProp::Y_ID => RobotProp::Y(get_word(buffer).0 as i16),
+            RobotProp::PROGRAM => RobotProp::Program(parse_program(buffer)),
+            _ => return Err(()),
+        })
+    }
+
+    fn apply(self, robot: &mut Robot) {
+        match self {
+            RobotProp::Name(name) => robot.name = name,
+            RobotProp::Char(ch) => robot.ch = ch,
+            RobotProp::X(x) => robot.position.0 = x as u16, //XXXjdm
+            RobotProp::Y(y) => robot.position.1 = y as u16, //XXXjdm
+            RobotProp::Program(program) => robot.program = program,
+        }
+    }
+}
+
+fn load_robot(mut buffer: &[u8]) -> Result<Robot, ()> {
+    let mut robot = Robot::default();
+    loop {
+        let (prop, tmp_buffer) = next_prop(buffer, RobotProp::read).unwrap();
+        match prop {
+            Some(prop) => {
+                println!("{:?}", prop);
+                prop.apply(&mut robot);
+            }
+            None => break,
+        }
+        buffer = tmp_buffer;
+    }
+    
+    Ok(robot)
+}
+
+#[derive(Debug)]
+enum BoardProp {
+    Name(ByteString),
+    Width(u16),
+    Height(u16),
+    Overlay(u8),
+    Robots(u8),
+    /*Scrolls(u8),
+    Sensors(u8),
+    FileVersion(u16),
+    Mod(ByteString),*/
+    ViewX(u8),
+    ViewY(u8),
+    ViewW(u8),
+    ViewH(u8),
+    /*Shoot(bool),
+    Bomb(bool),
+    BurnBrown(bool),
+    BurnSpace(bool),
+    BurnFake(bool),
+    BurnTree(bool),
+    ExplosionsLeave(u8),
+    SaveMode(u8),
+    ForestFloor(bool),
+    CollectBombs(bool),
+    BurnForever(bool),
+    North(u8),
+    South(u8),
+    East(u8),
+    West(u8),
+    RestardOnZap(bool),
+    TimeLimit(u16),
+    LockedNS(bool),
+    LockedEW(bool),
+    AttackLocked(bool),
+    ResetOnEntry(bool),
+    Charset(ByteString),
+    Palette(ByteString),*/
+}
+
+impl BoardProp {
+    const NAME: u16 = 0x0001;
+    const WIDTH: u16 = 0x0002;
+    const HEIGHT: u16 = 0x0003;
+    const OVERLAY: u16 = 0x0004;
+    const ROBOT_COUNT: u16 = 0x0005;
+    const VIEWPORT_X: u16 = 0x0011;
+    const VIEWPORT_Y: u16 = 0x0012;
+    const VIEWPORT_W: u16 = 0x0013;
+    const VIEWPORT_H: u16 = 0x0014;
+
+    fn read(id: u16, buffer: &[u8]) -> Result<BoardProp, ()> {
+        Ok(match id {
+            BoardProp::NAME =>
+                BoardProp::Name(get_null_terminated_string(buffer, LEGACY_BOARD_NAME_SIZE).0),
+            BoardProp::WIDTH => BoardProp::Width(get_word(buffer).0),
+            BoardProp::HEIGHT => BoardProp::Height(get_word(buffer).0),
+            BoardProp::OVERLAY => BoardProp::Overlay(get_byte(buffer).0),
+            BoardProp::ROBOT_COUNT => BoardProp::Robots(get_byte(buffer).0),
+            BoardProp::VIEWPORT_X => BoardProp::ViewX(get_byte(buffer).0),
+            BoardProp::VIEWPORT_Y => BoardProp::ViewY(get_byte(buffer).0),
+            BoardProp::VIEWPORT_W => BoardProp::ViewW(get_byte(buffer).0),
+            BoardProp::VIEWPORT_H => BoardProp::ViewH(get_byte(buffer).0),
+            _ => return Err(()),
+        })
+    }
+
+    fn apply(self, world: &mut World, board: &mut Board) {
+        match self {
+            BoardProp::Name(name) => board.title = name,
+            BoardProp::Width(w) => board.width = w as usize,
+            BoardProp::Height(h) => board.height = h as usize,
+            BoardProp::Overlay(mode) => if mode != 0 {
+                board.overlay = Some((OverlayMode::from_byte(mode).unwrap(), vec![]));
+            },
+            BoardProp::Robots(count) => {
+                board.robot_range = (world.all_robots.len(), count as usize);
+                world.all_robots.resize_with(world.all_robots.len() + count as usize, Default::default);
+            }
+            BoardProp::ViewX(x) => board.upper_left_viewport.0 = x,
+            BoardProp::ViewY(y) => board.upper_left_viewport.1 = y,
+            BoardProp::ViewW(w) => board.viewport_size.0 = w,
+            BoardProp::ViewH(h) => board.viewport_size.1 = h,
+        }
+    }
+}
+
+fn load_board(mut buffer: &[u8], world: &mut World) -> Result<Board, ()> {
+    let mut board = Board::default();
+    loop {
+        let (prop, tmp_buffer) = next_prop(buffer, BoardProp::read).unwrap();
+        match prop {
+            Some(prop) => {
+                println!("{:?}", prop);
+                prop.apply(world, &mut board);
+            }
+            None => break,
+        }
+        buffer = tmp_buffer;
+    }
+    
+    Ok(board)
+}

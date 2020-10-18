@@ -15,6 +15,7 @@ mod expression;
 mod render;
 pub mod robot;
 mod robotic;
+mod world;
 
 use self::expression::{CounterContextExt, CounterContextMutExt};
 pub use self::render::{draw_messagebox, render, MessageBoxLine, Renderer};
@@ -35,9 +36,9 @@ use std::fmt;
 use std::ops::Deref;
 use std::str;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct BoardId(pub u8);
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct ColorValue(pub u8);
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct ParamValue(pub u8);
@@ -48,6 +49,7 @@ pub struct Size<T>(pub T, pub T);
 
 const LEGACY_WORLD_VERSION: u32 = 0x0254;
 
+#[derive(Default)]
 pub struct World {
     pub version: u32,
     pub title: ByteString,
@@ -87,6 +89,29 @@ pub struct WorldState {
     pub keys: u32,
     pub ammo: i32,
     pub update_done: Vec<bool>, // FIXME: this belongs in mzxplay, not libmzx
+}
+
+impl Default for WorldState {
+    fn default() -> WorldState {
+        WorldState {
+            charset: Default::default(),
+            initial_charset: Default::default(),
+            palette: Default::default(),
+            initial_palette: Default::default(),
+            idchars: vec![0; 455].into_boxed_slice(),
+            saved_positions: [(0, Coordinate(0, 0)); 10],
+            scroll_locked: false,
+            message_edge: true,
+            message_color: 0,
+            player_face_dir: 1,
+            key_pressed: 0,
+            health: 100,
+            lives: 3,
+            keys: 0,
+            ammo: 0,
+            update_done: vec![],
+        }
+    }
 }
 
 impl WorldState {
@@ -129,7 +154,6 @@ impl WorldState {
     }
 }
 
-#[derive(Default)]
 pub struct Board {
     pub title: ByteString,
     pub width: usize,
@@ -171,6 +195,48 @@ pub struct Board {
     pub player_locked_ns: bool,
     pub player_locked_ew: bool,
     pub player_locked_attack: bool,
+}
+
+impl Default for Board {
+    fn default() -> Board {
+        Board {
+            title: ByteString::from(""),
+            width: 0,
+            height: 0,
+            overlay: None,
+            level: vec![],
+            under: vec![],
+            mod_file: String::new(),
+            upper_left_viewport: Coordinate(0, 0),
+            viewport_size: Size(0, 0),
+            can_shoot: false,
+            can_bomb: false,
+            fire_burns_brown: false,
+            fire_burns_space: false,
+            fire_burns_fakes: false,
+            fire_burns_trees: false,
+            explosion_result: ExplosionResult::Nothing,
+            forest_becomes_floor: false,
+            save_restriction: SaveRestriction::Unrestricted,
+            collect_bombs: false,
+            fire_burns_forever: false,
+            exits: (None, None, None, None),
+            restart_when_zapped: false,
+            time_limit: 0,
+            scrolls: vec![],
+            sensors: vec![],
+            player_pos: Coordinate(0, 0),
+            scroll_offset: Coordinate(0, 0),
+            message_line: ByteString::from(""),
+            message_row: 24,
+            message_col: None,
+            remaining_message_cycles: 0,
+            robot_range: (0, 0),
+            player_locked_ns: false,
+            player_locked_ew: false,
+            player_locked_attack: false,
+        }
+    }
 }
 
 impl Board {
@@ -1079,6 +1145,12 @@ pub enum CardinalDirection {
     West = 4,
 }
 
+impl Default for CardinalDirection {
+    fn default() -> CardinalDirection {
+        CardinalDirection::North
+    }
+}
+
 #[derive(Copy, Clone, Debug, Primitive, PartialEq)]
 pub enum CharId {
     Space = 0,
@@ -1594,6 +1666,17 @@ pub enum OverlayMode {
     Transparent,
 }
 
+impl OverlayMode {
+    pub(crate) fn from_byte(b: u8) -> Result<OverlayMode, ()> {
+        Ok(match b {
+            1 => OverlayMode::Normal,
+            2 => OverlayMode::Static,
+            3 => OverlayMode::Transparent,
+            _ => return Err(()),
+        })
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum ExplosionResult {
     Nothing,
@@ -1640,11 +1723,19 @@ impl Default for SaveRestriction {
 }
 
 pub const CHAR_BYTES: usize = 14;
-const CHARSET_BUFFER_SIZE: usize = CHAR_BYTES * 256;
+pub(crate) const CHARSET_BUFFER_SIZE: usize = CHAR_BYTES * 256;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Charset {
     pub data: [u8; CHARSET_BUFFER_SIZE],
+}
+
+impl Default for Charset {
+    fn default() -> Charset {
+        Charset {
+            data: [0; CHARSET_BUFFER_SIZE],
+        }
+    }
 }
 
 impl Charset {
@@ -1659,16 +1750,36 @@ impl Charset {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
     pub b: u8,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Palette {
     pub colors: Vec<(Color, f32)>,
+}
+
+pub(crate) fn load_palette(palette_color_data: &[u8]) -> Palette {
+    let mut colors = vec![];
+    for rgb in palette_color_data.chunks(3) {
+        assert!(rgb.iter().all(|&b| b < 64u8));
+        colors.push((
+            Color {
+                r: rgb[0],
+                g: rgb[1],
+                b: rgb[2],
+            },
+            1.0,
+        ));
+    }
+    println!("{:?}", colors);
+    assert_eq!(colors.len(), 16);
+    Palette {
+        colors,
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -1704,6 +1815,34 @@ pub struct Robot {
     pub status: RunStatus,
     pub local: [i32; 32],
     stack: Vec<u16>,
+}
+
+impl Default for Robot {
+    fn default() -> Robot {
+        Robot {
+            name: ByteString::from(""),
+            ch: 0,
+            current_line: 0,
+            current_loc: 0,
+            cycle: 0,
+            cycle_count: 0,
+            bullet_type: 0,
+            locked: false,
+            lavawalking: 0,
+            walk: None,
+            last_touched: None,
+            last_shot: None,
+            position: Coordinate(0, 0),
+            reserved: [0; 3],
+            onscreen: true,
+            loop_count: 0,
+            program: vec![],
+            alive: true,
+            status: RunStatus::NotRun,
+            local: [0; 32],
+            stack: vec![],
+        }
+    }
 }
 
 impl Robot {
@@ -1897,6 +2036,12 @@ pub enum RunStatus {
     FinishedRunning,
 }
 
+impl Default for RunStatus {
+    fn default() -> RunStatus {
+        RunStatus::NotRun
+    }
+}
+
 #[derive(Debug)]
 pub enum WorldError {
     Protected,
@@ -2033,7 +2178,7 @@ fn decode_runs(buffer: &[u8]) -> (Vec<u8>, &[u8], usize, usize) {
 fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
     let (program_length, buffer) = get_word(buffer);
     let (_, buffer) = get_word(buffer);
-    let (name, buffer) = get_null_terminated_string(buffer, 15);
+    let (name, buffer) = get_null_terminated_string(buffer, LEGACY_ROBOT_NAME_SIZE);
     debug!("loading robot {:?}", name);
     let (ch, buffer) = get_byte(buffer);
     let (current_line, buffer) = get_word(buffer);
@@ -2134,12 +2279,8 @@ fn load_board(
 
     let overlay = if buffer[0] == 0 {
         let (overlay_mode, new_buffer) = get_byte(&buffer[1..]);
-        let overlay_mode = match overlay_mode {
-            1 => OverlayMode::Normal,
-            2 => OverlayMode::Static,
-            3 => OverlayMode::Transparent,
-            c => return Err(BoardError::UnknownOverlayMode(c)),
-        };
+        let overlay_mode = OverlayMode::from_byte(overlay_mode)
+            .map_err(|_| BoardError::UnknownOverlayMode(overlay_mode))?;
         let (chars, new_buffer, w, h) = decode_runs(new_buffer);
         let (colors, new_buffer, w2, h2) = decode_runs(new_buffer);
         assert_eq!(w, w2);
@@ -2332,6 +2473,7 @@ static MAGIC_CODE: &[u8; MAX_PASSWORD_LENGTH] =
 const WORLD_BLOCK_1_SIZE: usize = 4129;
 const WORLD_BLOCK_2_SIZE: usize = 72;
 const LEGACY_BOARD_NAME_SIZE: usize = 25;
+const LEGACY_ROBOT_NAME_SIZE: usize = 15;
 
 fn decrypt_block(buffer: &[u8], block_len: usize, xor_val: u8) -> (Vec<u8>, &[u8]) {
     let (buffer, rest) = buffer.split_at(block_len);
@@ -2486,7 +2628,8 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
     };
 
     if version > LEGACY_WORLD_VERSION {
-        return Err(WorldError::TooNewVersion);
+        //return Err(WorldError::TooNewVersion);
+        return world::load_zip_world(original_buffer);
     }
 
     let (charset_data, buffer) = buffer.split_at(14 * 256);
@@ -2520,19 +2663,7 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
     let (only_play_via_swap_world, buffer) = get_bool(buffer);
 
     let (palette_color_data, buffer) = buffer.split_at(16 * 3);
-    let mut colors = vec![];
-    for rgb in palette_color_data.chunks(3) {
-        assert!(rgb.iter().all(|&b| b < 64u8));
-        colors.push((
-            Color {
-                r: rgb[0],
-                g: rgb[1],
-                b: rgb[2],
-            },
-            1.0,
-        ));
-    }
-    assert_eq!(colors.len(), 16);
+    let palette = load_palette(palette_color_data);
 
     let (global_robot_pos, buffer) = get_dword(buffer);
     let (global_robot, _) = load_robot(&original_buffer[global_robot_pos as usize..]);
@@ -2592,10 +2723,8 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
         state: WorldState {
             charset: charset.clone(),
             initial_charset: charset,
-            palette: Palette {
-                colors: colors.clone(),
-            },
-            initial_palette: Palette { colors: colors },
+            palette: palette.clone(),
+            initial_palette: palette,
             idchars: idchars.to_vec().into_boxed_slice(),
             saved_positions: [(0, Coordinate(0, 0)); 10],
             scroll_locked: false,

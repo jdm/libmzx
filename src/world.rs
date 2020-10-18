@@ -1,6 +1,6 @@
 use crate::{
     CHARSET_BUFFER_SIZE, LEGACY_BOARD_NAME_SIZE, LEGACY_ROBOT_NAME_SIZE,
-    Board, BoardId, ByteString, OverlayMode, Robot, World, WorldError,
+    Board, BoardId, ByteString, ColorValue, OverlayMode, Robot, World, WorldError,
     get_byte, get_word, get_dword, get_null_terminated_string, load_palette,
 };
 use crate::robotic::{Command, parse_program};
@@ -164,10 +164,10 @@ enum WorldProp {
     /*IdMissileColor(u8),
     IdBulletColors([u8; 3]),*/
     IdBlock2([u8; 128]),
-    /*StatusCounters([ByteString; 6]),
+    /*StatusCounters([ByteString; 6]),*/
     EdgeColor(u8),
     FirstBoard(u8),
-    EndgameBoard(u8),
+    /*EndgameBoard(u8),
     DeathBoard(u8),
     EndgameTeleportX(u16),
     EndgameTeleportY(u16),
@@ -195,10 +195,10 @@ impl WorldProp {
     /*const CHAR_ID_MISSILE: u16 = 0x0011;
     const CHAR_ID_BULLETS: u16 = 0x0012;*/
     const CHAR_ID_BLOCK_3: u16 = 0x0013;
-    /*const STATUS_COUNTERS: u16 = 0x0018;
+    /*const STATUS_COUNTERS: u16 = 0x0018;*/
     const EDGE_COLOR: u16 = 0x0020;
     const FIRST_BOARD: u16 = 0x0021;
-    const ENDGAME_BOARD: u16 = 0x0022;
+    /*const ENDGAME_BOARD: u16 = 0x0022;
     const DEATH_BOARD: u16 = 0x0023;*/
 }
 
@@ -241,6 +241,8 @@ impl WorldProp {
                 block.copy_from_slice(buffer);
                 WorldProp::IdBlock2(block)
             }
+            WorldProp::EDGE_COLOR => WorldProp::EdgeColor(get_byte(buffer).0),
+            WorldProp::FIRST_BOARD => WorldProp::FirstBoard(get_byte(buffer).0),
             _ => return Err(()),
         })
     }
@@ -257,6 +259,8 @@ impl WorldProp {
                 let end = world.state.idchars.len();
                 world.state.idchars[start..end].copy_from_slice(&block)
             }
+            WorldProp::EdgeColor(c) => world.edge_border = ColorValue(c),
+            WorldProp::FirstBoard(b) => world.starting_board_number = BoardId(b),
             //_ => unimplemented!(),
         }
     }

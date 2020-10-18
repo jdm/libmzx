@@ -1,7 +1,7 @@
 use crate::{
     CHARSET_BUFFER_SIZE, LEGACY_BOARD_NAME_SIZE, LEGACY_ROBOT_NAME_SIZE,
     Board, BoardId, ByteString, ColorValue, OverlayMode, Robot, World, WorldError,
-    get_byte, get_word, get_dword, get_null_terminated_string, load_palette,
+    get_bool, get_byte, get_word, get_dword, get_null_terminated_string, load_palette,
 };
 use crate::robotic::{Command, parse_program};
 use itertools::Zip;
@@ -348,14 +348,14 @@ enum BoardProp {
     Robots(u8),
     /*Scrolls(u8),
     Sensors(u8),
-    FileVersion(u16),
-    Mod(ByteString),*/
+    FileVersion(u16),*/
+    Mod(ByteString),
     ViewX(u8),
     ViewY(u8),
     ViewW(u8),
     ViewH(u8),
-    /*Shoot(bool),
-    Bomb(bool),
+    Shoot(bool),
+    /*Bomb(bool),
     BurnBrown(bool),
     BurnSpace(bool),
     BurnFake(bool),
@@ -385,10 +385,12 @@ impl BoardProp {
     const HEIGHT: u16 = 0x0003;
     const OVERLAY: u16 = 0x0004;
     const ROBOT_COUNT: u16 = 0x0005;
+    const MOD: u16 = 0x0010;
     const VIEWPORT_X: u16 = 0x0011;
     const VIEWPORT_Y: u16 = 0x0012;
     const VIEWPORT_W: u16 = 0x0013;
     const VIEWPORT_H: u16 = 0x0014;
+    const CAN_SHOOT: u16 = 0x0015;
     const NORTH: u16 = 0x0020;
     const SOUTH: u16 = 0x0021;
     const EAST: u16 = 0x0022;
@@ -402,10 +404,12 @@ impl BoardProp {
             BoardProp::HEIGHT => BoardProp::Height(get_word(buffer).0),
             BoardProp::OVERLAY => BoardProp::Overlay(get_byte(buffer).0),
             BoardProp::ROBOT_COUNT => BoardProp::Robots(get_byte(buffer).0),
+            BoardProp::MOD => BoardProp::Mod(ByteString::from(buffer)),
             BoardProp::VIEWPORT_X => BoardProp::ViewX(get_byte(buffer).0),
             BoardProp::VIEWPORT_Y => BoardProp::ViewY(get_byte(buffer).0),
             BoardProp::VIEWPORT_W => BoardProp::ViewW(get_byte(buffer).0),
             BoardProp::VIEWPORT_H => BoardProp::ViewH(get_byte(buffer).0),
+            BoardProp::CAN_SHOOT => BoardProp::Shoot(get_bool(buffer).0),
             BoardProp::NORTH => BoardProp::North(BoardId(get_byte(buffer).0)),
             BoardProp::SOUTH => BoardProp::South(BoardId(get_byte(buffer).0)),
             BoardProp::EAST => BoardProp::East(BoardId(get_byte(buffer).0)),
@@ -426,10 +430,12 @@ impl BoardProp {
                 board.robot_range = (world.all_robots.len(), count as usize);
                 world.all_robots.resize_with(world.all_robots.len() + count as usize, Default::default);
             }
+            BoardProp::Mod(file) => board.mod_file = file.into_string(),
             BoardProp::ViewX(x) => board.upper_left_viewport.0 = x,
             BoardProp::ViewY(y) => board.upper_left_viewport.1 = y,
             BoardProp::ViewW(w) => board.viewport_size.0 = w,
             BoardProp::ViewH(h) => board.viewport_size.1 = h,
+            BoardProp::Shoot(b) => board.can_shoot = b,
             BoardProp::North(b) => board.exits.0 = Some(b),
             BoardProp::South(b) => board.exits.1 = Some(b),
             BoardProp::East(b) => board.exits.2 = Some(b),

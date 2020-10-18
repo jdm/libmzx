@@ -1,6 +1,6 @@
 use crate::{
     CHARSET_BUFFER_SIZE, LEGACY_BOARD_NAME_SIZE, LEGACY_ROBOT_NAME_SIZE,
-    Board, ByteString, OverlayMode, Robot, World, WorldError,
+    Board, BoardId, ByteString, OverlayMode, Robot, World, WorldError,
     get_byte, get_word, get_dword, get_null_terminated_string, load_palette,
 };
 use crate::robotic::{Command, parse_program};
@@ -360,12 +360,12 @@ enum BoardProp {
     SaveMode(u8),
     ForestFloor(bool),
     CollectBombs(bool),
-    BurnForever(bool),
-    North(u8),
-    South(u8),
-    East(u8),
-    West(u8),
-    RestardOnZap(bool),
+    BurnForever(bool),*/
+    North(BoardId),
+    South(BoardId),
+    East(BoardId),
+    West(BoardId),
+    /*RestardOnZap(bool),
     TimeLimit(u16),
     LockedNS(bool),
     LockedEW(bool),
@@ -385,6 +385,10 @@ impl BoardProp {
     const VIEWPORT_Y: u16 = 0x0012;
     const VIEWPORT_W: u16 = 0x0013;
     const VIEWPORT_H: u16 = 0x0014;
+    const NORTH: u16 = 0x0020;
+    const SOUTH: u16 = 0x0021;
+    const EAST: u16 = 0x0022;
+    const WEST: u16 = 0x0023;
 
     fn read(id: u16, buffer: &[u8]) -> Result<BoardProp, ()> {
         Ok(match id {
@@ -398,7 +402,11 @@ impl BoardProp {
             BoardProp::VIEWPORT_Y => BoardProp::ViewY(get_byte(buffer).0),
             BoardProp::VIEWPORT_W => BoardProp::ViewW(get_byte(buffer).0),
             BoardProp::VIEWPORT_H => BoardProp::ViewH(get_byte(buffer).0),
-            _ => return Err(()),
+            BoardProp::NORTH => BoardProp::North(BoardId(get_byte(buffer).0)),
+            BoardProp::SOUTH => BoardProp::South(BoardId(get_byte(buffer).0)),
+            BoardProp::EAST => BoardProp::East(BoardId(get_byte(buffer).0)),
+            BoardProp::WEST => BoardProp::West(BoardId(get_byte(buffer).0)),
+          _ => return Err(()),
         })
     }
 
@@ -418,6 +426,10 @@ impl BoardProp {
             BoardProp::ViewY(y) => board.upper_left_viewport.1 = y,
             BoardProp::ViewW(w) => board.viewport_size.0 = w,
             BoardProp::ViewH(h) => board.viewport_size.1 = h,
+            BoardProp::North(b) => board.exits.0 = Some(b),
+            BoardProp::South(b) => board.exits.1 = Some(b),
+            BoardProp::East(b) => board.exits.2 = Some(b),
+            BoardProp::West(b) => board.exits.3 = Some(b),
         }
     }
 }

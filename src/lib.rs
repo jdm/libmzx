@@ -1775,7 +1775,6 @@ pub(crate) fn load_palette(palette_color_data: &[u8]) -> Palette {
             1.0,
         ));
     }
-    println!("{:?}", colors);
     assert_eq!(colors.len(), 16);
     Palette {
         colors,
@@ -2483,12 +2482,13 @@ fn decrypt_block(buffer: &[u8], block_len: usize, xor_val: u8) -> (Vec<u8>, &[u8
 }
 
 fn decrypt_and_fix_offset(buffer: &[u8], xor_d: i32) -> (Vec<u8>, &[u8]) {
-    let (mut offset, buffer) = get_dword(buffer);
-    assert!(offset as i32 != -1);
-    offset ^= xor_d as u32;
-    offset -= MAX_PASSWORD_LENGTH as u32;
+    let (offset, buffer) = get_dword(buffer);
+    let mut offset = offset as i32;
+    assert!(offset != -1);
+    offset ^= xor_d;
+    offset -= MAX_PASSWORD_LENGTH as i32;
     let mut bytes = vec![0; 4];
-    LittleEndian::write_u32(&mut bytes[..], offset);
+    LittleEndian::write_i32(&mut bytes[..], offset);
     (bytes, buffer)
 }
 

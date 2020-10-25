@@ -1606,19 +1606,30 @@ fn run_one_command(
             let blocked = blocked.as_ref().map(|b| b.eval(counters, context));
             let new_pos = dir_to_cardinal_dir(robot, dir)
                 .and_then(|dir| adjust_coordinate(board.player_pos, board, dir));
+            let mut is_blocked = new_pos.is_none();
             if let Some(new_pos) = new_pos {
-                let player_pos = board.player_pos;
-                move_level_to(
-                    board,
-                    robots.robots,
-                    &player_pos,
-                    &new_pos,
-                    &mut *state.update_done,
-                );
-                board.player_pos = new_pos;
-            } else if let Some(blocked) = blocked {
-                if jump_robot_to_label(robot, blocked) {
-                    return CommandResult::NoAdvance;
+                // FIXME: handle pushable by pushing
+                let thing = board.thing_at(&new_pos);
+                if thing.is_solid() {
+                    is_blocked = true;
+                } else {
+                    let player_pos = board.player_pos;
+                    move_level_to(
+                        board,
+                        robots.robots,
+                        &player_pos,
+                        &new_pos,
+                        &mut *state.update_done,
+                    );
+                    board.player_pos = new_pos;
+                }
+            }
+            if is_blocked {
+                if let Some(blocked) = blocked {
+                    let robot = robots.get_mut(robot_id);
+                    if jump_robot_to_label(robot, blocked) {
+                        return CommandResult::NoAdvance;
+                    }
                 }
             }
         }

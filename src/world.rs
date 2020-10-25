@@ -20,10 +20,10 @@ impl PropFile {
     fn to_string(&self) -> String {
         match self {
             PropFile::World => "world".to_owned(),
-            PropFile::Board(bid) => format!("b{:02x}", bid),
-            PropFile::BoardRobot(bid, rid) => format!("b{:02x}r{:02x}", bid, rid),
-            /*PropFile::BoardScroll(bid, sid) => format!("b{:02x}sc{:02x}", bid, sid),
-            PropFile::BoardSensor(bid, sid) => format!("b{:02x}se{:02x}", bid, sid),*/
+            PropFile::Board(bid) => format!("b{:02X}", bid),
+            PropFile::BoardRobot(bid, rid) => format!("b{:02X}r{:02X}", bid, rid),
+            /*PropFile::BoardScroll(bid, sid) => format!("b{:02x}sc{:02X}", bid, sid),
+            PropFile::BoardSensor(bid, sid) => format!("b{:02x}se{:02X}", bid, sid),*/
         }
     }
 }
@@ -63,10 +63,10 @@ impl WorldFile {
             /*WorldFile::CustomSfx => "sfx".to_owned(),*/
             WorldFile::CharSets => "chars".to_owned(),
             WorldFile::Palette => "pal".to_owned(),
-            WorldFile::BoardLevel(bid, plane) => format!("b{:02x}b{}", bid, plane.as_str()),
-            WorldFile::BoardUnder(bid, plane) => format!("b{:02x}u{}", bid, plane.as_str()),
-            WorldFile::BoardOverlayChar(bid) => format!("b{:02x}och", bid),
-            WorldFile::BoardOverlayColor(bid) => format!("b{:02x}oco", bid),
+            WorldFile::BoardLevel(bid, plane) => format!("b{:02X}b{}", bid, plane.as_str()),
+            WorldFile::BoardUnder(bid, plane) => format!("b{:02X}u{}", bid, plane.as_str()),
+            WorldFile::BoardOverlayChar(bid) => format!("b{:02X}och", bid),
+            WorldFile::BoardOverlayColor(bid) => format!("b{:02X}oco", bid),
             WorldFile::Properties(file) => file.to_string(),
         }
     }

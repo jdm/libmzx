@@ -177,7 +177,8 @@ pub fn render<R: Renderer>(
     }
 
     const WINDOW_SIZE: usize = 80;
-    if board.remaining_message_cycles > 0 {
+    const WINDOW_HEIGHT: u8 = 25;
+    if board.remaining_message_cycles > 0 && board.message_row < WINDOW_HEIGHT {
         let message_len = board.message_line.text_len() + if w.message_edge { 2 } else { 0 };
         let mut msg_x = board.message_col.unwrap_or_else(|| if message_len < WINDOW_SIZE {
             (WINDOW_SIZE - message_len) / 2
@@ -185,18 +186,17 @@ pub fn render<R: Renderer>(
             0
         } as u8);
 
-        if w.message_edge {
+        if w.message_edge && msg_x > 0 {
             draw_char(
                 b' ',
                 0x00,
                 0x00,
-                msg_x as usize,
+                msg_x as usize - 1,
                 board.message_row as usize,
                 charset,
                 palette,
                 renderer,
             );
-            msg_x += 1;
         }
         for (chars, bg, fg) in board.message_line.color_text() {
             for &c in chars {
@@ -211,9 +211,12 @@ pub fn render<R: Renderer>(
                     renderer,
                 );
                 msg_x += 1;
+                if msg_x >= WINDOW_SIZE as u8 {
+                    break;
+                }
             }
         }
-        if w.message_edge {
+        if w.message_edge && msg_x < WINDOW_SIZE as u8 {
             draw_char(
                 b' ',
                 0x00,

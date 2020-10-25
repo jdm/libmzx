@@ -161,6 +161,7 @@ pub fn update_board(
         board_id,
         Robots::new(board, all_robots),
         RobotId::Global,
+        false,
     );
     if change.is_some() {
         return change;
@@ -194,6 +195,7 @@ pub fn update_board(
                         board_id,
                         robots,
                         RobotId::from(board.level_at(&coord).2),
+                        false,
                     );
                     if change.is_some() {
                         return change;
@@ -400,6 +402,37 @@ pub fn update_board(
                         }
                     } else {
                         board.remove_thing_at(&coord);
+                    }
+                }
+
+                _ => (),
+            }
+        }
+    }
+
+    debug!("updating board in reverse: {},{}", board.width, board.height);
+    for y in (0..board.height).rev() {
+        for x in (0..board.width).rev() {
+            let coord = Coordinate(x as u16, y as u16);
+            match board.thing_at(&coord) {
+                Thing::Robot | Thing::RobotPushable => {
+                    let robots = Robots::new(board, all_robots);
+                    debug!("running robot at {},{}", x, y);
+                    let change = update_robot(
+                        state,
+                        audio,
+                        key,
+                        world_path,
+                        counters,
+                        boards,
+                        board,
+                        board_id,
+                        robots,
+                        RobotId::from(board.level_at(&coord).2),
+                        true,
+                    );
+                    if change.is_some() {
+                        return change;
                     }
                 }
 

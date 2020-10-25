@@ -2033,6 +2033,8 @@ impl Robot {}
 pub enum RunStatus {
     NotRun,
     FinishedRunning,
+    FinishedWithoutRunning,
+    MustRunOnReverse,
 }
 
 impl Default for RunStatus {

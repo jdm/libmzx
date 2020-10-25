@@ -791,16 +791,15 @@ impl Command {
             | Command::CopyRobotNamed(..)
             | Command::CopyRobotXY(..)
             | Command::CopyRobotDir(..)
+            | Command::Cycle(..)
             | Command::Slash(..)
             | Command::Teleport(..)
             | Command::MoveAll(..)
             | Command::Copy(..)
             | Command::CopyDir(..)
-            | Command::CopyBlock(..)
             | Command::ColorFadeIn
             | Command::ColorFadeOut
-            | Command::SwapWorld(..)
-            | Command::CopyOverlayBlock(..) => true,
+            | Command::SwapWorld(..) => true,
             _ => false,
         }
     }

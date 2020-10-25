@@ -335,39 +335,49 @@ pub fn update_robot(
     board_id: usize,
     mut robots: Robots,
     robot_id: RobotId,
+    reverse_scan: bool,
 ) -> Option<GameStateChange> {
     let robot = robots.get_mut(robot_id);
-    if !robot.alive || robot.status == RunStatus::FinishedRunning {
+    if !robot.alive ||
+        matches!(robot.status, RunStatus::FinishedRunning | RunStatus::FinishedWithoutRunning) ||
+        (robot.status == RunStatus::MustRunOnReverse && !reverse_scan)
+    {
         debug!("alive: {}, status: {:?}", robot.alive, robot.status);
         return None;
     }
 
-    robot.cycle_count += 1;
-    if robot.cycle_count < robot.cycle {
-        debug!(
-            "delaying {:?} (cycle {}/{})",
-            robot.name, robot.cycle_count, robot.cycle
-        );
-        return None;
+    if !reverse_scan {
+        robot.cycle_count += 1;
+        if robot.cycle_count < robot.cycle {
+            debug!(
+                "delaying {:?} (cycle {}/{})",
+                robot.name, robot.cycle_count, robot.cycle
+            );
+            robot.status = RunStatus::FinishedWithoutRunning;
+            return None;
+        }
+
+        if let Some(dir) = robot.walk {
+            move_robot(
+                &mut robots,
+                robot_id,
+                board,
+                dir,
+                &mut *state.update_done,
+                false,
+            );
+        }
     }
+
+    let robot = robots.get_mut(robot_id);
     robot.cycle_count = 0;
 
     debug!("executing {:?}", robot.name);
 
-    if let Some(dir) = robot.walk {
-        move_robot(
-            &mut robots,
-            robot_id,
-            board,
-            dir,
-            &mut *state.update_done,
-            false,
-        );
-    }
-
     let mut lines_run = 0;
     let mut mode = Relative::None;
     let mut message_box_lines = vec![];
+    let mut first_cmd = true;
 
     const CYCLES: u8 = 40;
     let state_change = loop {
@@ -448,6 +458,9 @@ pub fn update_robot(
             }
             CommandResult::NoAdvance => {
                 if cmd.is_cycle_ending() {
+                    if matches!(cmd, Command::End | Command::Wait(..)) && first_cmd {
+                        robots.get_mut(robot_id).status = RunStatus::FinishedWithoutRunning;
+                    }
                     break None;
                 }
             }
@@ -456,9 +469,14 @@ pub fn update_robot(
                 break None;
             }
         }
+
+        first_cmd = false;
     };
 
-    robots.get_mut(robot_id).status = RunStatus::FinishedRunning;
+    let robot = robots.get_mut(robot_id);
+    if robot.status == RunStatus::NotRun {
+        robot.status = RunStatus::FinishedRunning;
+    }
 
     state_change
 }
@@ -1873,6 +1891,9 @@ pub fn jump_robot_to_label<S: Into<EvaluatedByteString>>(robot: &mut Robot, labe
             debug!("jumping to previous stack position");
             robot.current_loc = 0;
             robot.current_line = line;
+            if robot.status == RunStatus::FinishedWithoutRunning {
+                robot.status = RunStatus::MustRunOnReverse;
+            }
             return true;
         }
     }
@@ -1888,6 +1909,9 @@ pub fn jump_robot_to_label<S: Into<EvaluatedByteString>>(robot: &mut Robot, labe
         }
         robot.current_loc = 0;
         robot.current_line = pos as u16 + 1;
+        if robot.status == RunStatus::FinishedWithoutRunning {
+            robot.status = RunStatus::MustRunOnReverse;
+        }
         true
     } else {
         false

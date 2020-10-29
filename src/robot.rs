@@ -1228,7 +1228,7 @@ fn run_one_command(
                 let adjusted = adjust_coordinate(source_pos, board, dir);
                 if let Some(coord) = adjusted {
                     let thing = board.thing_at(&coord);
-                    if thing == Thing::Robot || thing == Thing::RobotPushable {
+                    if thing.is_robot() {
                         let dest_robot_id = RobotId::from(board.level_at(&coord).2);
                         let context = CounterContext::from(board, robot, state);
                         let l = l.eval(counters, context);

@@ -1528,6 +1528,7 @@ fn run_one_command(
             let source_id = robots.find(&name);
             if let Some(source_id) = source_id {
                 copy_robot(source_id, robot_id, robots, board);
+                return CommandResult::NoAdvance;
             }
         }
 

@@ -1846,7 +1846,8 @@ impl Default for Robot {
 
 impl Robot {
     pub fn copy_from(source: &Robot, pos: Coordinate<u16>) -> Robot {
-        // FIXME: check if a robot is in END state when cloned
+        // FIXME: if source robot is in end state, new robot should
+        //        also not run, even if initial program command isn't end.
         Robot {
             name: source.name.clone(),
             ch: source.ch,
@@ -1854,9 +1855,9 @@ impl Robot {
             current_loc: 0,
             cycle: 0,
             cycle_count: 0,
-            bullet_type: BulletType::Neutral as i32,
-            locked: false,
-            lavawalking: 0,
+            bullet_type: source.bullet_type,
+            locked: source.locked,
+            lavawalking: source.lavawalking,
             walk: None,
             last_touched: None,
             last_shot: None,
@@ -1866,8 +1867,8 @@ impl Robot {
             loop_count: 0,
             program: source.program.clone(),
             alive: true,
-            status: RunStatus::NotRun,
-            local: [0; 32],
+            status: RunStatus::FinishedRunning,
+            local: source.local.clone(),
             stack: vec![], // FIXME: check if copying copies stack
         }
     }

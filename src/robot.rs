@@ -1522,6 +1522,20 @@ fn run_one_command(
             }
         }
 
+        Command::CopyRobotDir(ref d) => {
+            let robot = robots.get(robot_id);
+            let basis = RelativeDirBasis::from_robot(robot);
+            if let Some(dir) = dir_to_cardinal_dir_rel(basis, d) {
+                let adjusted = adjust_coordinate(robot.position, board, dir);
+                if let Some(pos) = adjusted {
+                    let &(thing, _color, param) = board.level_at(&pos);
+                    if Thing::from_u8(thing).unwrap().is_robot() {
+                        copy_robot(RobotId::from(param), robot_id, robots, board);
+                    }
+                }
+            }
+        }
+
         Command::CopyRobotNamed(ref name) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let name = name.evaluate_for_name(counters, &context);

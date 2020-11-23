@@ -1526,6 +1526,18 @@ fn run_one_command(
             }
         }
 
+        Command::DuplicateSelfXY(ref x, ref y) => {
+            let context = CounterContext::from(board, robots.get(robot_id), state);
+            let pos = mode.resolve_xy(x, y, counters, context, RelativePart::First);
+
+            if pos != board.player_pos {
+                let new_id = robots.duplicate_self(robot_id, pos).to_param().unwrap();
+                let robot = robots.get(robot_id);
+                let &(thing, color, _param) = board.level_at(&robot.position);
+                put_at(board, &pos, color, Thing::from_u8(thing).unwrap(), new_id, &mut *state.update_done);
+            }
+        }
+
         Command::CopyRobotXY(ref x, ref y) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let pos = mode.resolve_xy(x, y, counters, context, RelativePart::First);

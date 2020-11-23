@@ -101,7 +101,7 @@ fn move_robot(
 }
 
 fn move_robot_to(
-    all_robots: &mut [Robot],
+    robots: &mut Robots,
     robot_id: RobotId,
     board: &mut Board,
     pos: Coordinate<u16>,
@@ -272,51 +272,66 @@ impl RobotId {
     fn is_global(&self) -> bool {
         *self == RobotId::Global
     }
+
+    fn to_param(&self) -> Result<u8, ()> {
+        match self {
+            RobotId::Board(p) => Ok((p + 1) as u8),
+            RobotId::Global => Err(())
+        }
+    }
 }
 
 pub struct Robots<'a> {
-    robots_start: usize,
-    num_robots: usize,
-    robots: &'a mut [Robot],
+    global_robot: &'a mut Robot,
+    robots: &'a mut Vec<Robot>,
 }
 
 impl<'a> Robots<'a> {
-    pub fn new(board: &Board, robots: &'a mut [Robot]) -> Robots<'a> {
+    pub fn new(robots: &'a mut Vec<Robot>, global: &'a mut Robot) -> Robots<'a> {
         Robots {
-            robots_start: board.robot_range.0,
-            num_robots: board.robot_range.1,
-            robots,
+            robots: robots,
+            global_robot: global,
         }
     }
 
+    fn duplicate_self(&mut self, source: RobotId, pos: Coordinate<u16>) -> RobotId {
+        let robot = Robot::copy_from(self.get(source), pos);
+        let id = if let Some(index) = self.robots.iter_mut().position(|r| !r.alive) {
+            self.robots[index] = robot;
+            index
+        } else {
+            self.robots.push(robot);
+            self.robots.len() - 1
+        };
+        RobotId::Board(id)
+    }
+
     pub fn foreach<F: FnMut(&mut Robot, RobotId)>(&mut self, mut f: F) {
-        f(&mut self.robots[0], RobotId::Global);
-        let end = self.robots_start + self.num_robots;
-        for (idx, robot) in self.robots[self.robots_start..end].iter_mut().enumerate() {
+        f(&mut self.global_robot, RobotId::Global);
+        for (idx, robot) in self.robots.iter_mut().enumerate() {
             f(robot, RobotId::Board(idx));
         }
     }
 
     pub fn get(&self, id: RobotId) -> &Robot {
         match id {
-            RobotId::Board(id) => &self.robots[self.robots_start + id],
-            RobotId::Global => &self.robots[0],
+            RobotId::Board(id) => &self.robots[id],
+            RobotId::Global => &self.global_robot,
         }
     }
 
     pub fn get_mut(&mut self, id: RobotId) -> &mut Robot {
         match id {
-            RobotId::Board(id) => &mut self.robots[self.robots_start + id],
-            RobotId::Global => &mut self.robots[0],
+            RobotId::Board(id) => &mut self.robots[id],
+            RobotId::Global => &mut self.global_robot,
         }
     }
 
     pub fn find(&self, name: &ByteString) -> Option<RobotId> {
-        if &self.robots[0].name == name {
+        if &self.global_robot.name == name {
             return Some(RobotId::Global);
         }
-        let robots = &self.robots[self.robots_start..self.robots_start + self.num_robots];
-        robots
+        self.robots
             .iter()
             .position(|r| &r.name == name)
             .map(RobotId::Board)

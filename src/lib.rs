@@ -54,8 +54,8 @@ pub struct World {
     pub version: u32,
     pub title: ByteString,
     pub state: WorldState,
-    pub boards: Vec<Board>,
-    pub all_robots: Vec<Robot>,
+    pub boards: Vec<(Board, Vec<Robot>)>,
+    pub global_robot: Robot,
     pub edge_border: ColorValue,
     pub starting_board_number: BoardId,
     pub end_game_board: BoardId,
@@ -191,10 +191,10 @@ pub struct Board {
     pub message_row: u8,
     pub message_col: Option<u8>,
     pub remaining_message_cycles: u8,
-    pub robot_range: (usize, usize),
     pub player_locked_ns: bool,
     pub player_locked_ew: bool,
     pub player_locked_attack: bool,
+    pub num_robots: usize,
 }
 
 impl Default for Board {
@@ -231,10 +231,10 @@ impl Default for Board {
             message_row: 24,
             message_col: None,
             remaining_message_cycles: 0,
-            robot_range: (0, 0),
             player_locked_ns: false,
             player_locked_ew: false,
             player_locked_attack: false,
+            num_robots: 0,
         }
     }
 }
@@ -2302,7 +2302,6 @@ fn load_board(
     title: ByteString,
     version: u32,
     buffer: &[u8],
-    robot_offset: usize,
 ) -> Result<(Board, Vec<Robot>), BoardError> {
     debug!("loading board {:?}", title);
     let (sizing, mut buffer) = get_byte(buffer);
@@ -2496,10 +2495,10 @@ fn load_board(
                 Some(message_col)
             },
             remaining_message_cycles: cycles_until_disappear,
-            robot_range: (robot_offset, robots.len()),
             player_locked_ns,
             player_locked_ew,
             player_locked_attack,
+            num_robots: robots.len(),
         },
         robots,
     ))
@@ -2706,7 +2705,6 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
 
     let (global_robot_pos, buffer) = get_dword(buffer);
     let (global_robot, _) = load_robot(&original_buffer[global_robot_pos as usize..]);
-    let mut all_robots = vec![global_robot];
     let (sfx, mut buffer) = get_byte(buffer);
     let num_boards = if sfx == 0 {
         let (len, new_buffer) = get_word(buffer);
@@ -2739,7 +2737,7 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
 
         if byte_length == 0 {
             buffer = new_buffer;
-            boards.push(Board::default());
+            boards.push((Board::default(), vec![]));
             continue;
         }
 
@@ -2748,11 +2746,9 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
             title,
             version,
             &original_buffer[board_pos..end_board_pos],
-            all_robots.len(),
         )?;
         board.init(&mut robots);
-        boards.push(board);
-        all_robots.extend(robots);
+        boards.push((board, robots));
         buffer = new_buffer;
     }
 
@@ -2792,7 +2788,7 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
         enemies_hurt_enemies: enemies_hurt_enemies,
         clear_messages_and_projectiles: clear_messages_and_projectiles,
         only_play_via_swap_world: only_play_via_swap_world,
-        all_robots,
+        global_robot,
     })
 }
 

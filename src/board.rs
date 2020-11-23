@@ -26,7 +26,8 @@ pub fn enter_board(
     audio: &dyn AudioEngine,
     board: &mut Board,
     player_pos: Coordinate<u16>,
-    robots: &mut [Robot],
+    robots: &mut Vec<Robot>,
+    global_robot: &mut Robot,
 ) {
     reset_update_done(board, &mut state.update_done);
 
@@ -47,7 +48,7 @@ pub fn enter_board(
     reset_view(board);
     state.scroll_locked = false;
 
-    Robots::new(board, robots).foreach(|robot, _id| {
+    Robots::new(robots, global_robot).foreach(|robot, _id| {
         send_robot_to_label(robot, BuiltInLabel::JustEntered);
     })
 }
@@ -148,6 +149,7 @@ pub fn update_board(
     board: &mut Board,
     board_id: usize,
     all_robots: &mut Vec<Robot>,
+    global_robot: &mut Robot,
 ) -> Option<GameStateChange> {
     debug!("running global robot");
     let change = update_robot(
@@ -159,7 +161,7 @@ pub fn update_board(
         boards,
         board,
         board_id,
-        Robots::new(board, all_robots),
+        Robots::new(all_robots, global_robot),
         RobotId::Global,
         false,
     );
@@ -178,7 +180,10 @@ pub fn update_board(
             let coord = Coordinate(x as u16, y as u16);
             match board.thing_at(&coord) {
                 Thing::Robot | Thing::RobotPushable => {
-                    let robots = Robots::new(board, all_robots);
+                    let robots = Robots::new(all_robots, global_robot);
+
+                    let robot_id = RobotId::from(board.level_at(&coord).2);
+                    assert_eq!(robots.get(robot_id).position, coord, "robot {:?}", robot_id);
 
                     debug!("running robot at {},{}", x, y);
                     let change = update_robot(
@@ -231,7 +236,7 @@ pub fn update_board(
                                 } else if thing.is_robot() {
                                     let robot_id = RobotId::from(board.level_at(&coord).2);
 
-                                    let mut robots = Robots::new(board, all_robots);
+                                    let mut robots = Robots::new(all_robots, global_robot);
                                     let robot = robots.get_mut(robot_id);
                                     send_robot_to_label(robot, BuiltInLabel::Bombed);
                                 }
@@ -381,7 +386,7 @@ pub fn update_board(
                                 Thing::Bullet => board.remove_thing_at(&new_pos),
                                 Thing::Robot | Thing::RobotPushable => {
                                     let robot_id = RobotId::from(board.level_at(&new_pos).2);
-                                    let mut robots = Robots::new(board, all_robots);
+                                    let mut robots = Robots::new(all_robots, global_robot);
                                     let robot = robots.get_mut(robot_id);
                                     send_robot_to_label(robot, BuiltInLabel::Shot);
                                 }
@@ -413,7 +418,7 @@ pub fn update_board(
             let coord = Coordinate(x as u16, y as u16);
             match board.thing_at(&coord) {
                 Thing::Robot | Thing::RobotPushable => {
-                    let robots = Robots::new(board, all_robots);
+                    let robots = Robots::new(all_robots, global_robot);
                     debug!("running robot at {},{}", x, y);
                     let change = update_robot(
                         state,
@@ -448,7 +453,7 @@ pub fn update_board(
 
     reset_update_done(board, &mut state.update_done);
 
-    let mut robots = Robots::new(board, all_robots);
+    let mut robots = Robots::new(all_robots, global_robot);
     robots.foreach(|robot, _| {
         robot.status = RunStatus::NotRun;
     });

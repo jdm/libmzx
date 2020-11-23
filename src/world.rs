@@ -98,8 +98,7 @@ pub(crate) fn load_zip_world(buffer: &[u8]) -> Result<World, WorldError> {
     let mut world = load_world_info(&world_props).unwrap();
 
     let global_robot_props = zip.read_known_file(WorldFile::GlobalRobot).unwrap();
-    let global_robot = load_robot(&global_robot_props).unwrap();
-    world.all_robots.push(global_robot);
+    world.global_robot = load_robot(&global_robot_props).unwrap();
 
     let charset = zip.read_known_file(WorldFile::CharSets).unwrap();
     //XXXjdm support all the reserved charsets
@@ -117,29 +116,26 @@ pub(crate) fn load_zip_world(buffer: &[u8]) -> Result<World, WorldError> {
             Ok(props) => props,
             Err(_) => continue,
         };
-        let board = load_board(&board_props, &mut world).unwrap();
-        world.boards[i as usize] = board;
+        let mut board = load_board(&board_props).unwrap();
 
         let level_id = zip.read_known_file(WorldFile::BoardLevel(i, Plane::Id)).unwrap();
         let level_param = zip.read_known_file(WorldFile::BoardLevel(i, Plane::Param)).unwrap();
         let level_color = zip.read_known_file(WorldFile::BoardLevel(i, Plane::Color)).unwrap();
-        world.boards[i as usize].level = Zip::new((level_id, level_color, level_param))
-            .collect();
+        board.level = Zip::new((level_id, level_color, level_param)).collect();
 
         let under_id = zip.read_known_file(WorldFile::BoardUnder(i, Plane::Id)).unwrap();
         let under_param = zip.read_known_file(WorldFile::BoardUnder(i, Plane::Param)).unwrap();
         let under_color = zip.read_known_file(WorldFile::BoardUnder(i, Plane::Color)).unwrap();
-        world.boards[i as usize].under = Zip::new((under_id, under_color, under_param))
-            .collect();
+        board.under = Zip::new((under_id, under_color, under_param)).collect();
 
-        if let Some((_, ref mut overlay)) = world.boards[i as usize].overlay {
+        if let Some((_, ref mut overlay)) = board.overlay {
             let overlay_char = zip.read_known_file(WorldFile::BoardOverlayChar(i)).unwrap();
             let overlay_color = zip.read_known_file(WorldFile::BoardOverlayColor(i)).unwrap();
             *overlay = overlay_char.into_iter().zip(overlay_color).collect();
         }
 
         let mut robots = vec![];
-        for r in 0..world.boards[i as usize].robot_range.1 {
+        for r in 0..board.num_robots {
             let robot_props = match zip.read_known_file(WorldFile::Properties(PropFile::BoardRobot(i, r as u8 + 1))) {
                 Ok(r) => r,
                 Err(_) => {
@@ -151,8 +147,8 @@ pub(crate) fn load_zip_world(buffer: &[u8]) -> Result<World, WorldError> {
             robots.push(robot);
         }
 
-        world.boards[i as usize].init(&mut robots);
-        world.all_robots.extend(robots);
+        board.init(&mut robots);
+        world.boards[i as usize] = (board, robots);
     }
 
     Ok(world)
@@ -424,7 +420,7 @@ impl BoardProp {
         })
     }
 
-    fn apply(self, world: &mut World, board: &mut Board) {
+    fn apply(self, board: &mut Board) {
         match self {
             BoardProp::Name(name) => board.title = name,
             BoardProp::Width(w) => board.width = w as usize,
@@ -433,7 +429,7 @@ impl BoardProp {
                 board.overlay = Some((OverlayMode::from_byte(mode).unwrap(), vec![]));
             },
             BoardProp::Robots(count) => {
-                board.robot_range = (world.all_robots.len(), count as usize);
+                board.num_robots = count as usize;
             }
             BoardProp::Mod(file) => board.mod_file = file.into_string(),
             BoardProp::ViewX(x) => board.upper_left_viewport.0 = x,
@@ -449,14 +445,14 @@ impl BoardProp {
     }
 }
 
-fn load_board(mut buffer: &[u8], world: &mut World) -> Result<Board, ()> {
+fn load_board(mut buffer: &[u8]) -> Result<Board, ()> {
     let mut board = Board::default();
     loop {
         let (prop, tmp_buffer) = next_prop(buffer, BoardProp::read).unwrap();
         match prop {
             Some(prop) => {
                 println!("{:?}", prop);
-                prop.apply(world, &mut board);
+                prop.apply(&mut board);
             }
             None => break,
         }

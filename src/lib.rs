@@ -681,13 +681,14 @@ impl Counters {
             }
         }
 
-        debug!("getting {:?}", result);
-        if let Some(local) = LocalCounter::from(&result) {
+        let v = if let Some(local) = LocalCounter::from(&result) {
             debug!("getting local counter");
             context.local_counter(local)
         } else {
             *self.counters.get(&result).unwrap_or(&0)
-        }
+        };
+        debug!("getting {:?}: {}", result, v);
+        v
     }
 
     pub fn get_string(&self, name: &ByteString, context: &dyn CounterContextExt) -> ByteString {

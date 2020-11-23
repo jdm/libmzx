@@ -1864,7 +1864,7 @@ impl Robot {
             position: pos,
             reserved: [0; 3],
             onscreen: true,
-            loop_count: 0,
+            loop_count: source.loop_count,
             program: source.program.clone(),
             alive: true,
             status: RunStatus::FinishedRunning,

@@ -176,9 +176,6 @@ pub fn update_board(
             }
 
             let coord = Coordinate(x as u16, y as u16);
-            if let (0, 0) = (x, y) {
-                debug!("thing at 0,0: {:?}", board.thing_at(&coord));
-            }
             match board.thing_at(&coord) {
                 Thing::Robot | Thing::RobotPushable => {
                     let robots = Robots::new(board, all_robots);

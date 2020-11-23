@@ -111,10 +111,9 @@ fn move_robot_to(
     if thing == Thing::Player {
         return;
     }
-    // TODO: check if thing can move to under layer
-    let robots = Robots::new(board, all_robots);
     let robot_pos = robots.get(robot_id).position;
-    move_level_to(board, all_robots, &robot_pos, &pos, update_done);
+    move_level_to(board, robots.robots, &robot_pos, &pos, update_done);
+    assert_eq!(robots.get(robot_id).position, pos);
 }
 
 enum CoordinatePart {
@@ -372,7 +371,7 @@ pub fn update_robot(
     let robot = robots.get_mut(robot_id);
     robot.cycle_count = 0;
 
-    debug!("executing {:?}", robot.name);
+    debug!("executing {:?} ({:?})", robot.name, robot_id);
 
     let mut lines_run = 0;
     let mut mode = Relative::None;
@@ -1351,7 +1350,7 @@ fn run_one_command(
                 let context = CounterContext::from(board, robot, state);
                 let coord = mode.resolve_xy(x, y, counters, context, RelativePart::First);
                 move_robot_to(
-                    robots.robots,
+                    robots,
                     robot_id,
                     board,
                     coord,

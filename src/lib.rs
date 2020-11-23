@@ -429,20 +429,30 @@ impl Board {
         let thing = Thing::from_u8(self.level_at(pos).0).unwrap();
         if thing.is_robot() {
             let id = self.level_at(pos).2;
+            // FIXME: don't do this calculation directly.
             robots[id as usize - 1].position = *new_pos;
         } else if thing == Thing::Player {
             self.player_pos = *new_pos;
         }
+        let (old_thing, _, old_param) = self.level_at(new_pos);
+        let old_thing = Thing::from_u8(*old_thing).unwrap();
         let old_idx = (pos.1 * self.width as u16 + pos.0) as usize;
         let new_idx = (new_pos.1 * self.width as u16 + new_pos.0) as usize;
-        self.under[new_idx] = self.level[new_idx];
+        if old_thing.can_go_under() {
+            self.under[new_idx] = self.level[new_idx];
+        } else if old_thing.is_robot() {
+            // FIXME: don't do this calculation directly.
+            robots[*old_param as usize - 1].alive = false;
+        }
         self.level[new_idx] = self.level[old_idx];
         self.level[old_idx] = self.under[old_idx];
     }
 
     pub fn put_at(&mut self, pos: &Coordinate<u16>, thing: u8, color: u8, param: u8) {
         let idx = (pos.1 * self.width as u16 + pos.0) as usize;
-        self.under[idx] = self.level[idx];
+        if self.thing_at(pos).can_go_under() {
+            self.under[idx] = self.level[idx];
+        }
         self.level[idx] = (thing, color, param);
     }
 
@@ -1518,6 +1528,32 @@ pub enum Thing {
 impl Thing {
     pub fn is_robot(&self) -> bool {
         *self == Thing::Robot || *self == Thing::RobotPushable
+    }
+
+    pub fn can_go_under(&self) -> bool {
+        match self {
+            Thing::Floor |
+            Thing::CustomFloor |
+            Thing::Whirlpool1 |
+            Thing::Whirlpool2 |
+            Thing::Whirlpool3 |
+            Thing::Whirlpool4 |
+            Thing::Cave |
+            Thing::Web |
+            Thing::ThickWeb |
+            Thing::Space |
+            Thing::Normal |
+            Thing::Stairs |
+            Thing::StillWater |
+            Thing::NWater |
+            Thing::SWater |
+            Thing::EWater |
+            Thing::WWater |
+            Thing::Ice |
+            Thing::Fire |
+            Thing::Lava => true,
+            _ => false,
+        }
     }
 
     pub fn is_whirlpool(&self) -> bool {

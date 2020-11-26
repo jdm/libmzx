@@ -108,10 +108,10 @@ fn move_robot_to(
     update_done: &mut [bool],
 ) {
     let thing = board.thing_at(&pos);
-    if thing == Thing::Player {
+    let robot_pos = robots.get(robot_id).position;
+    if thing == Thing::Player || robot_pos == pos {
         return;
     }
-    let robot_pos = robots.get(robot_id).position;
     move_level_to(board, robots.robots, &robot_pos, &pos, update_done);
     assert_eq!(robots.get(robot_id).position, pos);
 }

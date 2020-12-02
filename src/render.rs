@@ -2,8 +2,8 @@ use itertools::{Itertools, Zip};
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::{
-    bullet_from_param, door_from_param, Board, BulletType, ByteString, CardinalDirection, CharId,
-    Charset, Coordinate, DoorOrientation, Explosion, MessageBoxLineType, OverlayMode, Palette,
+    bullet_from_param, Board, BulletType, ByteString, CardinalDirection, CharId,
+    Charset, Coordinate, Explosion, MessageBoxLineType, OverlayMode, Palette,
     Robot, Sensor, Size, Thing, WorldState,
 };
 
@@ -730,10 +730,10 @@ fn char_from_id(
         Thing::Key => CharId::Key,
         Thing::Lock => CharId::Lock,
         Thing::Door => {
-            let (orientation, _dir, _status) = door_from_param(param);
-            match orientation {
-                DoorOrientation::Horizontal => CharId::HorizontalDoor,
-                DoorOrientation::Vertical => CharId::VerticalDoor,
+            if param & 0x1 == 0 {
+                CharId::HorizontalDoor
+            } else {
+                CharId::VerticalDoor
             }
         }
         Thing::OpenDoor => {

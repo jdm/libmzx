@@ -1546,6 +1546,10 @@ impl Thing {
         match self {
             Thing::Floor |
             Thing::CustomFloor |
+            Thing::Carpet |
+            Thing::Fake |
+            Thing::Tiles |
+            Thing::Forest | //XXXjdm: This is kind of a lie.
             Thing::Whirlpool1 |
             Thing::Whirlpool2 |
             Thing::Whirlpool3 |

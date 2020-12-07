@@ -368,8 +368,16 @@ pub(crate) fn evaluate_expression(
                         ExprOp::Plus => value = Some(current_val + v),
                         ExprOp::Minus => value = Some(current_val - v),
                         ExprOp::Multiply => value = Some(current_val * v),
-                        ExprOp::Divide => value = Some(current_val / v),
-                        ExprOp::Modulo => value = Some(current_val % v),
+                        ExprOp::Divide => value = if v != 0 {
+                            Some(current_val / v)
+                        } else {
+                            Some(0)
+                        },
+                        ExprOp::Modulo => value = if v != 0 {
+                            Some(current_val % v)
+                        } else {
+                            Some(0)
+                        },
                         ExprOp::Pow => value = Some(current_val.pow(v as u32)), // FIXME: what does ^ with negative values?
                         ExprOp::BitAnd => value = Some(current_val & v),
                         ExprOp::BitOr => value = Some(current_val | v),

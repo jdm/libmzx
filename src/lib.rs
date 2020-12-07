@@ -88,6 +88,11 @@ pub struct WorldState {
     pub lives: i32,
     pub keys: u32,
     pub ammo: i32,
+    pub gems: i32,
+    pub lobombs: i32,
+    pub hibombs: i32,
+    pub coins: i32,
+    pub score: i32,
     pub update_done: Vec<bool>, // FIXME: this belongs in mzxplay, not libmzx
 }
 
@@ -109,6 +114,11 @@ impl Default for WorldState {
             lives: 3,
             keys: 0,
             ammo: 0,
+            gems: 0,
+            lobombs: 0,
+            hibombs: 0,
+            coins: 0,
+            score: 0,
             update_done: vec![],
         }
     }
@@ -519,6 +529,10 @@ impl<'a> CounterContext<'a> {
         }
     }
 
+    fn numeric_counter(&self, counter: NumericCounter) -> i32 {
+        counter.eval(self)
+    }
+
     fn local_counter(&self, counter: LocalCounter) -> i32 {
         match counter {
             LocalCounter::Loopcount => self.robot.loop_count,
@@ -534,23 +548,11 @@ impl<'a> CounterContext<'a> {
                 self.local_counter(LocalCounter::HorizPld)
                     + self.local_counter(LocalCounter::VertPld)
             }
-            LocalCounter::PlayerX => self.board.player_pos.0 as i32,
-            LocalCounter::PlayerY => self.board.player_pos.1 as i32,
-            LocalCounter::ScrolledX => self.board.scroll_offset.0 as i32,
-            LocalCounter::ScrolledY => self.board.scroll_offset.1 as i32,
-            LocalCounter::BoardW => self.board.width as i32,
-            LocalCounter::BoardH => self.board.height as i32,
-            // TODO: support command prefixes for ThisX and ThisY
             LocalCounter::ThisX => self.robot.position.0 as i32,
             LocalCounter::ThisY => self.robot.position.1 as i32,
             LocalCounter::BulletType => self.robot.bullet_type,
             LocalCounter::ThisColor => self.board.level_at(&self.robot.position).1 as i32,
             LocalCounter::ThisChar => self.robot.ch as i32,
-            LocalCounter::PlayerFaceDir => self.state.player_face_dir,
-            LocalCounter::KeyPressed => self.state.key_pressed,
-            LocalCounter::Health => self.state.health,
-            LocalCounter::Lives => self.state.lives,
-            LocalCounter::Ammo => self.state.ammo,
         }
     }
 }
@@ -588,24 +590,18 @@ impl<'a> CounterContextMut<'a> {
             LocalCounter::Local(n) => Some(&mut self.robot.local[n as usize]),
             LocalCounter::Lavawalk => Some(&mut self.robot.lavawalking),
             LocalCounter::BulletType => Some(&mut self.robot.bullet_type),
-            LocalCounter::PlayerFaceDir => Some(&mut self.state.player_face_dir),
+            /*LocalCounter::PlayerFaceDir => Some(&mut self.state.player_face_dir),
             LocalCounter::Health => Some(&mut self.state.health),
             LocalCounter::Lives => Some(&mut self.state.lives),
-            LocalCounter::Ammo => Some(&mut self.state.ammo),
+            LocalCounter::Ammo => Some(&mut self.state.ammo),*/
             LocalCounter::HorizPld
             | LocalCounter::VertPld
             | LocalCounter::PlayerDist
-            | LocalCounter::PlayerX
-            | LocalCounter::PlayerY
-            | LocalCounter::BoardW
-            | LocalCounter::BoardH
-            | LocalCounter::ScrolledX
-            | LocalCounter::ScrolledY
             | LocalCounter::ThisX
             | LocalCounter::ThisY
             | LocalCounter::ThisColor
             | LocalCounter::ThisChar
-            | LocalCounter::KeyPressed => None,
+            => None,
         }
     }
 }
@@ -690,8 +686,11 @@ impl Counters {
         }
 
         let v = if let Some(local) = LocalCounter::from(&result) {
-            debug!("getting local counter");
+            debug!("getting local counter {:?}", local);
             context.local_counter(local)
+        } else if let Some(counter) = NumericCounter::from(&result, self, context) {
+            debug!("getting special counter {:?}", counter);
+            context.numeric_counter(counter)
         } else {
             *self.counters.get(&result).unwrap_or(&0)
         };
@@ -2037,6 +2036,485 @@ impl StringCounter {
     }
 }
 
+#[derive(Debug)]
+pub enum NumericCounter {
+    Math(MathCounter),
+    Player(PlayerCounter),
+    Robot(RobotCounter),
+    Board(BoardCounter),
+    File(FileCounter),
+    Sprite(SpriteCounter),
+    CharEdit(CharEditCounter),
+    Mouse(MouseCounter),
+    Defaults(DefaultsCounter),
+    VLayer(VLayerCounter),
+    Misc(MiscCounter),
+}
+
+impl NumericCounter {
+    fn from(name: &ByteString, counters: &Counters, context: &dyn CounterContextExt) -> Option<NumericCounter> {
+        let name = ByteString(
+            name.as_bytes()
+                .iter()
+                .map(|c| c.to_ascii_lowercase())
+                .collect(),
+        );
+
+        MathCounter::from(&name, counters, context)
+            .map(NumericCounter::Math)
+            .or_else(|| {
+                PlayerCounter::from(&name)
+                    .map(NumericCounter::Player)
+            }).or_else(|| {
+                RobotCounter::from(&name)
+                    .map(NumericCounter::Robot)
+            }).or_else(|| {
+                BoardCounter::from(&name)
+                    .map(NumericCounter::Board)
+            }).or_else(|| {
+                FileCounter::from(&name)
+                    .map(NumericCounter::File)
+            }).or_else(|| {
+                SpriteCounter::from(&name)
+                    .map(NumericCounter::Sprite)
+            }).or_else(|| {
+                CharEditCounter::from(&name)
+                    .map(NumericCounter::CharEdit)
+            }).or_else(|| {
+                MouseCounter::from(&name)
+                    .map(NumericCounter::Mouse)
+            }).or_else(|| {
+                DefaultsCounter::from(&name)
+                    .map(NumericCounter::Defaults)
+            }).or_else(|| {
+                VLayerCounter::from(&name)
+                    .map(NumericCounter::VLayer)
+            }).or_else(|| {
+                MiscCounter::from(&name)
+                    .map(NumericCounter::Misc)
+            })
+    }
+
+    fn eval(&self, context: &CounterContext) -> i32 {
+        match self {
+            NumericCounter::Math(c) => c.eval(context),
+            NumericCounter::Player(c) => c.eval(context),
+            NumericCounter::Robot(c) => c.eval(context),
+            NumericCounter::Board(c) => c.eval(context),
+            NumericCounter::File(c) => c.eval(context),
+            NumericCounter::Sprite(c) => c.eval(context),
+            NumericCounter::CharEdit(c) => c.eval(context),
+            NumericCounter::Mouse(c) => c.eval(context),
+            NumericCounter::Defaults(c) => c.eval(context),
+            NumericCounter::VLayer(c) => c.eval(context),
+            NumericCounter::Misc(c) => c.eval(context),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum PlayerCounter {
+    Gems,
+    Ammo,
+    LoBombs,
+    HighBombs,
+    Coins,
+    Lives,
+    Health,
+    //Invinco,
+    Score,
+    //PlayerLastDir,
+    PlayerFaceDir,
+    PlayerX,
+    PlayerY,
+}
+
+impl PlayerCounter {
+    fn from(name: &ByteString) -> Option<PlayerCounter> {
+        Some(match &**name {
+            b"gems" => PlayerCounter::Gems,
+            b"ammo" => PlayerCounter::Ammo,
+            b"lobombs" => PlayerCounter::LoBombs,
+            b"hibombs" => PlayerCounter::HighBombs,
+            b"coins" => PlayerCounter::Coins,
+            b"lives" => PlayerCounter::Lives,
+            b"health" => PlayerCounter::Health,
+            b"score" => PlayerCounter::Score,
+            b"playerfacedir" => PlayerCounter::PlayerFaceDir,
+            b"playerx" => PlayerCounter::PlayerX,
+            b"playery" => PlayerCounter::PlayerY,
+            _ => return None,
+        })
+    }
+
+    fn eval(&self, context: &CounterContext) -> i32 {
+        match self {
+            PlayerCounter::Gems => context.state.gems as i32,
+            PlayerCounter::Ammo => context.state.ammo as i32,
+            PlayerCounter::LoBombs => context.state.lobombs as i32,
+            PlayerCounter::HighBombs => context.state.hibombs as i32,
+            PlayerCounter::Coins => context.state.coins as i32,
+            PlayerCounter::Lives => context.state.lives as i32,
+            PlayerCounter::Health => context.state.health as i32,
+            PlayerCounter::Score => context.state.score as i32,
+            PlayerCounter::PlayerFaceDir => context.state.player_face_dir,
+            PlayerCounter::PlayerX => context.board.player_pos.0 as i32,
+            PlayerCounter::PlayerY => context.board.player_pos.1 as i32,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum MathCounter {
+    Abs(i32),
+    Sqrt(i32),
+    //Min(i32, i32),
+    //Max(i32, i32),
+    //Multiplier,
+    //Divider,
+    //CDivisions,
+    //Sin(i32),
+    //Cos(i32),
+    //Tan(i32),
+    //ASin(i32),
+    //ACos(i32),
+    //ATan(i32),
+    //ArcTan(i32, i32),
+}
+
+impl MathCounter {
+    fn eval(&self, _context: &CounterContext) -> i32 {
+        match self {
+            MathCounter::Abs(v) => if *v < 0 { -v } else { *v },
+            MathCounter::Sqrt(v) => (*v as f32).sqrt() as i32,
+        }
+    }
+
+    fn from(name: &ByteString, counters: &Counters, context: &dyn CounterContextExt) -> Option<MathCounter> {
+        Some(match name {
+            _ if name.starts_with(b"abs") => {
+                let name: ByteString = name.as_bytes()[3..].into();
+                let result = name.evaluate_for_name(counters, context);
+                let val = result.to_string().parse::<i32>().ok()?;
+                MathCounter::Abs(val)
+            },
+            //_ if name.starts_with("sqrt") => {
+            //}
+            _ => return None,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub enum RobotCounter {
+    //Commands,
+    //OtherLocal(i32, ByteString),
+}
+
+impl RobotCounter {
+    #[allow(unreachable_code)]
+    fn from(name: &ByteString) -> Option<Self> {
+        Some(match &**name {
+            _ => return None,
+        })
+    }
+
+    fn eval(&self, _context: &CounterContext) -> i32 {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug)]
+pub enum BoardCounter {
+    //BoardId,
+    //BoardParam,
+    BoardW,
+    BoardH,
+    //Time,
+    //TimeReset,
+    ScrolledX,
+    ScrolledY,
+    //BoardX,
+    //BoardY,
+    //BoardChar,
+    //BoardColor,
+    //Bch(i32, i32),
+    //Bco(i32, i32),
+    //Bid(i32, i32),
+    //Bpr(i32, i32),
+    //Uch(i32, i32),
+    //Uco(i32, i32),
+    //Uid(i32, i32),
+    //Upr(i32, i32),
+    //OverlayX,
+    //OverlayY,
+    //OverlayChar,
+    //OverlayColor,
+    //Och(i32, i32),
+    //Oco(i32, i32),
+    //OverlayMode,
+    //ModFrequency,
+    //ModOrder,
+    //ModPosition,
+    //ModLength,
+    //ModLoopStart,
+    //ModLoopEnd,
+}
+
+impl BoardCounter {
+    fn from(name: &ByteString) -> Option<Self> {
+        Some(match &**name {
+            b"board_w" => BoardCounter::BoardW,
+            b"board_h" => BoardCounter::BoardH,
+            b"scrolledx" => BoardCounter::ScrolledX,
+            b"scrolledy" => BoardCounter::ScrolledY,
+            _ => return None,
+        })
+    }
+
+    fn eval(&self, context: &CounterContext) -> i32 {
+        match self {
+            BoardCounter::BoardW => context.board.width as i32,
+            BoardCounter::BoardH => context.board.height as i32,
+            BoardCounter::ScrolledX => context.board.scroll_offset.0 as i32,
+            BoardCounter::ScrolledY => context.board.scroll_offset.1 as i32,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum FileCounter {
+    //FreadOpen,
+    //FwriteOpen,
+    //FwriteModify,
+    //FwriteAppend,
+    //FreadCounter,
+    //FwriteCounter,
+    //FreadPos,
+    //FwritePos,
+    //FreadDelimiter,
+    //FwriteDelimiter,
+    //Fread(Option<i32>),
+    //Fwrite(Option<i32>),
+    //FreadLength,
+    //FwriteLength,
+    //SaveRobot(Option<i32>),
+    //LoadRobot(Option<i32>),
+    //SaveBc(Option<i32>),
+    //LoadBc(Option<i32>),
+    //SaveGame,
+    //LoadGame,
+    //SaveCounters,
+    //LoadCounters,
+}
+
+impl FileCounter {
+    #[allow(unreachable_code)]
+    fn from(name: &ByteString) -> Option<Self> {
+        Some(match &**name {
+            _ => return None,
+        })
+    }
+
+    fn eval(&self, _context: &CounterContext) -> i32 {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug)]
+pub enum SpriteCounter {
+    //SprClist(i32),
+    //SprCollisions,
+    //SprNum,
+    //SprYOrder,
+    //SprCCheck(i32),
+    //SprCWidth(i32),
+    //SprCHeight(i32),
+    //SprCList(i32),
+    //SprCx(i32),
+    //SprCy(i32),
+    //SprOff(i32),
+    //SprOverlaid(i32),
+    //SprOverlay(i32),
+    //SprRefX(i32),
+    //SprRefY(i32),
+    //SprSetView(i32),
+    //SprStatic(i32),
+    //SprSwap(i32),
+    //SprVlayer(i32),
+    //SprWidth(i32),
+    //SprHeight(i32),
+    //SprX(i32),
+    //SprY(i32),
+    //SprZ(i32),
+    //SprUnbound(i32),
+    //SprTCol(i32),
+    //SprOffset(i32),
+}
+
+impl SpriteCounter {
+    #[allow(unreachable_code)]
+    fn from(name: &ByteString) -> Option<Self> {
+        Some(match &**name {
+            _ => return None,
+        })
+    }
+
+    fn eval(&self, _context: &CounterContext) -> i32 {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug)]
+pub enum CharEditCounter {
+    //CharX,
+    //CharY,
+    //Pixel,
+    //CharByte,
+    //Char,
+    //Byte,
+}
+
+impl CharEditCounter {
+    #[allow(unreachable_code)]
+    fn from(name: &ByteString) -> Option<Self> {
+        Some(match &**name {
+            _ => return None,
+        })
+    }
+
+    fn eval(&self, _context: &CounterContext) -> i32 {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug)]
+pub enum MouseCounter {
+    //MouseX,
+    //MouseY,
+    //MousePx,
+    //MousePy,
+    //MBoardX,
+    //MBoardY,
+    //Buttons,
+    //CursorState,
+    //JoyActive(i32),
+    //JoyActions(i32, i32),
+    //JoySimulateKeys,
+}
+
+impl MouseCounter {
+    #[allow(unreachable_code)]
+    fn from(name: &ByteString) -> Option<Self> {
+        Some(match &**name {
+            _ => return None,
+        })
+    }
+
+    fn eval(&self, _context: &CounterContext) -> i32 {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug)]
+pub enum DefaultsCounter {
+    //EnterMenu,
+    //EscapeMenu,
+    //HelpMenu,
+    //F2Menu,
+    //LoadMenu,
+    //BiMesg,
+    //SpaceLock,
+}
+
+impl DefaultsCounter {
+    #[allow(unreachable_code)]
+    fn from(name: &ByteString) -> Option<Self> {
+        Some(match &**name {
+            _ => return None,
+        })
+    }
+
+    fn eval(&self, _context: &CounterContext) -> i32 {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug)]
+pub enum VLayerCounter {
+    //VLayerWidth,
+    //VLayerHeight,
+    //VLayerSize,
+    //Vch(i32, i32),
+    //Vco(i32, i32),
+}
+
+impl VLayerCounter {
+    #[allow(unreachable_code)]
+    fn from(name: &ByteString) -> Option<Self> {
+        Some(match &**name {
+            _ => return None,
+        })
+    }
+
+    fn eval(&self, _context: &CounterContext) -> i32 {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug)]
+pub enum MiscCounter {
+    //MzxSpeed,
+    //CommandsStop,
+    //ExitGame,
+    //PlayGame,
+    //CurrentColor,
+    //RedValue,
+    //GreenValue,
+    //BlueValue,
+    //Input,
+    //InputSize,
+    //DateDay,
+    //DateMonth,
+    //DateYear,
+    //TimeHours,
+    //TimeMinutes,
+    //TimeSeconds,
+    //TimeMillis,
+    //Int,
+    //BitPlace,
+    //Int2Bin,
+    KeyPressed,
+    //Key(Option<i32>),
+    //KeyCode,
+    //KeyRelease,
+    //RandomSeed0,
+    //RandomSeed1,
+    //MaxSamples,
+    //Xpos,
+    //Ypos,
+    //FirstXPos,
+    //FirstYPos,
+    //LastXPos,
+    //LastYPos,
+}
+
+impl MiscCounter {
+    fn from(name: &ByteString) -> Option<Self> {
+        Some(match &**name {
+            b"keypressed" => Self::KeyPressed,
+            _ => return None,
+        })
+    }
+
+    fn eval(&self, context: &CounterContext) -> i32 {
+        match self {
+            MiscCounter::KeyPressed => context.state.key_pressed,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum LocalCounter {
     Loopcount,
     Local(u8),
@@ -2044,27 +2522,24 @@ pub enum LocalCounter {
     HorizPld,
     VertPld,
     PlayerDist,
-    PlayerX,
-    PlayerY,
     ThisX,
     ThisY,
     BulletType,
     ThisColor,
     ThisChar,
-    PlayerFaceDir,
-    KeyPressed,
-    Health,
-    Ammo,
-    Lives,
-    BoardW,
-    BoardH,
-    ScrolledX,
-    ScrolledY,
+    //RobotId,
+    //GoopWalk,
 }
 
 impl LocalCounter {
     fn from(name: &ByteString) -> Option<LocalCounter> {
-        Some(match &**name {
+        let name = ByteString(
+            name.as_bytes()
+                .iter()
+                .map(|c| c.to_ascii_lowercase())
+                .collect(),
+        );
+        Some(match &*name {
             b"loopcount" => LocalCounter::Loopcount,
             b"local" => LocalCounter::Local(0),
             b"lava_walk" => LocalCounter::Lavawalk,
@@ -2073,20 +2548,9 @@ impl LocalCounter {
             b"playerdist" => LocalCounter::PlayerDist,
             b"thisx" => LocalCounter::ThisX,
             b"thisy" => LocalCounter::ThisY,
-            b"board_w" => LocalCounter::BoardW,
-            b"board_h" => LocalCounter::BoardH,
-            b"scrolledx" => LocalCounter::ScrolledX,
-            b"scrolledy" => LocalCounter::ScrolledY,
             b"bullettype" => LocalCounter::BulletType,
             b"thiscolor" => LocalCounter::ThisColor,
             b"thischar" => LocalCounter::ThisChar,
-            b"playerfacedir" => LocalCounter::PlayerFaceDir,
-            b"key_pressed" => LocalCounter::KeyPressed,
-            b"health" => LocalCounter::Health,
-            b"ammo" => LocalCounter::Ammo,
-            b"lives" => LocalCounter::Lives,
-            b"playerx" => LocalCounter::PlayerX,
-            b"playery" => LocalCounter::PlayerY,
             _ if name.len() > 5 && name[0..5] == b"local"[..] => {
                 let suffix = str::from_utf8(&name[5..])
                     .ok()
@@ -2808,6 +3272,11 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
             health: starting_health as i32,
             ammo: 0,
             keys: 0,
+            score: 0,
+            coins: 0,
+            gems: 0,
+            hibombs: 0,
+            lobombs: 0,
             update_done: vec![],
         },
         boards: boards,

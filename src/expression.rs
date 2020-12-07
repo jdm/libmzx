@@ -1,13 +1,17 @@
-use crate::{ByteString, CounterContext, CounterContextMut, Counters, LocalCounter, StringCounter};
+use crate::{ByteString, CounterContext, CounterContextMut, Counters, LocalCounter, NumericCounter, StringCounter};
 
 pub trait CounterContextExt {
     fn local_counter(&self, counter: LocalCounter) -> i32;
+    fn numeric_counter(&self, counter: NumericCounter) -> i32;
     fn string_counter(&self, counter: StringCounter) -> ByteString;
 }
 
 impl<'a> CounterContextExt for CounterContext<'a> {
     fn local_counter(&self, counter: LocalCounter) -> i32 {
         CounterContext::local_counter(self, counter)
+    }
+    fn numeric_counter(&self, counter: NumericCounter) -> i32 {
+        CounterContext::numeric_counter(self, counter)
     }
     fn string_counter(&self, counter: StringCounter) -> ByteString {
         CounterContext::string_counter(self, counter)
@@ -22,6 +26,9 @@ pub trait CounterContextMutExt: CounterContextExt {
 impl<'a> CounterContextExt for CounterContextMut<'a> {
     fn local_counter(&self, counter: LocalCounter) -> i32 {
         self.as_immutable().local_counter(counter)
+    }
+    fn numeric_counter(&self, counter: NumericCounter) -> i32 {
+        self.as_immutable().numeric_counter(counter)
     }
     fn string_counter(&self, counter: StringCounter) -> ByteString {
         self.as_immutable().string_counter(counter)
@@ -457,6 +464,9 @@ pub(crate) mod test {
             unimplemented!()
         }
         fn string_counter(&self, _counter: StringCounter) -> ByteString {
+            unimplemented!()
+        }
+        fn numeric_counter(&self, _counter: NumericCounter) -> i32 {
             unimplemented!()
         }
     }

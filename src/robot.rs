@@ -393,6 +393,7 @@ pub fn update_robot(
     let mut message_box_lines = vec![];
     let mut first_cmd = true;
 
+    // TODO: move this to WorldState and affect via COMMANDS counter.
     const CYCLES: u8 = 40;
     let state_change = loop {
         let robot = robots.get_mut(robot_id);

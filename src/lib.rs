@@ -511,6 +511,12 @@ impl<'a> CounterContext<'a> {
         }
     }
 
+    fn string_counter(&self, counter: StringCounter) -> ByteString {
+        match counter {
+            StringCounter::BoardName => self.board.title.clone(),
+        }
+    }
+
     fn local_counter(&self, counter: LocalCounter) -> i32 {
         match counter {
             LocalCounter::Loopcount => self.robot.loop_count,
@@ -867,6 +873,9 @@ impl ByteString {
 
     pub fn evaluate(&self, counters: &Counters, context: &dyn CounterContextExt) -> ByteString {
         let result = self.evaluate_for_name(counters, context);
+        if let Some(name) = StringCounter::from(&result) {
+            return context.string_counter(name);
+        }
         if result.is_string_name() {
             return counters.get_string(&result, context);
         }
@@ -1998,6 +2007,25 @@ impl Robot {
                 false
             }
         }
+    }
+}
+
+pub enum StringCounter {
+    BoardName,
+    //BoardScan,
+    //Input,
+    //ModName,
+    //RobotName,
+    //Fread(Option<u32>),
+    //Fwrite(Option<u32>),
+}
+
+impl StringCounter {
+    fn from(name: &ByteString) -> Option<StringCounter> {
+        Some(match &**name {
+            b"board_name" => StringCounter::BoardName,
+            _ => return None,
+        })
     }
 }
 

@@ -679,7 +679,9 @@ fn run_one_command(
             let r = (r.resolve(counters, context) as u8).min(63);
             let g = (g.resolve(counters, context) as u8).min(63);
             let b = (b.resolve(counters, context) as u8).min(63);
-            state.palette.colors[c as usize].0 = MzxColor { r, g, b };
+            if (c as usize) < state.palette.colors.len() {
+                state.palette.colors[c as usize].0 = MzxColor { r, g, b };
+            }
         }
 
         Command::ColorIntensity(ref c, ref n) => {

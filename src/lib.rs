@@ -514,6 +514,8 @@ impl<'a> CounterContext<'a> {
     fn string_counter(&self, counter: StringCounter) -> ByteString {
         match counter {
             StringCounter::BoardName => self.board.title.clone(),
+            StringCounter::RobotName => self.robot.name.clone(),
+            StringCounter::ModName => self.board.mod_file.clone().into(),
         }
     }
 
@@ -2014,8 +2016,8 @@ pub enum StringCounter {
     BoardName,
     //BoardScan,
     //Input,
-    //ModName,
-    //RobotName,
+    ModName,
+    RobotName,
     //Fread(Option<u32>),
     //Fwrite(Option<u32>),
 }
@@ -2024,6 +2026,8 @@ impl StringCounter {
     fn from(name: &ByteString) -> Option<StringCounter> {
         Some(match &**name {
             b"board_name" => StringCounter::BoardName,
+            b"robot_name" => StringCounter::RobotName,
+            b"mod_name" => StringCounter::ModName,
             _ => return None,
         })
     }

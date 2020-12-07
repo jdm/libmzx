@@ -669,6 +669,7 @@ impl Counters {
     }
 
     pub fn get(&self, name: &ByteString, context: &dyn CounterContextExt) -> i32 {
+        debug!("getting counter value for {}", name.to_string());
         if name.is_string_name() {
             error!("Getting string {:?} as integer value", name);
         }
@@ -680,6 +681,7 @@ impl Counters {
         );
         let result = name.evaluate(self, context);
         if name.as_bytes().first() == Some(&b'(') {
+            debug!("return {} as integer value", result.to_string());
             if let Ok(val) = result.to_string().parse::<i32>() {
                 return val;
             }
@@ -2168,8 +2170,8 @@ impl PlayerCounter {
 pub enum MathCounter {
     Abs(i32),
     Sqrt(i32),
-    //Min(i32, i32),
-    //Max(i32, i32),
+    Min(i32, i32),
+    Max(i32, i32),
     //Multiplier,
     //Divider,
     //CDivisions,
@@ -2187,6 +2189,8 @@ impl MathCounter {
         match self {
             MathCounter::Abs(v) => if *v < 0 { -v } else { *v },
             MathCounter::Sqrt(v) => (*v as f32).sqrt() as i32,
+            MathCounter::Min(a, b) => *a.min(&b),
+            MathCounter::Max(a, b) => *a.max(&b),
         }
     }
 
@@ -2198,8 +2202,38 @@ impl MathCounter {
                 let val = result.to_string().parse::<i32>().ok()?;
                 MathCounter::Abs(val)
             },
-            //_ if name.starts_with("sqrt") => {
-            //}
+            _ if name.starts_with(b"sqrt") => {
+                let name: ByteString = name.as_bytes()[4..].into();
+                let result = name.evaluate_for_name(counters, context);
+                let val = result.to_string().parse::<i32>().ok()?;
+                MathCounter::Sqrt(val)
+            }
+            _ if name.starts_with(b"min") => {
+                let parts = &name.as_bytes()[3..];
+                if let Some(idx) = parts.iter().position(|b| *b == b',') {
+                    let (left, right) = parts.split_at(idx);
+                    let left = ByteString::from(left).evaluate_for_name(counters, context);
+                    let left = left.to_string().parse::<i32>().ok()?;
+                    let right = ByteString::from(&right[1..]).evaluate_for_name(counters, context);
+                    let right = right.to_string().parse::<i32>().ok()?;
+                    MathCounter::Min(left, right)
+                } else {
+                    return None;
+                }
+            }
+            _ if name.starts_with(b"max") => {
+                let parts = &name.as_bytes()[3..];
+                if let Some(idx) = parts.iter().position(|b| *b == b',') {
+                    let (left, right) = parts.split_at(idx);
+                    let left = ByteString::from(left).evaluate_for_name(counters, context);
+                    let left = left.to_string().parse::<i32>().ok()?;
+                    let right = ByteString::from(&right[1..]).evaluate_for_name(counters, context);
+                    let right = right.to_string().parse::<i32>().ok()?;
+                    MathCounter::Max(left, right)
+                } else {
+                    return None;
+                }
+            }
             _ => return None,
         })
     }

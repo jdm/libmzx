@@ -850,7 +850,8 @@ fn run_one_command(
         Command::Dec(ref s, ref n, ref n2) => {
             //TODO: handle string truncation
             let context = CounterContext::from(board, robots.get(robot_id), state);
-            let initial = counters.get(s, &context);
+            let s = s.evaluate_for_name(counters, &context);
+            let initial = counters.get(&s, &context);
             let mut val = n.resolve(counters, context) as i32;
             if let Some(ref n2) = *n2 {
                 let upper = n2.resolve(counters, context);
@@ -858,14 +859,14 @@ fn run_one_command(
                 val += rand::random::<u32>().checked_rem(range).unwrap_or(0) as i32;
             }
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
-            let s = s.evaluate_for_name(counters, &context);
             counters.set(s, &mut context, initial.wrapping_sub(val));
         }
 
         Command::Inc(ref s, ref n, ref n2) => {
             //TODO: handle string appending
             let context = CounterContext::from(board, robots.get(robot_id), state);
-            let initial = counters.get(s, &context);
+            let s = s.evaluate_for_name(counters, &context);
+            let initial = counters.get(&s, &context);
             let mut val = n.resolve(counters, context);
             if let Some(ref n2) = *n2 {
                 let upper = n2.resolve(counters, context);
@@ -873,34 +874,33 @@ fn run_one_command(
                 val += rand::random::<u32>().checked_rem(range).unwrap_or(0) as i32;
             }
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
-            let s = s.evaluate_for_name(counters, &context);
             counters.set(s, &mut context, initial.wrapping_add(val));
         }
 
         Command::Multiply(ref s, ref n) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
-            let initial = counters.get(s, &context);
+            let s = s.evaluate_for_name(counters, &context);
+            let initial = counters.get(&s, &context);
             let val = n.resolve(counters, context);
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
-            let s = s.evaluate_for_name(counters, &context);
             counters.set(s, &mut context, initial.wrapping_mul(val));
         }
 
         Command::Divide(ref s, ref n) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
-            let initial = counters.get(s, &context);
+            let s = s.evaluate_for_name(counters, &context);
+            let initial = counters.get(&s, &context);
             let val = n.resolve(counters, context);
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
-            let s = s.evaluate_for_name(counters, &context);
             counters.set(s, &mut context, initial.checked_div(val).unwrap_or(initial));
         }
 
         Command::Modulo(ref s, ref n) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
-            let initial = counters.get(s, &context);
+            let s = s.evaluate_for_name(counters, &context);
+            let initial = counters.get(&s, &context);
             let val = n.resolve(counters, context);
             let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
-            let s = s.evaluate_for_name(counters, &context);
             counters.set(s, &mut context, initial.checked_rem(val).unwrap_or(initial));
         }
 

@@ -1541,6 +1541,22 @@ fn run_one_command(
             }
         }
 
+        Command::DuplicateSelfDir(ref dir) => {
+            let robot = robots.get(robot_id);
+            let dir = dir_to_cardinal_dir(robot, dir);
+            if let Some(dir) = dir {
+                let adjusted = adjust_coordinate(robot.position, board, dir);
+                if let Some(coord) = adjusted {
+                    if coord != board.player_pos {
+                        let new_id = robots.duplicate_self(robot_id, coord).to_param().unwrap();
+                        let robot = robots.get(robot_id);
+                        let &(thing, color, _param) = board.level_at(&robot.position);
+                        put_at(board, &coord, color, Thing::from_u8(thing).unwrap(), new_id, &mut *state.update_done);
+                    }
+                }
+            }
+        }
+
         Command::CopyRobotXY(ref x, ref y) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let pos = mode.resolve_xy(x, y, counters, context, RelativePart::First);

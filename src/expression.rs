@@ -62,6 +62,9 @@ enum ExprOp {
     LessEqual,
     Equal,
     NotEqual,
+    BitShiftLeft,
+    BitShiftRight,
+    //TODO: arithmetic shift right (>>>)
 }
 
 enum Token {
@@ -186,6 +189,18 @@ impl ExprState {
                         // FIXME: this allows !============, also ! without following =
                         ExprOp::NotEqual => Ok((ExprState::Operator(ExprOp::NotEqual), None)),
                         _ => Err(()),
+                    }
+                } else if byte == b'<' {
+                    if op == ExprOp::Less {
+                        Ok((ExprState::Operator(ExprOp::BitShiftLeft), None))
+                    } else {
+                        Err(())
+                    }
+                } else if byte == b'>' {
+                    if op == ExprOp::Greater {
+                        Ok((ExprState::Operator(ExprOp::BitShiftRight), None))
+                    } else {
+                        Err(())
                     }
                 } else {
                     Err(())
@@ -396,6 +411,8 @@ pub(crate) fn evaluate_expression(
                         ExprOp::BitAnd => value = Some(current_val & v),
                         ExprOp::BitOr => value = Some(current_val | v),
                         ExprOp::BitXor => value = Some(current_val ^ v),
+                        ExprOp::BitShiftLeft => value = Some(current_val << v),
+                        ExprOp::BitShiftRight => value = Some(current_val >> v),
                         ExprOp::Greater => value = Some((current_val > v) as i32),
                         ExprOp::GreaterEqual => value = Some((current_val >= v) as i32),
                         ExprOp::Less => value = Some((current_val < v) as i32),
@@ -438,6 +455,8 @@ pub(crate) fn evaluate_expression(
                             ExprOp::BitAnd => value = Some(current_val & var_val),
                             ExprOp::BitOr => value = Some(current_val | var_val),
                             ExprOp::BitXor => value = Some(current_val ^ var_val),
+                            ExprOp::BitShiftLeft => value = Some(current_val << var_val),
+                            ExprOp::BitShiftRight => value = Some(current_val >> var_val),
                             ExprOp::Greater => value = Some((current_val > var_val) as i32),
                             ExprOp::GreaterEqual => value = Some((current_val >= var_val) as i32),
                             ExprOp::Less => value = Some((current_val < var_val) as i32),

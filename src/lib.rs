@@ -65,9 +65,7 @@ pub struct World {
     pub game_over_sfx: bool,
     pub death_pos: Coordinate<u16>,
     pub starting_lives: u16,
-    pub limit_lives: u16,
     pub starting_health: u16,
-    pub limit_health: u16,
     pub enemies_hurt_enemies: bool,
     pub clear_messages_and_projectiles: bool,
     pub only_play_via_swap_world: bool,
@@ -94,6 +92,9 @@ pub struct WorldState {
     pub hibombs: i32,
     pub coins: i32,
     pub score: i32,
+    pub time: i32,
+    pub limit_lives: i32,
+    pub limit_health: i32,
     pub update_done: Vec<bool>, // FIXME: this belongs in mzxplay, not libmzx
 }
 
@@ -120,6 +121,9 @@ impl Default for WorldState {
             hibombs: 0,
             coins: 0,
             score: 0,
+            time: 0,
+            limit_health: 32767,
+            limit_lives: 99,
             update_done: vec![],
         }
     }
@@ -3316,6 +3320,9 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
             gems: 0,
             hibombs: 0,
             lobombs: 0,
+            time: 0,
+            limit_lives: limit_lives as i32,
+            limit_health: limit_health as i32,
             update_done: vec![],
         },
         boards: boards,
@@ -3327,9 +3334,7 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
         game_over_sfx: game_over_sfx,
         death_pos: Coordinate(death_x, death_y),
         starting_lives: starting_lives,
-        limit_lives: limit_lives,
         starting_health: starting_health,
-        limit_health: limit_health,
         enemies_hurt_enemies: enemies_hurt_enemies,
         clear_messages_and_projectiles: clear_messages_and_projectiles,
         only_play_via_swap_world: only_play_via_swap_world,

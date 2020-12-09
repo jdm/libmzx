@@ -1,6 +1,6 @@
 use crate::audio::AudioEngine;
 use crate::board::{move_level_to, put_at, put_thing, reset_view, GameStateChange};
-use crate::robotic::Resolve;
+use crate::robotic::{Item, Resolve};
 use crate::{
     adjust_coordinate, bullet_param, dir_to_cardinal_dir, dir_to_cardinal_dir_rel, Board, BoardId,
     BulletType, ByteString, CardinalDirection, CharId, Color as MzxColor, ColorValue, Command,
@@ -1640,6 +1640,41 @@ fn run_one_command(
                     }
                 }
                 _ => (),
+            }
+        }
+
+        Command::Give(ref n, ref i) | Command::Take(ref n, ref i, ..) => {
+            let context = CounterContext::from(board, robots.get(robot_id), state);
+            let (n, label) = match cmd {
+                Command::Give(..) => (n.resolve(counters, context), None),
+                Command::Take(_, _, ref l) => {
+                    let l = l.as_ref().map(|l| l.eval(counters, context));
+                    (-n.resolve(counters, context), l)
+                }
+                _ => unreachable!(),
+            };
+            let (val, max) = match i {
+                Item::Gems => (&mut state.gems, None),
+                Item::Ammo => (&mut state.ammo, None),
+                Item::Time => (&mut state.time, None),
+                Item::Score => (&mut state.score, None),
+                Item::Health => (&mut state.health, Some(state.limit_health)),
+                Item::Lives => (&mut state.lives, Some(state.limit_lives)),
+                Item::LoBombs => (&mut state.lobombs, None),
+                Item::HiBombs => (&mut state.hibombs, None),
+                Item::Coins => (&mut state.coins, None),
+            };
+            *val += n;
+            if *val < 0 {
+                if let Some(label) = label {
+                    let did_send = send_robot_to_label(robots.get_mut(robot_id), label);
+                    if !did_send {
+                        return CommandResult::NoAdvance;
+                    }
+                }
+            }
+            if let Some(max) = max {
+                *val = (*val).min(max);
             }
         }
 

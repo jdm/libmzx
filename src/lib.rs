@@ -26,6 +26,7 @@ pub use self::robotic::{
 };
 
 use self::robotic::parse_program;
+use self::robot::{Robots, RobotId};
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Zip;
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -346,7 +347,7 @@ impl Board {
         &mut self.under[idx]
     }
 
-    pub fn copy(&mut self, src: Coordinate<u16>, block: Size<u16>, dest: Coordinate<u16>) {
+    pub fn copy(&mut self, src: Coordinate<u16>, block: Size<u16>, dest: Coordinate<u16>, robots: &mut Robots) {
         let mut yiter = if src.1 > dest.1 {
             Box::new(0..block.1) as Box<dyn Iterator<Item = u16>>
         } else {
@@ -372,6 +373,10 @@ impl Board {
 
                 let src = *self.level_at(&src_coord);
                 *self.level_at_mut(&dest_coord) = src;
+                if self.thing_at(&dest_coord).is_robot() {
+                    let new_id = robots.duplicate_self(RobotId::from(src.2), dest_coord);
+                    self.level_at_mut(&dest_coord).2 = new_id.to_param().unwrap();
+                }
                 let src = *self.under_at(&src_coord);
                 *self.under_at_mut(&dest_coord) = src;
             }

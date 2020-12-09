@@ -273,7 +273,7 @@ impl RobotId {
         *self == RobotId::Global
     }
 
-    fn to_param(&self) -> Result<u8, ()> {
+    pub(crate) fn to_param(&self) -> Result<u8, ()> {
         match self {
             RobotId::Board(p) => Ok((p + 1) as u8),
             RobotId::Global => Err(())
@@ -294,7 +294,7 @@ impl<'a> Robots<'a> {
         }
     }
 
-    fn duplicate_self(&mut self, source: RobotId, pos: Coordinate<u16>) -> RobotId {
+    pub(crate) fn duplicate_self(&mut self, source: RobotId, pos: Coordinate<u16>) -> RobotId {
         let robot = Robot::copy_from(self.get(source), pos);
         let id = if let Some(index) = self.robots.iter_mut().position(|r| !r.alive) {
             self.robots[index] = robot;
@@ -1495,7 +1495,7 @@ fn run_one_command(
             if overlay {
                 board.copy_overlay(src, Size(w, h), dest);
             } else {
-                board.copy(src, Size(w, h), dest);
+                board.copy(src, Size(w, h), dest, robots);
             }
         }
 

@@ -1763,10 +1763,8 @@ impl Explosion {
     }
 
     pub fn from_param(p: u8) -> Explosion {
-        let stage = p & 0x0F;
-        assert!(stage < 4);
-        let size = (p & 0xF0) >> 4;
-        assert!(size < 16);
+        let stage = (p & 0x0F).min(3);
+        let size = ((p & 0xF0) >> 4).min(15);
         Explosion { stage, size }
     }
 }

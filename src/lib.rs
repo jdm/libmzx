@@ -1400,7 +1400,7 @@ pub fn param_from_door(orientation: DoorOrientation, dir: DoorDir, status: DoorS
     (match status {
         DoorStatus::Locked => 1,
         DoorStatus::Unlocked => 0,
-    }) << 5
+    }) << 3
         | (match dir {
             DoorDir::OpensNW => 0,
             DoorDir::OpensNE => 1,
@@ -1420,15 +1420,15 @@ pub fn door_from_param(param: u8) -> (DoorOrientation, DoorDir, DoorStatus) {
         DoorOrientation::Vertical
     };
 
-    let dir = match (param & 0b1110) >> 1 {
+    let dir = match (param & 0b110) >> 1 {
         0 => DoorDir::OpensNW,
         1 => DoorDir::OpensNE,
         2 => DoorDir::OpensSW,
         3 => DoorDir::OpensSE,
-        _ => unreachable!(),
+        v => unreachable!("door bits are 0b{:b}", v),
     };
 
-    let status = if (param & 0b10000) != 0 {
+    let status = if (param & 0b1000) != 0 {
         DoorStatus::Locked
     } else {
         DoorStatus::Unlocked

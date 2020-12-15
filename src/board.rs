@@ -407,6 +407,24 @@ pub fn update_board(
                     }
                 }
 
+                Thing::LitBomb => {
+                    let param = board.level_at(&coord).2;
+                    if param & 0x7f == 7 {
+                        let size = if param & 0x80 != 0 { 7 } else { 4 };
+                        let explosion = Explosion { stage: 0, size };
+                        put_at(
+                            board,
+                            &coord,
+                            0x00,
+                            Thing::Explosion,
+                            explosion.to_param(),
+                            &mut *state.update_done,
+                        );
+                    } else {
+                        board.level_at_mut(&coord).2 = param + 1;
+                    }
+                }
+
                 _ => (),
             }
         }

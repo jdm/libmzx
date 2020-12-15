@@ -725,7 +725,7 @@ fn char_from_id(
             }
         }
         Thing::Bomb => CharId::Bomb,
-        Thing::LitBomb => CharId::LitBombAnim1, // TODO: lit bomb animation
+        Thing::LitBomb => return idchars[CharId::LitBombAnim1.to_usize().unwrap() + (param & 0x7F) as usize],
         Thing::Explosion => CharId::Explosion,
         Thing::Key => CharId::Key,
         Thing::Lock => CharId::Lock,

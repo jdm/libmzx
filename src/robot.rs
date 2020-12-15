@@ -135,12 +135,40 @@ impl<T: Copy> CoordinateExtractor for Coordinate<T> {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 enum Relative {
     None,
-    Coordinate(Option<RelativePart>, Coordinate<u16>),
+    Coordinate {
+        first: Option<Coordinate<u16>>,
+        last: Option<Coordinate<u16>>,
+    }
 }
 
 impl Relative {
+    fn from(part: Option<RelativePart>, coord: Coordinate<u16>) -> Relative {
+        match part {
+            None => Relative::Coordinate { first: Some(coord), last: Some(coord) },
+            Some(RelativePart::First) => Relative::Coordinate { first: Some(coord), last: None },
+            Some(RelativePart::Last) => Relative::Coordinate { first: None, last: Some(coord) },
+        }
+    }
+
+    fn merge(&mut self, other: Relative) {
+        if let Relative::None = self {
+            *self = Relative::Coordinate { first: None, last: None };
+        }
+        if let Relative::Coordinate { ref mut first, ref mut last } = self {
+            if let Relative::Coordinate { first: other_first, last: other_last } = other {
+                if other_first.is_some() {
+                    *first = other_first;
+                }
+                if other_last.is_some() {
+                    *last = other_last;
+                }
+            }
+        }
+    }
+
     fn resolve_xy<'a>(
         &self,
         x_value: &SignedNumeric,
@@ -165,11 +193,11 @@ impl Relative {
         let v = value.resolve(counters, context) as i16;
         match *self {
             Relative::None => v,
-            Relative::Coordinate(ref value_part, ref coord) => {
-                if value_part.map_or(true, |p| p == part) {
-                    v + coord.extract(coord_part) as i16
-                } else {
-                    v
+            Relative::Coordinate { first, last } => {
+                match (part, first, last) {
+                    (RelativePart::First, Some(coord), _) |
+                    (RelativePart::Last, _, Some(coord)) => v + coord.extract(coord_part) as i16,
+                    _ => v,
                 }
             }
         }
@@ -439,7 +467,6 @@ pub fn update_robot(
 
         lines_run += 1;
 
-        let old_mode = mem::replace(&mut mode, Relative::None);
         match run_one_command(
             state,
             audio,
@@ -451,11 +478,12 @@ pub fn update_robot(
             board_id,
             &mut robots,
             robot_id,
-            old_mode,
+            mode,
             &cmd,
         ) {
             CommandResult::Advance => {
                 robots.get_mut(robot_id).current_line += 1;
+                mode = Relative::None;
             }
             CommandResult::AdvanceAndChangeState(state) => {
                 robots.get_mut(robot_id).current_line += 1;
@@ -470,7 +498,9 @@ pub fn update_robot(
                             .push(MessageBoxLine::Text("".into(), MessageBoxLineType::Plain));
                     }
                     Some(Update::MessageBox(None)) | None => (),
-                    Some(Update::Mode(new_mode)) => mode = new_mode,
+                    Some(Update::Mode(new_mode)) => {
+                        mode.merge(new_mode);
+                    }
                     Some(Update::MessageBox(Some(line))) => {
                         message_box_lines.push(line);
                     }
@@ -1378,12 +1408,12 @@ fn run_one_command(
         }
 
         Command::RelSelf(ref part) => {
-            let mode = Relative::Coordinate(*part, robots.get(robot_id).position);
+            let mode = Relative::from(*part, robots.get(robot_id).position);
             return CommandResult::IgnoreLine(Some(Update::Mode(mode)));
         }
 
         Command::RelPlayer(ref part) => {
-            let mode = Relative::Coordinate(*part, board.player_pos);
+            let mode = Relative::from(*part, board.player_pos);
             return CommandResult::IgnoreLine(Some(Update::Mode(mode)));
         }
 
@@ -1394,7 +1424,7 @@ fn run_one_command(
                 counters.get(&BuiltInCounter::Xpos.into(), &context) as u16,
                 counters.get(&BuiltInCounter::Ypos.into(), &context) as u16,
             );
-            let mode = Relative::Coordinate(*part, coord);
+            let mode = Relative::from(*part, coord);
             return CommandResult::IgnoreLine(Some(Update::Mode(mode)));
         }
 

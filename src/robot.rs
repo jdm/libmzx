@@ -3,7 +3,7 @@ use crate::board::{move_level_to, put_at, put_thing, reset_view, GameStateChange
 use crate::robotic::{Item, Resolve};
 use crate::{
     adjust_coordinate, bullet_param, dir_to_cardinal_dir, dir_to_cardinal_dir_rel, Board, BoardId,
-    BulletType, ByteString, CardinalDirection, CharId, Color as MzxColor, ColorValue, Command,
+    ByteString, CardinalDirection, CharId, Color as MzxColor, ColorValue, Command,
     Coordinate, CounterContext, CounterContextMut, Counters, Direction, Explosion,
     ExtendedColorValue, ExtendedParam, KeyPress, MessageBoxLine, MessageBoxLineType, Operator,
     ParamValue, RelativeDirBasis, RelativePart, Robot, RunStatus, SignedNumeric, Size, Thing,
@@ -1909,7 +1909,7 @@ fn run_one_command(
                             bullet_pos,
                             0x07,
                             Thing::Bullet,
-                            bullet_param(BulletType::Neutral, dir),
+                            bullet_param(robot.bullet_type.into(), dir),
                             &mut *state.update_done,
                         );
                     }

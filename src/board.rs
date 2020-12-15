@@ -430,7 +430,10 @@ pub fn update_board(
         }
     }
 
-    debug!("updating board in reverse: {},{}", board.width, board.height);
+    debug!(
+        "updating board in reverse: {},{}",
+        board.width, board.height
+    );
     for y in (0..board.height).rev() {
         for x in (0..board.width).rev() {
             let coord = Coordinate(x as u16, y as u16);

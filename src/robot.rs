@@ -3,11 +3,10 @@ use crate::board::{move_level_to, put_at, put_thing, reset_view, GameStateChange
 use crate::robotic::{Item, Resolve};
 use crate::{
     adjust_coordinate, bullet_param, dir_to_cardinal_dir, dir_to_cardinal_dir_rel, Board, BoardId,
-    ByteString, CardinalDirection, CharId, Color as MzxColor, ColorValue, Command,
-    Coordinate, CounterContext, CounterContextMut, Counters, Direction, Explosion,
-    ExtendedColorValue, ExtendedParam, KeyPress, MessageBoxLine, MessageBoxLineType, Operator,
-    ParamValue, RelativeDirBasis, RelativePart, Robot, RunStatus, SignedNumeric, Size, Thing,
-    WorldState,
+    ByteString, CardinalDirection, CharId, Color as MzxColor, ColorValue, Command, Coordinate,
+    CounterContext, CounterContextMut, Counters, Direction, Explosion, ExtendedColorValue,
+    ExtendedParam, KeyPress, MessageBoxLine, MessageBoxLineType, Operator, ParamValue,
+    RelativeDirBasis, RelativePart, Robot, RunStatus, SignedNumeric, Size, Thing, WorldState,
 };
 use num_traits::{FromPrimitive, ToPrimitive};
 use std::fs::File;
@@ -276,7 +275,7 @@ impl RobotId {
     pub(crate) fn to_param(&self) -> Result<u8, ()> {
         match self {
             RobotId::Board(p) => Ok((p + 1) as u8),
-            RobotId::Global => Err(())
+            RobotId::Global => Err(()),
         }
     }
 }
@@ -352,9 +351,12 @@ pub fn update_robot(
     reverse_scan: bool,
 ) -> Option<GameStateChange> {
     let robot = robots.get_mut(robot_id);
-    if !robot.alive ||
-        matches!(robot.status, RunStatus::FinishedRunning | RunStatus::FinishedWithoutRunning) ||
-        (robot.status == RunStatus::MustRunOnReverse && !reverse_scan)
+    if !robot.alive
+        || matches!(
+            robot.status,
+            RunStatus::FinishedRunning | RunStatus::FinishedWithoutRunning
+        )
+        || (robot.status == RunStatus::MustRunOnReverse && !reverse_scan)
     {
         debug!("alive: {}, status: {:?}", robot.alive, robot.status);
         return None;
@@ -399,7 +401,10 @@ pub fn update_robot(
         let robot = robots.get_mut(robot_id);
         if !robot_id.is_global() {
             if !board.thing_at(&robot.position).is_robot() {
-                warn!("current robot not present at reported position ({:?}); terminating", robot.position);
+                warn!(
+                    "current robot not present at reported position ({:?}); terminating",
+                    robot.position
+                );
                 robot.alive = false;
             } else if RobotId::from(board.level_at(&robot.position).2) != robot_id {
                 warn!(
@@ -1367,13 +1372,7 @@ fn run_one_command(
                 let robot = robots.get_mut(robot_id);
                 let context = CounterContext::from(board, robot, state);
                 let coord = mode.resolve_xy(x, y, counters, context, RelativePart::First);
-                move_robot_to(
-                    robots,
-                    robot_id,
-                    board,
-                    coord,
-                    &mut *state.update_done,
-                );
+                move_robot_to(robots, robot_id, board, coord, &mut *state.update_done);
             }
         }
 
@@ -1537,7 +1536,14 @@ fn run_one_command(
                 let new_id = robots.duplicate_self(robot_id, pos).to_param().unwrap();
                 let robot = robots.get(robot_id);
                 let &(thing, color, _param) = board.level_at(&robot.position);
-                put_at(board, &pos, color, Thing::from_u8(thing).unwrap(), new_id, &mut *state.update_done);
+                put_at(
+                    board,
+                    &pos,
+                    color,
+                    Thing::from_u8(thing).unwrap(),
+                    new_id,
+                    &mut *state.update_done,
+                );
             }
         }
 
@@ -1551,7 +1557,14 @@ fn run_one_command(
                         let new_id = robots.duplicate_self(robot_id, coord).to_param().unwrap();
                         let robot = robots.get(robot_id);
                         let &(thing, color, _param) = board.level_at(&robot.position);
-                        put_at(board, &coord, color, Thing::from_u8(thing).unwrap(), new_id, &mut *state.update_done);
+                        put_at(
+                            board,
+                            &coord,
+                            color,
+                            Thing::from_u8(thing).unwrap(),
+                            new_id,
+                            &mut *state.update_done,
+                        );
                     }
                 }
             }

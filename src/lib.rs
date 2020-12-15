@@ -25,8 +25,8 @@ pub use self::robotic::{
     RelativePart, Resolve, SignedNumeric,
 };
 
+use self::robot::{RobotId, Robots};
 use self::robotic::parse_program;
-use self::robot::{Robots, RobotId};
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Zip;
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -351,7 +351,13 @@ impl Board {
         &mut self.under[idx]
     }
 
-    pub fn copy(&mut self, src: Coordinate<u16>, block: Size<u16>, dest: Coordinate<u16>, robots: &mut Robots) {
+    pub fn copy(
+        &mut self,
+        src: Coordinate<u16>,
+        block: Size<u16>,
+        dest: Coordinate<u16>,
+        robots: &mut Robots,
+    ) {
         let mut yiter = if src.1 > dest.1 {
             Box::new(0..block.1) as Box<dyn Iterator<Item = u16>>
         } else {
@@ -609,8 +615,7 @@ impl<'a> CounterContextMut<'a> {
             | LocalCounter::ThisX
             | LocalCounter::ThisY
             | LocalCounter::ThisColor
-            | LocalCounter::ThisChar
-            => None,
+            | LocalCounter::ThisChar => None,
         }
     }
 }
@@ -1836,9 +1841,7 @@ pub(crate) fn load_palette(palette_color_data: &[u8]) -> Palette {
         ));
     }
     assert_eq!(colors.len(), 16);
-    Palette {
-        colors,
-    }
+    Palette { colors }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -2061,7 +2064,11 @@ pub enum NumericCounter {
 }
 
 impl NumericCounter {
-    fn from(name: &ByteString, counters: &Counters, context: &dyn CounterContextExt) -> Option<NumericCounter> {
+    fn from(
+        name: &ByteString,
+        counters: &Counters,
+        context: &dyn CounterContextExt,
+    ) -> Option<NumericCounter> {
         let name = ByteString(
             name.as_bytes()
                 .iter()
@@ -2071,37 +2078,16 @@ impl NumericCounter {
 
         MathCounter::from(&name, counters, context)
             .map(NumericCounter::Math)
-            .or_else(|| {
-                PlayerCounter::from(&name)
-                    .map(NumericCounter::Player)
-            }).or_else(|| {
-                RobotCounter::from(&name)
-                    .map(NumericCounter::Robot)
-            }).or_else(|| {
-                BoardCounter::from(&name)
-                    .map(NumericCounter::Board)
-            }).or_else(|| {
-                FileCounter::from(&name)
-                    .map(NumericCounter::File)
-            }).or_else(|| {
-                SpriteCounter::from(&name)
-                    .map(NumericCounter::Sprite)
-            }).or_else(|| {
-                CharEditCounter::from(&name)
-                    .map(NumericCounter::CharEdit)
-            }).or_else(|| {
-                MouseCounter::from(&name)
-                    .map(NumericCounter::Mouse)
-            }).or_else(|| {
-                DefaultsCounter::from(&name)
-                    .map(NumericCounter::Defaults)
-            }).or_else(|| {
-                VLayerCounter::from(&name)
-                    .map(NumericCounter::VLayer)
-            }).or_else(|| {
-                MiscCounter::from(&name)
-                    .map(NumericCounter::Misc)
-            })
+            .or_else(|| PlayerCounter::from(&name).map(NumericCounter::Player))
+            .or_else(|| RobotCounter::from(&name).map(NumericCounter::Robot))
+            .or_else(|| BoardCounter::from(&name).map(NumericCounter::Board))
+            .or_else(|| FileCounter::from(&name).map(NumericCounter::File))
+            .or_else(|| SpriteCounter::from(&name).map(NumericCounter::Sprite))
+            .or_else(|| CharEditCounter::from(&name).map(NumericCounter::CharEdit))
+            .or_else(|| MouseCounter::from(&name).map(NumericCounter::Mouse))
+            .or_else(|| DefaultsCounter::from(&name).map(NumericCounter::Defaults))
+            .or_else(|| VLayerCounter::from(&name).map(NumericCounter::VLayer))
+            .or_else(|| MiscCounter::from(&name).map(NumericCounter::Misc))
     }
 
     fn eval(&self, context: &CounterContext) -> i32 {
@@ -2194,21 +2180,31 @@ pub enum MathCounter {
 impl MathCounter {
     fn eval(&self, _context: &CounterContext) -> i32 {
         match self {
-            MathCounter::Abs(v) => if *v < 0 { -v } else { *v },
+            MathCounter::Abs(v) => {
+                if *v < 0 {
+                    -v
+                } else {
+                    *v
+                }
+            }
             MathCounter::Sqrt(v) => (*v as f32).sqrt() as i32,
             MathCounter::Min(a, b) => *a.min(&b),
             MathCounter::Max(a, b) => *a.max(&b),
         }
     }
 
-    fn from(name: &ByteString, counters: &Counters, context: &dyn CounterContextExt) -> Option<MathCounter> {
+    fn from(
+        name: &ByteString,
+        counters: &Counters,
+        context: &dyn CounterContextExt,
+    ) -> Option<MathCounter> {
         Some(match name {
             _ if name.starts_with(b"abs") => {
                 let name: ByteString = name.as_bytes()[3..].into();
                 let result = name.evaluate_for_name(counters, context);
                 let val = result.to_string().parse::<i32>().ok()?;
                 MathCounter::Abs(val)
-            },
+            }
             _ if name.starts_with(b"sqrt") => {
                 let name: ByteString = name.as_bytes()[4..].into();
                 let result = name.evaluate_for_name(counters, context);
@@ -2249,7 +2245,7 @@ impl MathCounter {
 #[derive(Debug)]
 pub enum RobotCounter {
     //Commands,
-    //OtherLocal(i32, ByteString),
+//OtherLocal(i32, ByteString),
 }
 
 impl RobotCounter {
@@ -2326,27 +2322,27 @@ impl BoardCounter {
 #[derive(Debug)]
 pub enum FileCounter {
     //FreadOpen,
-    //FwriteOpen,
-    //FwriteModify,
-    //FwriteAppend,
-    //FreadCounter,
-    //FwriteCounter,
-    //FreadPos,
-    //FwritePos,
-    //FreadDelimiter,
-    //FwriteDelimiter,
-    //Fread(Option<i32>),
-    //Fwrite(Option<i32>),
-    //FreadLength,
-    //FwriteLength,
-    //SaveRobot(Option<i32>),
-    //LoadRobot(Option<i32>),
-    //SaveBc(Option<i32>),
-    //LoadBc(Option<i32>),
-    //SaveGame,
-    //LoadGame,
-    //SaveCounters,
-    //LoadCounters,
+//FwriteOpen,
+//FwriteModify,
+//FwriteAppend,
+//FreadCounter,
+//FwriteCounter,
+//FreadPos,
+//FwritePos,
+//FreadDelimiter,
+//FwriteDelimiter,
+//Fread(Option<i32>),
+//Fwrite(Option<i32>),
+//FreadLength,
+//FwriteLength,
+//SaveRobot(Option<i32>),
+//LoadRobot(Option<i32>),
+//SaveBc(Option<i32>),
+//LoadBc(Option<i32>),
+//SaveGame,
+//LoadGame,
+//SaveCounters,
+//LoadCounters,
 }
 
 impl FileCounter {
@@ -2365,32 +2361,32 @@ impl FileCounter {
 #[derive(Debug)]
 pub enum SpriteCounter {
     //SprClist(i32),
-    //SprCollisions,
-    //SprNum,
-    //SprYOrder,
-    //SprCCheck(i32),
-    //SprCWidth(i32),
-    //SprCHeight(i32),
-    //SprCList(i32),
-    //SprCx(i32),
-    //SprCy(i32),
-    //SprOff(i32),
-    //SprOverlaid(i32),
-    //SprOverlay(i32),
-    //SprRefX(i32),
-    //SprRefY(i32),
-    //SprSetView(i32),
-    //SprStatic(i32),
-    //SprSwap(i32),
-    //SprVlayer(i32),
-    //SprWidth(i32),
-    //SprHeight(i32),
-    //SprX(i32),
-    //SprY(i32),
-    //SprZ(i32),
-    //SprUnbound(i32),
-    //SprTCol(i32),
-    //SprOffset(i32),
+//SprCollisions,
+//SprNum,
+//SprYOrder,
+//SprCCheck(i32),
+//SprCWidth(i32),
+//SprCHeight(i32),
+//SprCList(i32),
+//SprCx(i32),
+//SprCy(i32),
+//SprOff(i32),
+//SprOverlaid(i32),
+//SprOverlay(i32),
+//SprRefX(i32),
+//SprRefY(i32),
+//SprSetView(i32),
+//SprStatic(i32),
+//SprSwap(i32),
+//SprVlayer(i32),
+//SprWidth(i32),
+//SprHeight(i32),
+//SprX(i32),
+//SprY(i32),
+//SprZ(i32),
+//SprUnbound(i32),
+//SprTCol(i32),
+//SprOffset(i32),
 }
 
 impl SpriteCounter {
@@ -2409,11 +2405,11 @@ impl SpriteCounter {
 #[derive(Debug)]
 pub enum CharEditCounter {
     //CharX,
-    //CharY,
-    //Pixel,
-    //CharByte,
-    //Char,
-    //Byte,
+//CharY,
+//Pixel,
+//CharByte,
+//Char,
+//Byte,
 }
 
 impl CharEditCounter {
@@ -2432,16 +2428,16 @@ impl CharEditCounter {
 #[derive(Debug)]
 pub enum MouseCounter {
     //MouseX,
-    //MouseY,
-    //MousePx,
-    //MousePy,
-    //MBoardX,
-    //MBoardY,
-    //Buttons,
-    //CursorState,
-    //JoyActive(i32),
-    //JoyActions(i32, i32),
-    //JoySimulateKeys,
+//MouseY,
+//MousePx,
+//MousePy,
+//MBoardX,
+//MBoardY,
+//Buttons,
+//CursorState,
+//JoyActive(i32),
+//JoyActions(i32, i32),
+//JoySimulateKeys,
 }
 
 impl MouseCounter {
@@ -2460,12 +2456,12 @@ impl MouseCounter {
 #[derive(Debug)]
 pub enum DefaultsCounter {
     //EnterMenu,
-    //EscapeMenu,
-    //HelpMenu,
-    //F2Menu,
-    //LoadMenu,
-    //BiMesg,
-    //SpaceLock,
+//EscapeMenu,
+//HelpMenu,
+//F2Menu,
+//LoadMenu,
+//BiMesg,
+//SpaceLock,
 }
 
 impl DefaultsCounter {
@@ -2484,10 +2480,10 @@ impl DefaultsCounter {
 #[derive(Debug)]
 pub enum VLayerCounter {
     //VLayerWidth,
-    //VLayerHeight,
-    //VLayerSize,
-    //Vch(i32, i32),
-    //Vco(i32, i32),
+//VLayerHeight,
+//VLayerSize,
+//Vch(i32, i32),
+//Vco(i32, i32),
 }
 
 impl VLayerCounter {
@@ -3284,11 +3280,8 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
         }
 
         let end_board_pos = board_pos + byte_length;
-        let (mut board, mut robots) = load_board(
-            title,
-            version,
-            &original_buffer[board_pos..end_board_pos],
-        )?;
+        let (mut board, mut robots) =
+            load_board(title, version, &original_buffer[board_pos..end_board_pos])?;
         board.init(&mut robots);
         boards.push((board, robots));
         buffer = new_buffer;

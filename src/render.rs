@@ -2,9 +2,9 @@ use itertools::{Itertools, Zip};
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::{
-    bullet_from_param, Board, BulletType, ByteString, CardinalDirection, CharId,
-    Charset, Coordinate, Explosion, MessageBoxLineType, OverlayMode, Palette,
-    Robot, Sensor, Size, Thing, WorldState,
+    bullet_from_param, Board, BulletType, ByteString, CardinalDirection, CharId, Charset,
+    Coordinate, Explosion, MessageBoxLineType, OverlayMode, Palette, Robot, Sensor, Size, Thing,
+    WorldState,
 };
 
 pub trait Renderer {
@@ -725,7 +725,9 @@ fn char_from_id(
             }
         }
         Thing::Bomb => CharId::Bomb,
-        Thing::LitBomb => return idchars[CharId::LitBombAnim1.to_usize().unwrap() + (param & 0x7F) as usize],
+        Thing::LitBomb => {
+            return idchars[CharId::LitBombAnim1.to_usize().unwrap() + (param & 0x7F) as usize]
+        }
         Thing::Explosion => CharId::Explosion,
         Thing::Key => CharId::Key,
         Thing::Lock => CharId::Lock,

@@ -1,4 +1,7 @@
-use crate::{ByteString, CounterContext, CounterContextMut, Counters, LocalCounter, NumericCounter, StringCounter};
+use crate::{
+    ByteString, CounterContext, CounterContextMut, Counters, LocalCounter, NumericCounter,
+    StringCounter,
+};
 
 pub trait CounterContextExt {
     fn local_counter(&self, counter: LocalCounter) -> i32;
@@ -397,16 +400,20 @@ pub(crate) fn evaluate_expression(
                         ExprOp::Plus => value = Some(current_val + v),
                         ExprOp::Minus => value = Some(current_val - v),
                         ExprOp::Multiply => value = Some(current_val * v),
-                        ExprOp::Divide => value = if v != 0 {
-                            Some(current_val / v)
-                        } else {
-                            Some(0)
-                        },
-                        ExprOp::Modulo => value = if v != 0 {
-                            Some(current_val % v)
-                        } else {
-                            Some(0)
-                        },
+                        ExprOp::Divide => {
+                            value = if v != 0 {
+                                Some(current_val / v)
+                            } else {
+                                Some(0)
+                            }
+                        }
+                        ExprOp::Modulo => {
+                            value = if v != 0 {
+                                Some(current_val % v)
+                            } else {
+                                Some(0)
+                            }
+                        }
                         ExprOp::Pow => value = Some(current_val.pow(v as u32)), // FIXME: what does ^ with negative values?
                         ExprOp::BitAnd => value = Some(current_val & v),
                         ExprOp::BitOr => value = Some(current_val | v),
@@ -441,16 +448,20 @@ pub(crate) fn evaluate_expression(
                             ExprOp::Plus => value = Some(current_val + var_val),
                             ExprOp::Minus => value = Some(current_val - var_val),
                             ExprOp::Multiply => value = Some(current_val * var_val),
-                            ExprOp::Divide => value = if var_val != 0 {
-                                Some(current_val / var_val)
-                            } else {
-                                Some(0)
-                            },
-                            ExprOp::Modulo => value = if var_val != 0 {
-                                Some(current_val % var_val)
-                            } else {
-                                Some(0)
-                            },
+                            ExprOp::Divide => {
+                                value = if var_val != 0 {
+                                    Some(current_val / var_val)
+                                } else {
+                                    Some(0)
+                                }
+                            }
+                            ExprOp::Modulo => {
+                                value = if var_val != 0 {
+                                    Some(current_val % var_val)
+                                } else {
+                                    Some(0)
+                                }
+                            }
                             ExprOp::Pow => value = Some(current_val.pow(var_val as u32)), //FIXME:  what does ^ do with negative values?
                             ExprOp::BitAnd => value = Some(current_val & var_val),
                             ExprOp::BitOr => value = Some(current_val | var_val),

@@ -11,7 +11,6 @@ use crate::{
 use num_traits::{FromPrimitive, ToPrimitive};
 use std::fs::File;
 use std::io::Read;
-use std::mem;
 use std::ops::Deref;
 use std::path::Path;
 

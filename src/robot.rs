@@ -807,6 +807,7 @@ fn run_one_command(
         Command::LockPlayer => {
             board.player_locked_ns = true;
             board.player_locked_ew = true;
+            board.player_locked_attack = true;
         }
 
         Command::UnlockPlayer => {

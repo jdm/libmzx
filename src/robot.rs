@@ -789,12 +789,13 @@ fn run_one_command(
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let coord = mode.resolve_xy(x, y, counters, context, RelativePart::First);
             debug!("scrolling to {},{}", coord.0, coord.1);
-            board.scroll_offset = coord;
+            board.scroll_to(coord);
         }
 
         Command::ScrollView(ref dir, ref n) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let n = n.resolve(counters, context);
+            //FIXME: deduplicate with Board::scroll_to.
             let dir = dir_to_cardinal_dir(robots.get(robot_id), dir);
             match dir {
                 Some(CardinalDirection::West) => {

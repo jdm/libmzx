@@ -255,6 +255,15 @@ impl Default for Board {
 }
 
 impl Board {
+    fn scroll_to(&mut self, coord: Coordinate<u16>) {
+        let max_x = (self.width as isize - self.viewport_size.0 as isize).max(0) as u16;
+        let max_y = (self.height as isize - self.viewport_size.1 as isize).max(0) as u16;
+        self.scroll_offset = Coordinate(
+            coord.0.min(max_x).max(0),
+            coord.1.min(max_y).max(0),
+        );
+    }
+
     fn init(&mut self, robots: &mut [Robot]) {
         for (idx, &(thing, _, param)) in self.level.iter().enumerate() {
             if thing == Thing::Robot.to_u8().unwrap() {

@@ -180,11 +180,12 @@ pub fn render<R: Renderer>(
     const WINDOW_HEIGHT: u8 = 25;
     if board.remaining_message_cycles > 0 && board.message_row < WINDOW_HEIGHT {
         let message_len = board.message_line.text_len() + if w.message_edge { 2 } else { 0 };
-        let mut msg_x = board.message_col.unwrap_or_else(|| if message_len < WINDOW_SIZE {
+        let orig_x = board.message_col.unwrap_or_else(|| if message_len < WINDOW_SIZE {
             (WINDOW_SIZE - message_len) / 2
         } else {
             0
         } as u8);
+        let mut msg_x = orig_x;
 
         if w.message_edge && msg_x > 0 {
             draw_char(
@@ -198,21 +199,27 @@ pub fn render<R: Renderer>(
                 renderer,
             );
         }
+        let mut msg_y = board.message_row as usize;
         for (chars, bg, fg) in board.message_line.color_text() {
             for &c in chars {
-                draw_char(
-                    c,
-                    fg.unwrap_or(w.message_color),
-                    bg.unwrap_or(0x00),
-                    msg_x as usize,
-                    board.message_row as usize,
-                    charset,
-                    palette,
-                    renderer,
-                );
-                msg_x += 1;
-                if msg_x >= WINDOW_SIZE as u8 {
-                    break;
+                if c == b'\n' {
+                    msg_x = orig_x;
+                    msg_y += 1
+                } else {
+                    draw_char(
+                        c,
+                        fg.unwrap_or(w.message_color),
+                        bg.unwrap_or(0x00),
+                        msg_x as usize,
+                        msg_y,
+                        charset,
+                        palette,
+                        renderer,
+                    );
+                    msg_x += 1;
+                    if msg_x >= WINDOW_SIZE as u8 {
+                        break;
+                    }
                 }
             }
         }
@@ -222,7 +229,7 @@ pub fn render<R: Renderer>(
                 0x00,
                 0x00,
                 msg_x as usize,
-                board.message_row as usize,
+                msg_y,
                 charset,
                 palette,
                 renderer,

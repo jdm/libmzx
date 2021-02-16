@@ -28,7 +28,7 @@ pub fn render<R: Renderer>(
     renderer.clear();
 
     let mut empty_overlay = vec![];
-    let overlay = match board.overlay {
+    let base_overlay = match board.overlay {
         Some((OverlayMode::Static, ref data)) | Some((OverlayMode::Normal, ref data)) => data,
         _ => {
             empty_overlay.reserve(board.width * board.height);
@@ -81,7 +81,7 @@ pub fn render<R: Renderer>(
     };
 
     let overlay = Itertools::flatten(
-        overlay
+        base_overlay
             .chunks(board.width) // per-row
             .skip(overlay_viewport.1 as usize) // ignore pre-viewport
             .take((display.1).1 as usize) // only iterate rows in viewport
@@ -175,6 +175,72 @@ pub fn render<R: Renderer>(
             renderer,
         );
     }
+
+    // Draw sprites over board content, skipping tiles where there is overlay content
+    // if the sprite should be drawn below the overlay.
+
+    // FIXME: static sprites
+    // FIXME: skip drawing sprites outside of viewport
+    // FIXME: adjust for viewport
+    for sprite in &board.sprites {
+        if !sprite.enabled {
+            continue;
+        }
+        for y_off in 0..(sprite.size.1 as usize) {
+            for x_off in 0..(sprite.size.0 as usize) {
+                let y = sprite.reference.1 as usize + y_off;
+                let x = sprite.reference.0 as usize + x_off;
+                let offset = y * board.width + x;
+                let (ch, color) = if sprite.is_overlaid {
+                    unimplemented!()
+                    //overlay2[offset]
+                } else {
+                    // FIXME: under?
+                    let (id, color, param) = board.level[offset];
+                    // FIXME: deduplicate with above
+                    let ch = char_from_id(
+                        id,
+                        param,
+                        &robots,
+                        &board.sensors,
+                        &w.idchars,
+                        x
+                            .checked_sub(1)
+                            .map(|x| board.thing_at(&Coordinate(x as u16, y as u16))),
+                        if (x as usize) < board.width - 1 {
+                            Some(board.thing_at(&Coordinate(x as u16 + 1, y as u16)))
+                        } else {
+                            None
+                        },
+                        y
+                            .checked_sub(1)
+                            .map(|y| board.thing_at(&Coordinate(x as u16, y as u16))),
+                        if (y as usize) < board.height - 1 {
+                            Some(board.thing_at(&Coordinate(x as u16, y as u16 + 1)))
+                        } else {
+                            None
+                        },
+                        w.player_face_dir,
+                    );
+                    (ch, color)  
+                };
+                if ch == b' ' {
+                    continue;
+                }
+                draw_char(
+                    ch,
+                    color % num_colors,
+                    color / num_colors,
+                    sprite.pos.0 as usize + x_off,
+                    sprite.pos.1 as usize + y_off,
+                    charset,
+                    palette,
+                    renderer,
+                )
+            }
+        }
+    }
+
 
     const WINDOW_SIZE: usize = 80;
     const WINDOW_HEIGHT: u8 = 25;

@@ -99,6 +99,11 @@ pub fn put_thing(
         ExtendedParam::Any => 0x00, //HACK
     };
 
+    if thing == Thing::Sprite {
+        board.sprites[param as usize].enabled = true;
+        board.sprites[param as usize].pos = Coordinate(pos.0 as i32, pos.1 as i32);
+    }
+
     put_at(board, &pos, color, thing, param, update_done);
 }
 

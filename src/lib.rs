@@ -212,7 +212,7 @@ pub struct Board {
     pub player_locked_ew: bool,
     pub player_locked_attack: bool,
     pub num_robots: usize,
-    pub(crate) sprites: Vec<Sprite>,
+    pub(crate) sprites: [Sprite; 256],
 }
 
 impl Default for Board {
@@ -253,7 +253,7 @@ impl Default for Board {
             player_locked_ew: false,
             player_locked_attack: false,
             num_robots: 0,
-            sprites: vec![],
+            sprites: [Default::default(); 256],
         }
     }
 }
@@ -3193,7 +3193,7 @@ fn load_board(
             player_locked_ew,
             player_locked_attack,
             num_robots: robots.len(),
-            sprites: vec![],
+            sprites: [Default::default(); 256],
         },
         robots,
     ))

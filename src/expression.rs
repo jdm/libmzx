@@ -24,6 +24,7 @@ impl<'a> CounterContextExt for CounterContext<'a> {
 pub trait CounterContextMutExt: CounterContextExt {
     fn as_immutable(&self) -> &dyn CounterContextExt;
     fn local_counter_mut(&mut self, counter: LocalCounter) -> Option<&mut i32>;
+    fn numeric_counter_mut(&mut self, counter: NumericCounter) -> Option<&mut i32>;
 }
 
 impl<'a> CounterContextExt for CounterContextMut<'a> {
@@ -45,6 +46,10 @@ impl<'a> CounterContextMutExt for CounterContextMut<'a> {
 
     fn local_counter_mut(&mut self, counter: LocalCounter) -> Option<&mut i32> {
         CounterContextMut::local_counter_mut(self, counter)
+    }
+
+    fn numeric_counter_mut(&mut self, counter: NumericCounter) -> Option<&mut i32> {
+        CounterContextMut::numeric_counter_mut(self, counter)
     }
 }
 

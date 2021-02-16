@@ -15,6 +15,7 @@ mod expression;
 mod render;
 pub mod robot;
 mod robotic;
+mod sprite;
 mod world;
 
 use self::expression::{CounterContextExt, CounterContextMutExt};
@@ -24,6 +25,7 @@ pub use self::robotic::{
     Command, ExtendedColorValue, ExtendedParam, MessageBoxLineType, ModifiedDirection, Operator,
     RelativePart, Resolve, SignedNumeric,
 };
+use self::sprite::Sprite;
 
 use self::robot::{RobotId, Robots};
 use self::robotic::parse_program;
@@ -210,6 +212,7 @@ pub struct Board {
     pub player_locked_ew: bool,
     pub player_locked_attack: bool,
     pub num_robots: usize,
+    pub(crate) sprites: Vec<Sprite>,
 }
 
 impl Default for Board {
@@ -250,6 +253,7 @@ impl Default for Board {
             player_locked_ew: false,
             player_locked_attack: false,
             num_robots: 0,
+            sprites: vec![],
         }
     }
 }
@@ -614,10 +618,6 @@ impl<'a> CounterContextMut<'a> {
             LocalCounter::Local(n) => Some(&mut self.robot.local[n as usize]),
             LocalCounter::Lavawalk => Some(&mut self.robot.lavawalking),
             LocalCounter::BulletType => Some(&mut self.robot.bullet_type),
-            /*LocalCounter::PlayerFaceDir => Some(&mut self.state.player_face_dir),
-            LocalCounter::Health => Some(&mut self.state.health),
-            LocalCounter::Lives => Some(&mut self.state.lives),
-            LocalCounter::Ammo => Some(&mut self.state.ammo),*/
             LocalCounter::HorizPld
             | LocalCounter::VertPld
             | LocalCounter::PlayerDist
@@ -627,6 +627,11 @@ impl<'a> CounterContextMut<'a> {
             | LocalCounter::ThisChar => None,
         }
     }
+
+    fn numeric_counter_mut(&mut self, counter: NumericCounter) -> Option<&mut i32> {
+        counter.as_mut(self)
+    }
+
 }
 
 pub struct Counters {
@@ -684,6 +689,11 @@ impl Counters {
         if let Some(local) = LocalCounter::from(&name) {
             if let Some(counter) = context.local_counter_mut(local) {
                 debug!("setting local counter");
+                *counter = value;
+            }
+        } else if let Some(numeric) = NumericCounter::from(&name, self, context.as_immutable()) {
+            if let Some(counter) = context.numeric_counter_mut(numeric) {
+                debug!("setting numeric counter");
                 *counter = value;
             }
         } else {
@@ -2091,7 +2101,7 @@ impl NumericCounter {
             .or_else(|| RobotCounter::from(&name).map(NumericCounter::Robot))
             .or_else(|| BoardCounter::from(&name).map(NumericCounter::Board))
             .or_else(|| FileCounter::from(&name).map(NumericCounter::File))
-            .or_else(|| SpriteCounter::from(&name).map(NumericCounter::Sprite))
+            .or_else(|| SpriteCounter::from(&name, counters, context).map(NumericCounter::Sprite))
             .or_else(|| CharEditCounter::from(&name).map(NumericCounter::CharEdit))
             .or_else(|| MouseCounter::from(&name).map(NumericCounter::Mouse))
             .or_else(|| DefaultsCounter::from(&name).map(NumericCounter::Defaults))
@@ -2112,6 +2122,22 @@ impl NumericCounter {
             NumericCounter::Defaults(c) => c.eval(context),
             NumericCounter::VLayer(c) => c.eval(context),
             NumericCounter::Misc(c) => c.eval(context),
+        }
+    }
+
+    fn as_mut<'a>(&self, context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
+        match self {
+            NumericCounter::Math(c) => c.as_mut(context),
+            NumericCounter::Player(c) => c.as_mut(context),
+            NumericCounter::Robot(c) => c.as_mut(context),
+            NumericCounter::Board(c) => c.as_mut(context),
+            NumericCounter::File(c) => c.as_mut(context),
+            NumericCounter::Sprite(c) => c.as_mut(context),
+            NumericCounter::CharEdit(c) => c.as_mut(context),
+            NumericCounter::Mouse(c) => c.as_mut(context),
+            NumericCounter::Defaults(c) => c.as_mut(context),
+            NumericCounter::VLayer(c) => c.as_mut(context),
+            NumericCounter::Misc(c) => c.as_mut(context),
         }
     }
 }
@@ -2166,6 +2192,22 @@ impl PlayerCounter {
             PlayerCounter::PlayerY => context.board.player_pos.1 as i32,
         }
     }
+
+    fn as_mut<'a>(&self, context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
+        Some(match self {
+            PlayerCounter::Gems => &mut context.state.gems,
+            PlayerCounter::Ammo => &mut context.state.ammo,
+            PlayerCounter::LoBombs => &mut context.state.lobombs,
+            PlayerCounter::HighBombs => &mut context.state.hibombs,
+            PlayerCounter::Coins => &mut context.state.coins,
+            PlayerCounter::Lives => &mut context.state.lives,
+            PlayerCounter::Health => &mut context.state.health,
+            PlayerCounter::Score => &mut context.state.score,
+            PlayerCounter::PlayerFaceDir => &mut context.state.player_face_dir,
+            PlayerCounter::PlayerX |
+            PlayerCounter::PlayerY => return None,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -2200,6 +2242,10 @@ impl MathCounter {
             MathCounter::Min(a, b) => *a.min(&b),
             MathCounter::Max(a, b) => *a.max(&b),
         }
+    }
+
+    fn as_mut<'a>(&self, _context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
+        None
     }
 
     fn from(
@@ -2265,6 +2311,12 @@ impl RobotCounter {
         })
     }
 
+    fn as_mut<'a>(&self, _context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
+        match self {
+            _ => None,
+        }
+    }
+
     fn eval(&self, _context: &CounterContext) -> i32 {
         unimplemented!()
     }
@@ -2326,6 +2378,15 @@ impl BoardCounter {
             BoardCounter::ScrolledY => context.board.scroll_offset.1 as i32,
         }
     }
+
+    fn as_mut<'a>(&self, _context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
+        match self {
+            BoardCounter::BoardW |
+            BoardCounter::BoardH |
+            BoardCounter::ScrolledX |
+            BoardCounter::ScrolledY => None
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -2365,6 +2426,12 @@ impl FileCounter {
     fn eval(&self, _context: &CounterContext) -> i32 {
         unimplemented!()
     }
+
+    fn as_mut<'a>(&self, _context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
+        match self {
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -2382,16 +2449,16 @@ pub enum SpriteCounter {
 //SprOff(i32),
 //SprOverlaid(i32),
 //SprOverlay(i32),
-//SprRefX(i32),
-//SprRefY(i32),
+    SprRefX(i32),
+    SprRefY(i32),
 //SprSetView(i32),
 //SprStatic(i32),
 //SprSwap(i32),
 //SprVlayer(i32),
-//SprWidth(i32),
-//SprHeight(i32),
-//SprX(i32),
-//SprY(i32),
+    SprWidth(i32),
+    SprHeight(i32),
+    SprX(i32),
+    SprY(i32),
 //SprZ(i32),
 //SprUnbound(i32),
 //SprTCol(i32),
@@ -2399,15 +2466,65 @@ pub enum SpriteCounter {
 }
 
 impl SpriteCounter {
-    #[allow(unreachable_code)]
-    fn from(name: &ByteString) -> Option<Self> {
+    fn from(
+        name: &ByteString,
+        counters: &Counters,
+        context: &dyn CounterContextExt,
+    ) -> Option<Self> {
         Some(match &**name {
+            _ if name.starts_with(b"spr") => {
+                let rest = &name.as_bytes()[3..];
+                let id_end = rest.iter().position(|b| *b == b'_');
+                if let Some(id_end) = id_end {
+                    let name: ByteString = rest[..id_end].into();
+                    let result = name.evaluate_for_name(counters, context);
+                    let val = result.to_string().parse::<i32>().ok()?;
+                    let rest = &rest[id_end+1..];
+                    match rest {
+                        b"refx" => SpriteCounter::SprRefX(val),
+                        b"refy" => SpriteCounter::SprRefY(val),
+                        b"x" => SpriteCounter::SprX(val),
+                        b"y" => SpriteCounter::SprY(val),
+                        b"width" => SpriteCounter::SprWidth(val),
+                        b"height" => SpriteCounter::SprHeight(val),
+                        _ => return None,
+                    }
+                } else {
+                    return None
+                }
+            }
             _ => return None,
         })
     }
 
-    fn eval(&self, _context: &CounterContext) -> i32 {
-        unimplemented!()
+    fn eval(&self, context: &CounterContext) -> i32 {
+        fn spr<'a>(context: &'a CounterContext, n: i32) -> &'a Sprite {
+            &context.board.sprites[n as usize]
+        }
+
+        match *self {
+            SpriteCounter::SprRefX(num) => spr(context, num).reference.0,
+            SpriteCounter::SprRefY(num) => spr(context, num).reference.1,
+            SpriteCounter::SprWidth(num) => spr(context, num).size.0,
+            SpriteCounter::SprHeight(num) => spr(context, num).size.1,
+            SpriteCounter::SprX(num) => spr(context, num).pos.0,
+            SpriteCounter::SprY(num) => spr(context, num).pos.1,
+        }
+    }
+
+    fn as_mut<'a>(&self, context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
+        fn spr<'a> (context: &'a mut CounterContextMut, n: i32) -> &'a mut Sprite {
+            &mut context.board.sprites[n as usize]
+        }
+
+        Some(match *self {
+            SpriteCounter::SprRefX(num) => &mut spr(context, num).reference.0,
+            SpriteCounter::SprRefY(num) => &mut spr(context, num).reference.1,
+            SpriteCounter::SprWidth(num) => &mut spr(context, num).size.0,
+            SpriteCounter::SprHeight(num) => &mut spr(context, num).size.1,
+            SpriteCounter::SprX(num) => &mut spr(context, num).pos.0,
+            SpriteCounter::SprY(num) => &mut spr(context, num).pos.1,
+        })
     }
 }
 
@@ -2431,6 +2548,12 @@ impl CharEditCounter {
 
     fn eval(&self, _context: &CounterContext) -> i32 {
         unimplemented!()
+    }
+
+    fn as_mut<'a>(&self, _context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
+        match self {
+            _ => None,
+        }
     }
 }
 
@@ -2460,6 +2583,12 @@ impl MouseCounter {
     fn eval(&self, _context: &CounterContext) -> i32 {
         unimplemented!()
     }
+
+    fn as_mut<'a>(&self, _context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
+        match self {
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -2484,6 +2613,12 @@ impl DefaultsCounter {
     fn eval(&self, _context: &CounterContext) -> i32 {
         unimplemented!()
     }
+
+    fn as_mut<'a>(&self, _context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
+        match self {
+            _ => None
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -2505,6 +2640,12 @@ impl VLayerCounter {
 
     fn eval(&self, _context: &CounterContext) -> i32 {
         unimplemented!()
+    }
+
+    fn as_mut<'a>(&self, _context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
+        match self {
+            _ => None,
+        }
     }
 }
 
@@ -2558,6 +2699,12 @@ impl MiscCounter {
             MiscCounter::KeyPressed => context.state.key_pressed,
         }
     }
+
+    fn as_mut<'a>(&self, _context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
+        match self {
+            MiscCounter::KeyPressed => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -2595,8 +2742,8 @@ impl LocalCounter {
             b"thisx" => LocalCounter::ThisX,
             b"thisy" => LocalCounter::ThisY,
             b"bullettype" => LocalCounter::BulletType,
-            b"thiscolor" => LocalCounter::ThisColor,
-            b"thischar" => LocalCounter::ThisChar,
+            b"this_color" => LocalCounter::ThisColor,
+            b"this_char" => LocalCounter::ThisChar,
             _ if name.len() > 5 && name[0..5] == b"local"[..] => {
                 let suffix = str::from_utf8(&name[5..])
                     .ok()
@@ -3046,6 +3193,7 @@ fn load_board(
             player_locked_ew,
             player_locked_attack,
             num_robots: robots.len(),
+            sprites: vec![],
         },
         robots,
     ))

@@ -2449,8 +2449,7 @@ pub enum SpriteCounter {
 //SprCx(i32),
 //SprCy(i32),
     SprOff(i32),
-//SprOverlaid(i32),
-//SprOverlay(i32),
+    SprOverlaid(i32),
     SprRefX(i32),
     SprRefY(i32),
 //SprSetView(i32),
@@ -2490,6 +2489,7 @@ impl SpriteCounter {
                         b"width" => SpriteCounter::SprWidth(val),
                         b"height" => SpriteCounter::SprHeight(val),
                         b"off" => SpriteCounter::SprOff(val),
+                        b"overlay" | b"overlaid" => SpriteCounter::SprOverlaid(val),
                         _ => return None,
                     }
                 } else {
@@ -2512,7 +2512,8 @@ impl SpriteCounter {
             SpriteCounter::SprHeight(num) => spr(context, num).size.1,
             SpriteCounter::SprX(num) => spr(context, num).pos.0,
             SpriteCounter::SprY(num) => spr(context, num).pos.1,
-            SpriteCounter::SprOff(_num) => context.state.unused,
+            SpriteCounter::SprOff(_num) |
+            SpriteCounter::SprOverlaid(_num) => context.state.unused,
         }
     }
 
@@ -2528,6 +2529,7 @@ impl SpriteCounter {
             SpriteCounter::SprHeight(num) => &mut spr(context, num).size.1,
             SpriteCounter::SprX(num) => &mut spr(context, num).pos.0,
             SpriteCounter::SprY(num) => &mut spr(context, num).pos.1,
+            SpriteCounter::SprOverlaid(num) => &mut spr(context, num).is_overlaid,
             SpriteCounter::SprOff(num) => {
                 spr(context, num).enabled = false;
                 &mut context.state.unused

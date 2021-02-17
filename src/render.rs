@@ -191,6 +191,10 @@ pub fn render<R: Renderer>(
                 let y = sprite.reference.1 as usize + y_off;
                 let x = sprite.reference.0 as usize + x_off;
                 let offset = y * board.width + x;
+                let dst_offset = (sprite.pos.1 as usize + y_off) * board.width + sprite.pos.0 as usize + x_off;
+                if sprite.is_overlaid == 0 && base_overlay[dst_offset].0 != b' ' {
+                    continue;
+                }
                 let (ch, color) = {
                     // FIXME: under?
                     let (id, color, param) = board.level[offset];

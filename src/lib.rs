@@ -261,6 +261,14 @@ impl Default for Board {
 }
 
 impl Board {
+    fn scroll_center(&mut self, coord: Coordinate<u16>) {
+        let actual = Coordinate(
+            (coord.0 as isize - self.viewport_size.0 as isize / 2).max(0) as u16,
+            (coord.1 as isize - self.viewport_size.1 as isize / 2).max(0) as u16,
+        );
+        self.scroll_to(actual)
+    }
+
     fn scroll_to(&mut self, coord: Coordinate<u16>) {
         let max_x = (self.width as isize - self.viewport_size.0 as isize).max(0) as u16;
         let max_y = (self.height as isize - self.viewport_size.1 as isize).max(0) as u16;
@@ -2452,8 +2460,8 @@ pub enum SpriteCounter {
     SprOverlaid(i32),
     SprRefX(i32),
     SprRefY(i32),
-//SprSetView(i32),
-//SprStatic(i32),
+    SprSetView(i32),
+    SprStatic(i32),
 //SprSwap(i32),
 //SprVlayer(i32),
     SprWidth(i32),
@@ -2490,6 +2498,8 @@ impl SpriteCounter {
                         b"height" => SpriteCounter::SprHeight(val),
                         b"off" => SpriteCounter::SprOff(val),
                         b"overlay" | b"overlaid" => SpriteCounter::SprOverlaid(val),
+                        b"static" => SpriteCounter::SprStatic(val),
+                        b"setview" => SpriteCounter::SprSetView(val),
                         _ => return None,
                     }
                 } else {
@@ -2512,8 +2522,10 @@ impl SpriteCounter {
             SpriteCounter::SprHeight(num) => spr(context, num).size.1,
             SpriteCounter::SprX(num) => spr(context, num).pos.0,
             SpriteCounter::SprY(num) => spr(context, num).pos.1,
+            SpriteCounter::SprStatic(num) => spr(context, num).is_static,
             SpriteCounter::SprOff(_num) |
-            SpriteCounter::SprOverlaid(_num) => context.state.unused,
+            SpriteCounter::SprOverlaid(_num) |
+            SpriteCounter::SprSetView(_num) => context.state.unused,
         }
     }
 
@@ -2530,8 +2542,16 @@ impl SpriteCounter {
             SpriteCounter::SprX(num) => &mut spr(context, num).pos.0,
             SpriteCounter::SprY(num) => &mut spr(context, num).pos.1,
             SpriteCounter::SprOverlaid(num) => &mut spr(context, num).is_overlaid,
+            SpriteCounter::SprStatic(num) => &mut spr(context, num).is_static,
             SpriteCounter::SprOff(num) => {
                 spr(context, num).enabled = false;
+                &mut context.state.unused
+            }
+            SpriteCounter::SprSetView(num) => {
+                let pos = context.state.sprites[num as usize].pos;
+                context.board.scroll_center(
+                    Coordinate(pos.0.max(0) as u16, pos.1.max(0) as u16)
+                );
                 &mut context.state.unused
             }
         })

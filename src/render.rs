@@ -179,22 +179,38 @@ pub fn render<R: Renderer>(
     // Draw sprites over board content, skipping tiles where there is overlay content
     // if the sprite should be drawn below the overlay.
 
-    // FIXME: static sprites
-    // FIXME: skip drawing sprites outside of viewport
-    // FIXME: adjust for viewport
     for sprite in &w.sprites {
         if !sprite.enabled {
             continue;
         }
-        for y_off in 0..(sprite.size.1 as usize) {
-            for x_off in 0..(sprite.size.0 as usize) {
-                let y = sprite.reference.1 as usize + y_off;
-                let x = sprite.reference.0 as usize + x_off;
-                let offset = y * board.width + x;
-                let dst_offset = (sprite.pos.1 as usize + y_off) * board.width + sprite.pos.0 as usize + x_off;
+        let x_start = if sprite.pos.0 < 0 { -sprite.pos.0 } else { 0 } as usize;
+        let y_start = if sprite.pos.1 < 0 { -sprite.pos.1 } else { 0 } as usize;
+        let width = (sprite.size.0 - x_start as i32).max(0) as usize;
+        let height = (sprite.size.1 - y_start as i32).max(0) as usize;
+
+        for y_off in y_start..y_start+height {
+            for x_off in x_start..x_start+width {
+                let dst_x = (sprite.pos.0 + x_off as i32) as usize;
+                let dst_y = (sprite.pos.1 + y_off as i32) as usize;
+
+                // Ignore sprite components that are outside of the current viewport.
+                if sprite.is_static == 0 &&
+                    (dst_x < viewport.0 as usize ||
+                     dst_x > (viewport.0 + display.1.0 as u16) as usize ||
+                     dst_y < viewport.1 as usize ||
+                     dst_y > (viewport.1 + display.1.1 as u16) as usize)
+                {
+                    continue;
+                }
+
+                let dst_offset = dst_y * board.width + dst_x;
                 if sprite.is_overlaid == 0 && base_overlay[dst_offset].0 != b' ' {
                     continue;
                 }
+
+                let y = sprite.reference.1 as usize + y_off;
+                let x = sprite.reference.0 as usize + x_off;
+                let offset = y * board.width + x;
                 let (ch, color) = {
                     // FIXME: under?
                     let (id, color, param) = board.level[offset];
@@ -228,12 +244,21 @@ pub fn render<R: Renderer>(
                 if ch == b' ' {
                     continue;
                 }
+
+                let (draw_x, draw_y) = if sprite.is_static == 1 {
+                    (dst_x + display.0.0 as usize, dst_y + display.0.1 as usize)
+                } else {
+                    (
+                        dst_x - viewport.0 as usize + display.0.0 as usize,
+                        dst_y - viewport.1 as usize + display.0.1 as usize,
+                    )
+                };
                 draw_char(
                     ch,
                     color % num_colors,
                     color / num_colors,
-                    sprite.pos.0 as usize + x_off,
-                    sprite.pos.1 as usize + y_off,
+                    draw_x,
+                    draw_y,
                     charset,
                     palette,
                     renderer,

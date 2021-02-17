@@ -182,7 +182,7 @@ pub fn render<R: Renderer>(
     // FIXME: static sprites
     // FIXME: skip drawing sprites outside of viewport
     // FIXME: adjust for viewport
-    for sprite in &board.sprites {
+    for sprite in &w.sprites {
         if !sprite.enabled {
             continue;
         }
@@ -191,10 +191,7 @@ pub fn render<R: Renderer>(
                 let y = sprite.reference.1 as usize + y_off;
                 let x = sprite.reference.0 as usize + x_off;
                 let offset = y * board.width + x;
-                let (ch, color) = if sprite.is_overlaid {
-                    unimplemented!()
-                    //overlay2[offset]
-                } else {
+                let (ch, color) = {
                     // FIXME: under?
                     let (id, color, param) = board.level[offset];
                     // FIXME: deduplicate with above

@@ -5,6 +5,7 @@ use crate::{
     Counters, Explosion, ExplosionResult, ExtendedColorValue, ExtendedParam, KeyPress,
     MessageBoxLine, Robot, RunStatus, Thing, WorldState,
 };
+use crate::sprite::Sprite;
 use num_traits::ToPrimitive;
 use std::iter;
 use std::path::Path;
@@ -75,8 +76,9 @@ pub fn reset_update_done(board: &Board, update_done: &mut Vec<bool>) {
     update_done.extend(iter::repeat(false).take(total_size));
 }
 
-pub fn put_thing(
+pub(crate) fn put_thing(
     board: &mut Board,
+    sprites: &mut [Sprite],
     color: ExtendedColorValue,
     thing: Thing,
     param: ExtendedParam,
@@ -100,8 +102,8 @@ pub fn put_thing(
     };
 
     if thing == Thing::Sprite {
-        board.sprites[param as usize].enabled = true;
-        board.sprites[param as usize].pos = Coordinate(pos.0 as i32, pos.1 as i32);
+        sprites[param as usize].enabled = true;
+        sprites[param as usize].pos = Coordinate(pos.0 as i32, pos.1 as i32);
     }
 
     put_at(board, &pos, color, thing, param, update_done);

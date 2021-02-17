@@ -1542,7 +1542,7 @@ fn run_one_command(
             let color = color.resolve(counters, context);
             let param = param.resolve(counters, context);
             let pos = mode.resolve_xy(x, y, counters, context, RelativePart::First);
-            put_thing(board, color, *thing, param, pos, &mut *state.update_done);
+            put_thing(board, &mut state.sprites[..], color, *thing, param, pos, &mut *state.update_done);
         }
 
         Command::PutDir(ref color, ref thing, ref param, ref dir) => {
@@ -1554,7 +1554,7 @@ fn run_one_command(
             if let Some(dir) = dir {
                 let adjusted = adjust_coordinate(robot.position, board, dir);
                 if let Some(coord) = adjusted {
-                    put_thing(board, color, *thing, param, coord, &mut *state.update_done);
+                    put_thing(board, &mut state.sprites[..], color, *thing, param, coord, &mut *state.update_done);
                 }
             }
         }

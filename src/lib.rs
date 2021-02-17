@@ -98,6 +98,8 @@ pub struct WorldState {
     pub limit_lives: i32,
     pub limit_health: i32,
     pub update_done: Vec<bool>, // FIXME: this belongs in mzxplay, not libmzx
+    pub unused: i32, // dumping ground for special counter writes
+    pub(crate) sprites: [Sprite; 256],
 }
 
 impl Default for WorldState {
@@ -127,6 +129,8 @@ impl Default for WorldState {
             limit_health: 32767,
             limit_lives: 99,
             update_done: vec![],
+            unused: 0,
+            sprites: [Default::default(); 256],
         }
     }
 }
@@ -212,7 +216,6 @@ pub struct Board {
     pub player_locked_ew: bool,
     pub player_locked_attack: bool,
     pub num_robots: usize,
-    pub(crate) sprites: [Sprite; 256],
 }
 
 impl Default for Board {
@@ -253,7 +256,6 @@ impl Default for Board {
             player_locked_ew: false,
             player_locked_attack: false,
             num_robots: 0,
-            sprites: [Default::default(); 256],
         }
     }
 }
@@ -2446,7 +2448,7 @@ pub enum SpriteCounter {
 //SprCList(i32),
 //SprCx(i32),
 //SprCy(i32),
-//SprOff(i32),
+    SprOff(i32),
 //SprOverlaid(i32),
 //SprOverlay(i32),
     SprRefX(i32),
@@ -2487,6 +2489,7 @@ impl SpriteCounter {
                         b"y" => SpriteCounter::SprY(val),
                         b"width" => SpriteCounter::SprWidth(val),
                         b"height" => SpriteCounter::SprHeight(val),
+                        b"off" => SpriteCounter::SprOff(val),
                         _ => return None,
                     }
                 } else {
@@ -2499,7 +2502,7 @@ impl SpriteCounter {
 
     fn eval(&self, context: &CounterContext) -> i32 {
         fn spr<'a>(context: &'a CounterContext, n: i32) -> &'a Sprite {
-            &context.board.sprites[n as usize]
+            &context.state.sprites[n as usize]
         }
 
         match *self {
@@ -2509,12 +2512,13 @@ impl SpriteCounter {
             SpriteCounter::SprHeight(num) => spr(context, num).size.1,
             SpriteCounter::SprX(num) => spr(context, num).pos.0,
             SpriteCounter::SprY(num) => spr(context, num).pos.1,
+            SpriteCounter::SprOff(_num) => context.state.unused,
         }
     }
 
     fn as_mut<'a>(&self, context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
         fn spr<'a> (context: &'a mut CounterContextMut, n: i32) -> &'a mut Sprite {
-            &mut context.board.sprites[n as usize]
+            &mut context.state.sprites[n as usize]
         }
 
         Some(match *self {
@@ -2524,6 +2528,10 @@ impl SpriteCounter {
             SpriteCounter::SprHeight(num) => &mut spr(context, num).size.1,
             SpriteCounter::SprX(num) => &mut spr(context, num).pos.0,
             SpriteCounter::SprY(num) => &mut spr(context, num).pos.1,
+            SpriteCounter::SprOff(num) => {
+                spr(context, num).enabled = false;
+                &mut context.state.unused
+            }
         })
     }
 }
@@ -3193,7 +3201,6 @@ fn load_board(
             player_locked_ew,
             player_locked_attack,
             num_robots: robots.len(),
-            sprites: [Default::default(); 256],
         },
         robots,
     ))
@@ -3472,6 +3479,8 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
             limit_lives: limit_lives as i32,
             limit_health: limit_health as i32,
             update_done: vec![],
+            unused: 0,
+            sprites: [Default::default(); 256],
         },
         boards: boards,
         edge_border: ColorValue(edge_border),

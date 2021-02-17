@@ -144,6 +144,14 @@ enum Relative {
 }
 
 impl Relative {
+    fn is_none(&self) -> bool {
+        if let Relative::None = self {
+            true
+        } else {
+            false
+        }
+    }
+
     fn from(part: Option<RelativePart>, coord: Coordinate<u16>) -> Relative {
         match part {
             None => Relative::Coordinate { first: Some(coord), last: Some(coord) },
@@ -1000,7 +1008,18 @@ fn run_one_command(
 
         Command::IfCondition(ref condition, ref l, invert) => {
             let robot = robots.get_mut(robot_id);
-            let mut result = robot.is(condition, board, key);
+            let coord = if mode.is_none() {
+                None
+            } else {
+                let context = CounterContext::from(board, robot, state);
+                let coord = mode.resolve_xy(
+                    &SignedNumeric::Literal(0),
+                    &SignedNumeric::Literal(0),
+                    counters, context, RelativePart::First
+                );
+                Some(coord)
+            };
+            let mut result = robot.is(condition, board, key, coord);
             debug!("condition {:?}: {}", condition, result);
             if invert {
                 result = !result;

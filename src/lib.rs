@@ -1150,6 +1150,13 @@ impl RelativeDirBasis {
     }
 }
 
+pub fn dir_to_cardinal_dir_from(coord: Coordinate<u16>, robot: &Robot, dir: &ModifiedDirection) -> Option<CardinalDirection> {
+    dir_to_cardinal_dir_rel(
+        RelativeDirBasis::Robot(coord, robot.walk.clone()),
+        dir,
+    )
+}
+
 pub fn dir_to_cardinal_dir(robot: &Robot, dir: &ModifiedDirection) -> Option<CardinalDirection> {
     dir_to_cardinal_dir_rel(
         RelativeDirBasis::Robot(robot.position, robot.walk.clone()),
@@ -1972,7 +1979,7 @@ impl Robot {
         }
     }
 
-    pub fn is(&self, condition: &Condition, board: &Board, key: Option<KeyPress>) -> bool {
+    pub fn is(&self, condition: &Condition, board: &Board, key: Option<KeyPress>, coord: Option<Coordinate<u16>>) -> bool {
         match condition {
             Condition::Walking => self.walk.is_some(),
             Condition::Swimming => match board.under_thing_at(&self.position) {
@@ -2008,11 +2015,12 @@ impl Robot {
                 }
             }
             Condition::Blocked(ref dir) => {
+                let position = coord.unwrap_or(self.position);
                 let is_blocked_dir = |d: &CardinalDirection| {
-                    let adjusted = adjust_coordinate(self.position, board, *d);
+                    let adjusted = adjust_coordinate(position, board, *d);
                     adjusted.map_or(false, |pos| board.thing_at(&pos).is_solid())
                 };
-                match dir_to_cardinal_dir(self, dir) {
+                match dir_to_cardinal_dir_from(position, self, dir) {
                     Some(dir) => is_blocked_dir(&dir),
                     None => {
                         if dir.dir == Direction::Anydir {

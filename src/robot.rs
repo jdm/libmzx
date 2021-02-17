@@ -422,8 +422,6 @@ pub fn update_robot(
     let mut message_box_lines = vec![];
     let mut first_cmd = true;
 
-    // TODO: move this to WorldState and affect via COMMANDS counter.
-    const CYCLES: u8 = 40;
     let state_change = loop {
         let robot = robots.get_mut(robot_id);
         if !robot_id.is_global() {
@@ -444,7 +442,7 @@ pub fn update_robot(
             }
         }
 
-        if lines_run >= CYCLES || !robot.alive {
+        if lines_run >= state.commands || !robot.alive {
             break None;
         }
         let cmd = robot.program.get(robot.current_line as usize).cloned();

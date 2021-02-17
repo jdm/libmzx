@@ -25,6 +25,7 @@ pub use self::robotic::{
     Command, ExtendedColorValue, ExtendedParam, MessageBoxLineType, ModifiedDirection, Operator,
     RelativePart, Resolve, SignedNumeric,
 };
+use self::render::char_from_id;
 use self::sprite::Sprite;
 
 use self::robot::{RobotId, Robots};
@@ -100,6 +101,9 @@ pub struct WorldState {
     pub update_done: Vec<bool>, // FIXME: this belongs in mzxplay, not libmzx
     pub unused: i32, // dumping ground for special counter writes
     pub(crate) sprites: [Sprite; 256],
+    pub board_x: i32,
+    pub board_y: i32,
+    pub commands: i32,
 }
 
 impl Default for WorldState {
@@ -131,6 +135,9 @@ impl Default for WorldState {
             update_done: vec![],
             unused: 0,
             sprites: [Default::default(); 256],
+            board_x: 0,
+            board_y: 0,
+            commands: 40,
         }
     }
 }
@@ -2309,7 +2316,7 @@ impl MathCounter {
 
 #[derive(Debug)]
 pub enum RobotCounter {
-    //Commands,
+    Commands,
 //OtherLocal(i32, ByteString),
 }
 
@@ -2317,18 +2324,21 @@ impl RobotCounter {
     #[allow(unreachable_code)]
     fn from(name: &ByteString) -> Option<Self> {
         Some(match &**name {
+            b"commands" => RobotCounter::Commands,
             _ => return None,
         })
     }
 
-    fn as_mut<'a>(&self, _context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
+    fn as_mut<'a>(&self, context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
         match self {
-            _ => None,
+            RobotCounter::Commands => Some(&mut context.state.commands),
         }
     }
 
-    fn eval(&self, _context: &CounterContext) -> i32 {
-        unimplemented!()
+    fn eval(&self, context: &CounterContext) -> i32 {
+        match self {
+            RobotCounter::Commands => context.state.commands,
+        }
     }
 }
 
@@ -2342,10 +2352,10 @@ pub enum BoardCounter {
     //TimeReset,
     ScrolledX,
     ScrolledY,
-    //BoardX,
-    //BoardY,
-    //BoardChar,
-    //BoardColor,
+    BoardX,
+    BoardY,
+    BoardChar,
+    BoardColor,
     //Bch(i32, i32),
     //Bco(i32, i32),
     //Bid(i32, i32),
@@ -2376,6 +2386,10 @@ impl BoardCounter {
             b"board_h" => BoardCounter::BoardH,
             b"scrolledx" => BoardCounter::ScrolledX,
             b"scrolledy" => BoardCounter::ScrolledY,
+            b"board_x" => BoardCounter::BoardX,
+            b"board_y" => BoardCounter::BoardY,
+            b"board_char" => BoardCounter::BoardChar,
+            b"board_color" => BoardCounter::BoardColor,
             _ => return None,
         })
     }
@@ -2386,11 +2400,41 @@ impl BoardCounter {
             BoardCounter::BoardH => context.board.height as i32,
             BoardCounter::ScrolledX => context.board.scroll_offset.0 as i32,
             BoardCounter::ScrolledY => context.board.scroll_offset.1 as i32,
+            BoardCounter::BoardX => context.state.board_x,
+            BoardCounter::BoardY => context.state.board_y,
+            BoardCounter::BoardChar => {
+                let (id, _color, param) = context.board.level[
+                    context.state.board_y as usize * context.board.width + context.state.board_x as usize
+                ];
+                char_from_id(
+                    id,
+                    param,
+                    &[], // FIXME: robots
+                    &[], // FIXME: sensors
+                    &context.state.idchars,
+                    None, // FIXME: left
+                    None, // FIXME: top
+                    None, // FIXME: right
+                    None, // FIXME: bottom,
+                    context.state.player_face_dir,
+                ) as i32
+            }
+            BoardCounter::BoardColor => {
+                // FIXME: hack
+                let (_id, color, _param) = context.board.level[
+                    context.state.board_y as usize * context.board.width as usize + context.state.board_x as usize
+                ];
+                color as i32
+            }
         }
     }
 
-    fn as_mut<'a>(&self, _context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
+    fn as_mut<'a>(&self, context: &'a mut CounterContextMut) -> Option<&'a mut i32> {
         match self {
+            BoardCounter::BoardX => Some(&mut context.state.board_x),
+            BoardCounter::BoardY => Some(&mut context.state.board_y),
+            BoardCounter::BoardColor => None, //TODO
+            BoardCounter::BoardChar => None, //TODO
             BoardCounter::BoardW |
             BoardCounter::BoardH |
             BoardCounter::ScrolledX |
@@ -3503,6 +3547,9 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
             update_done: vec![],
             unused: 0,
             sprites: [Default::default(); 256],
+            board_x: 0,
+            board_y: 0,
+            commands: 40,
         },
         boards: boards,
         edge_border: ColorValue(edge_border),

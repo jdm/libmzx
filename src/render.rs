@@ -716,7 +716,7 @@ fn draw_char<R: Renderer>(
     }
 }
 
-fn char_from_id(
+pub(crate) fn char_from_id(
     id: u8,
     param: u8,
     robots: &[Robot],
@@ -923,7 +923,8 @@ fn char_from_id(
         Thing::BearCub => CharId::BearCub,
         Thing::MissileGun => CharId::NThickArrow, //TODO differentiate
         Thing::Sensor => return sensors[param as usize - 1].ch,
-        Thing::RobotPushable | Thing::Robot => return robots[param as usize - 1].ch,
+        Thing::RobotPushable | Thing::Robot => //return robots[param as usize - 1].ch,
+            return robots.get(param as usize - 1).map_or(0, |r| r.ch), //HACK
         Thing::Sign => CharId::Sign,
         Thing::Scroll => CharId::Scroll,
         Thing::Sprite => {

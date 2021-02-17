@@ -104,6 +104,7 @@ pub(crate) fn put_thing(
     if thing == Thing::Sprite {
         sprites[param as usize].enabled = true;
         sprites[param as usize].pos = Coordinate(pos.0 as i32, pos.1 as i32);
+        return;
     }
 
     put_at(board, &pos, color, thing, param, update_done);

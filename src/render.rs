@@ -196,9 +196,9 @@ pub fn render<R: Renderer>(
                 // Ignore sprite components that are outside of the current viewport.
                 if sprite.is_static == 0 &&
                     (dst_x < viewport.0 as usize ||
-                     dst_x > (viewport.0 + display.1.0 as u16) as usize ||
+                     dst_x >= (viewport.0 + display.1.0 as u16) as usize ||
                      dst_y < viewport.1 as usize ||
-                     dst_y > (viewport.1 + display.1.1 as u16) as usize)
+                     dst_y >= (viewport.1 + display.1.1 as u16) as usize)
                 {
                     continue;
                 }

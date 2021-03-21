@@ -2881,10 +2881,13 @@ impl From<BoardError> for WorldError {
     }
 }
 
-fn get_objects<T, F>(buffer: &[u8], loader: F) -> (Vec<T>, &[u8])
+fn get_objects<T, F>(buffer: &[u8], loader: F) -> Result<(Vec<T>, &[u8]), ()>
 where
     F: Fn(&[u8]) -> (T, &[u8]),
 {
+    if buffer.is_empty() {
+        return Err(());
+    }
     let (num_objects, mut buffer) = get_byte(buffer);
     debug!("loading {} objects", num_objects);
     let mut objects = vec![];
@@ -2893,7 +2896,7 @@ where
         objects.push(object);
         buffer = new_buffer;
     }
-    (objects, buffer)
+    Ok((objects, buffer))
 }
 
 fn get_string_with_preceding_length(buffer: &[u8]) -> (ByteString, &[u8]) {
@@ -3206,7 +3209,7 @@ fn load_board(
         buffer = new_buffer;
     }
 
-    let (mut robots, buffer) = get_objects(buffer, load_robot);
+    let (mut robots, buffer) = get_objects(buffer, load_robot).unwrap();
 
     for (pos, (id, param)) in ids.iter().zip(params.iter()).enumerate() {
         if *id == Thing::Robot as u8 || *id == Thing::RobotPushable as u8 {
@@ -3224,9 +3227,9 @@ fn load_board(
     }
 
     debug!("loading scrolls");
-    let (scrolls, buffer) = get_objects(buffer, load_scroll);
+    let (scrolls, buffer) = get_objects(buffer, load_scroll).unwrap();
     debug!("loading sensors");
-    let (sensors, _buffer) = get_objects(buffer, load_sensor);
+    let (sensors, _buffer) = get_objects(buffer, load_sensor).unwrap_or((vec![], &[]));
     assert_eq!(_buffer.len(), 0);
 
     Ok((

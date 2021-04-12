@@ -1410,6 +1410,9 @@ fn run_one_command(
         }
 
         Command::OverlayMode(mode) => {
+            if board.overlay.is_none() {
+                board.overlay = Some((mode, vec![(b' ', 0x07); board.width * board.height]));
+            }
             if let Some(ref mut overlay) = board.overlay {
                 overlay.0 = mode;
             }

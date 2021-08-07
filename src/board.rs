@@ -117,9 +117,10 @@ pub fn put_at(
     thing: Thing,
     param: u8,
     update_done: &mut [bool],
-) {
-    board.put_at(&pos, thing.to_u8().unwrap(), color, param);
+) -> Result<(), ()> {
+    board.put_at(&pos, thing.to_u8().unwrap(), color, param)?;
     update_done[pos.1 as usize * board.width + pos.0 as usize] = true;
+    Ok(())
 }
 
 pub fn move_level_to(
@@ -128,9 +129,10 @@ pub fn move_level_to(
     from: &Coordinate<u16>,
     to: &Coordinate<u16>,
     update_done: &mut [bool],
-) {
-    board.move_level_to(robots, from, to);
+) -> Result<(), ()> {
+    board.move_level_to(robots, from, to)?;
     update_done[to.1 as usize * board.width + to.0 as usize] = true;
+    Ok(())
 }
 
 pub fn move_level(
@@ -140,11 +142,12 @@ pub fn move_level(
     xdiff: i8,
     ydiff: i8,
     update_done: &mut [bool],
-) {
-    board.move_level(robots, pos, xdiff, ydiff);
+) -> Result<(), ()> {
+    board.move_level(robots, pos, xdiff, ydiff)?;
     let x = (pos.0 as i16 + xdiff as i16) as usize;
     let y = (pos.1 as i16 + ydiff as i16) as usize;
     update_done[y * board.width + x] = true;
+    Ok(())
 }
 
 pub fn update_board(
@@ -186,11 +189,12 @@ pub fn update_board(
             }
 
             let coord = Coordinate(x as u16, y as u16);
-            match board.thing_at(&coord) {
+            let level_param = board.level_at(&coord).unwrap().2;
+            match board.thing_at(&coord).unwrap() {
                 Thing::Robot | Thing::RobotPushable => {
                     let robots = Robots::new(all_robots, global_robot);
 
-                    let robot_id = RobotId::from(board.level_at(&coord).2);
+                    let robot_id = RobotId::from(level_param);
                     assert_eq!(robots.get(robot_id).position, coord, "robot {:?}", robot_id);
 
                     debug!("running robot at {},{}", x, y);
@@ -204,7 +208,7 @@ pub fn update_board(
                         board,
                         board_id,
                         robots,
-                        RobotId::from(board.level_at(&coord).2),
+                        RobotId::from(level_param),
                         false,
                     );
                     if change.is_some() {
@@ -213,11 +217,11 @@ pub fn update_board(
                 }
 
                 Thing::Explosion => {
-                    let mut explosion = Explosion::from_param(board.level_at(&coord).2);
+                    let mut explosion = Explosion::from_param(level_param);
                     if explosion.stage == 0 {
                         if explosion.size > 0 {
                             explosion.size -= 1;
-                            board.level_at_mut(&coord).2 = explosion.to_param();
+                            board.level_at_mut(&coord).unwrap().2 = explosion.to_param();
 
                             let dirs = [
                                 CardinalDirection::North,
@@ -231,7 +235,7 @@ pub fn update_board(
                                     Some(coord) => coord,
                                     None => continue,
                                 };
-                                let thing = board.thing_at(&coord);
+                                let thing = board.thing_at(&coord).unwrap();
                                 if !thing.is_solid() && thing != Thing::Explosion {
                                     put_at(
                                         board,
@@ -242,7 +246,7 @@ pub fn update_board(
                                         &mut *state.update_done,
                                     );
                                 } else if thing.is_robot() {
-                                    let robot_id = RobotId::from(board.level_at(&coord).2);
+                                    let robot_id = RobotId::from(board.level_at(&coord).unwrap().2);
 
                                     let mut robots = Robots::new(all_robots, global_robot);
                                     let robot = robots.get_mut(robot_id);
@@ -262,17 +266,17 @@ pub fn update_board(
                         put_at(board, &coord, color, thing, 0x00, &mut *state.update_done);
                     } else {
                         explosion.stage += 1;
-                        board.level_at_mut(&coord).2 = explosion.to_param();
+                        board.level_at_mut(&coord).unwrap().2 = explosion.to_param();
                     }
                 }
 
                 Thing::Fire => {
                     if rand::random::<u8>() >= 20 {
-                        let cur_param = board.level_at(&coord).2;
+                        let cur_param = level_param;
                         if cur_param < 5 {
-                            board.level_at_mut(&coord).2 += 1;
+                            board.level_at_mut(&coord).unwrap().2 += 1;
                         } else {
-                            board.level_at_mut(&coord).2 = 0;
+                            board.level_at_mut(&coord).unwrap().2 = 0;
                         }
                     }
 
@@ -302,8 +306,8 @@ pub fn update_board(
                                 None => continue,
                             };
 
-                            let thing = board.thing_at(&coord);
-                            let level = board.level_at(&coord);
+                            let thing = board.thing_at(&coord).unwrap();
+                            let level = board.level_at(&coord).unwrap();
                             let thing_id = level.0;
 
                             let spread = (thing == Thing::Space && board.fire_burns_space)
@@ -330,16 +334,16 @@ pub fn update_board(
                 }
 
                 Thing::OpenGate => {
-                    let param = board.level_at(&coord).2;
+                    let param = level_param;
                     if param == 0 {
-                        board.level_at_mut(&coord).0 = Thing::Gate.to_u8().unwrap();
+                        board.level_at_mut(&coord).unwrap().0 = Thing::Gate.to_u8().unwrap();
                     } else {
-                        board.level_at_mut(&coord).2 -= 1;
+                        board.level_at_mut(&coord).unwrap().2 -= 1;
                     }
                 }
 
                 Thing::OpenDoor => {
-                    let param = board.level_at(&coord).2;
+                    let param = level_param;
                     let cur_wait = param & 0xE0;
                     let stage = param & 0x1F;
                     const OPEN_DOOR_MOVE: &[(i8, i8)] = &[
@@ -357,11 +361,11 @@ pub fn update_board(
                     // TODO: less magic numbers.
                     if cur_wait == door_wait {
                         if param & 0x18 == 0x18 {
-                            let (ref mut id, _, ref mut param) = board.level_at_mut(&coord);
+                            let (ref mut id, _, ref mut param) = board.level_at_mut(&coord).unwrap();
                             *param &= 0x07;
                             *id = Thing::Door.to_u8().unwrap();
                         } else {
-                            board.level_at_mut(&coord).2 = stage + 8;
+                            board.level_at_mut(&coord).unwrap().2 = stage + 8;
                         }
 
                         if door_move != IDLE {
@@ -377,23 +381,23 @@ pub fn update_board(
                             );
                         }
                     } else {
-                        board.level_at_mut(&coord).2 = param + 0x20;
+                        board.level_at_mut(&coord).unwrap().2 = param + 0x20;
                     }
                 }
 
                 Thing::Bullet => {
-                    let param = board.level_at(&coord).2;
+                    let param = board.level_at(&coord).unwrap().2;
                     let (_type_, dir) = bullet_from_param(param);
                     let new_pos = adjust_coordinate(coord, board, dir);
                     if let Some(ref new_pos) = new_pos {
                         // TODO: shot behaviour
-                        let dest_thing = board.thing_at(new_pos);
+                        let dest_thing = board.thing_at(new_pos).unwrap();
                         if dest_thing.is_solid() {
                             board.remove_thing_at(&coord);
                             match dest_thing {
-                                Thing::Bullet => board.remove_thing_at(&new_pos),
+                                Thing::Bullet => { board.remove_thing_at(&new_pos); }
                                 Thing::Robot | Thing::RobotPushable => {
-                                    let robot_id = RobotId::from(board.level_at(&new_pos).2);
+                                    let robot_id = RobotId::from(board.level_at(&new_pos).unwrap().2);
                                     let mut robots = Robots::new(all_robots, global_robot);
                                     let robot = robots.get_mut(robot_id);
                                     send_robot_to_label(robot, BuiltInLabel::Shot);
@@ -402,7 +406,7 @@ pub fn update_board(
                                 _ => (),
                             }
                         } else {
-                            move_level_to(
+                            let _ = move_level_to(
                                 board,
                                 all_robots,
                                 &coord,
@@ -411,12 +415,12 @@ pub fn update_board(
                             );
                         }
                     } else {
-                        board.remove_thing_at(&coord);
+                        let _ = board.remove_thing_at(&coord);
                     }
                 }
 
                 Thing::LitBomb => {
-                    let param = board.level_at(&coord).2;
+                    let param = level_param;
                     if param & 0x7f == 7 {
                         let size = if param & 0x80 != 0 { 7 } else { 4 };
                         let explosion = Explosion { stage: 0, size };
@@ -429,7 +433,7 @@ pub fn update_board(
                             &mut *state.update_done,
                         );
                     } else {
-                        board.level_at_mut(&coord).2 = param + 1;
+                        board.level_at_mut(&coord).unwrap().2 = param + 1;
                     }
                 }
 
@@ -445,7 +449,7 @@ pub fn update_board(
     for y in (0..board.height).rev() {
         for x in (0..board.width).rev() {
             let coord = Coordinate(x as u16, y as u16);
-            match board.thing_at(&coord) {
+            match board.thing_at(&coord).unwrap() {
                 Thing::Robot | Thing::RobotPushable => {
                     let robots = Robots::new(all_robots, global_robot);
                     debug!("running robot at {},{}", x, y);
@@ -459,7 +463,7 @@ pub fn update_board(
                         board,
                         board_id,
                         robots,
-                        RobotId::from(board.level_at(&coord).2),
+                        RobotId::from(board.level_at(&coord).unwrap().2),
                         true,
                     );
                     if change.is_some() {

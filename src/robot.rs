@@ -74,7 +74,7 @@ fn move_robot(
             Move::Blocked
         }
         MoveResult::Move(new_pos) => {
-            let thing = board.thing_at(&new_pos);
+            let thing = board.thing_at(&new_pos).unwrap();
             let robot_pos = robot.position;
             if thing.is_pushable() {
                 let adjusted = adjust_coordinate(new_pos, board, dir);
@@ -104,14 +104,18 @@ fn move_robot_to(
     board: &mut Board,
     pos: Coordinate<u16>,
     update_done: &mut [bool],
-) {
-    let thing = board.thing_at(&pos);
+) -> Result<(), ()> {
+    let thing = match board.thing_at(&pos) {
+        Some(t) => t,
+        None => return Err(()),
+    };
     let robot_pos = robots.get(robot_id).position;
     if thing == Thing::Player || robot_pos == pos {
-        return;
+        return Err(());
     }
     move_level_to(board, robots.robots, &robot_pos, &pos, update_done);
     assert_eq!(robots.get(robot_id).position, pos);
+    Ok(())
 }
 
 enum CoordinatePart {
@@ -283,8 +287,8 @@ impl Into<EvaluatedByteString> for BuiltInCounter {
 fn copy_robot(source_id: RobotId, robot_id: RobotId, robots: &mut Robots, board: &mut Board) {
     let dest_position = robots.get(robot_id).position;
     let source_robot = robots.get_mut(source_id);
-    let color = board.level_at(&source_robot.position).1;
-    board.level_at_mut(&dest_position).1 = color;
+    let color = board.level_at(&source_robot.position).unwrap().1;
+    board.level_at_mut(&dest_position).unwrap().1 = color;
     *robots.get_mut(robot_id) = Robot::copy_from(source_robot, dest_position);
 }
 
@@ -433,16 +437,16 @@ pub fn update_robot(
     let state_change = loop {
         let robot = robots.get_mut(robot_id);
         if !robot_id.is_global() {
-            if !board.thing_at(&robot.position).is_robot() {
+            if !board.thing_at(&robot.position).unwrap().is_robot() {
                 warn!(
                     "current robot not present at reported position ({:?}); terminating",
                     robot.position
                 );
                 robot.alive = false;
-            } else if RobotId::from(board.level_at(&robot.position).2) != robot_id {
+            } else if RobotId::from(board.level_at(&robot.position).unwrap().2) != robot_id {
                 warn!(
                     "current robot ({:?}) does not match robot ID {:?} at reported position ({:?}); terminating",
-                    RobotId::from(board.level_at(&robot.position).2),
+                    RobotId::from(board.level_at(&robot.position).unwrap().2),
                     robot_id,
                     robot.position
                 );
@@ -1054,13 +1058,14 @@ fn run_one_command(
             let param = param.resolve(counters, context);
             let pos = mode.resolve_xy(x, y, counters, context, RelativePart::First);
             let l = l.eval(counters, context);
-            let &(board_thing, board_color, board_param) = board.level_at(&pos);
-            if board_thing == thing.to_u8().unwrap()
-                && color.matches(ColorValue(board_color))
-                && param.matches(ParamValue(board_param))
-            {
-                if jump_robot_to_label(robot, l) {
-                    return CommandResult::NoAdvance;
+            if let Some(&(board_thing, board_color, board_param)) = board.level_at(&pos) {
+                if board_thing == thing.to_u8().unwrap()
+                    && color.matches(ColorValue(board_color))
+                    && param.matches(ParamValue(board_param))
+                {
+                    if jump_robot_to_label(robot, l) {
+                        return CommandResult::NoAdvance;
+                    }
                 }
             }
         }
@@ -1091,8 +1096,8 @@ fn run_one_command(
             };
             if let Some(pos) = pos {
                 let &(board_thing, board_color, board_param) = match source {
-                    Source::Level => board.level_at(&pos),
-                    Source::Under => board.under_at(&pos),
+                    Source::Level => board.level_at(&pos).unwrap(),
+                    Source::Under => board.under_at(&pos).unwrap(),
                 };
                 //XXXjdm thing comparisons need to account for whirlpools
                 let mut success = board_thing == thing.to_u8().unwrap()
@@ -1211,7 +1216,7 @@ fn run_one_command(
             if !robot_id.is_global() {
                 let robot = robots.get(robot_id);
                 let context = CounterContext::from(board, robot, state);
-                board.level_at_mut(&robot.position).1 = c.resolve(counters, context).0;
+                board.level_at_mut(&robot.position).unwrap().1 = c.resolve(counters, context).0;
             }
         }
 
@@ -1297,9 +1302,9 @@ fn run_one_command(
                 };
                 let adjusted = adjust_coordinate(source_pos, board, dir);
                 if let Some(coord) = adjusted {
-                    let thing = board.thing_at(&coord);
+                    let thing = board.thing_at(&coord).unwrap();
                     if thing.is_robot() {
-                        let dest_robot_id = RobotId::from(board.level_at(&coord).2);
+                        let dest_robot_id = RobotId::from(board.level_at(&coord).unwrap().2);
                         let context = CounterContext::from(board, robot, state);
                         let l = l.eval(counters, context);
                         send_robot_to_label(robots.get_mut(dest_robot_id), l);
@@ -1313,8 +1318,8 @@ fn run_one_command(
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let pos = mode.resolve_xy(x, y, counters, context, RelativePart::First);
             let l = l.eval(counters, context);
-            if board.thing_at(&pos).is_robot() {
-                let dest_robot_id = RobotId::from(board.level_at(&pos).2);
+            if board.thing_at(&pos).map_or(false, |t| t.is_robot()) {
+                let dest_robot_id = RobotId::from(board.level_at(&pos).unwrap().2);
                 send_robot_to_label(robots.get_mut(dest_robot_id), l);
                 //FIXME: might skip a command if sending to own id and advancing
             }
@@ -1402,7 +1407,7 @@ fn run_one_command(
                 let context = CounterContext::from(board, robot, state);
                 let n = n.resolve(counters, context) as u8;
                 let &mut (ref mut id, ref mut c, ref mut param) =
-                    board.level_at_mut(&robot.position);
+                    board.level_at_mut(&robot.position).unwrap();
                 *id = Thing::Explosion.to_u8().unwrap();
                 *c = state.char_id(CharId::ExplosionStage1);
                 *param = Explosion { stage: 0, size: n }.to_param();
@@ -1423,7 +1428,7 @@ fn run_one_command(
                 let robot = robots.get_mut(robot_id);
                 let context = CounterContext::from(board, robot, state);
                 let coord = mode.resolve_xy(x, y, counters, context, RelativePart::First);
-                move_robot_to(robots, robot_id, board, coord, &mut *state.update_done);
+                let _ = move_robot_to(robots, robot_id, board, coord, &mut *state.update_done);
             }
         }
 
@@ -1582,11 +1587,10 @@ fn run_one_command(
         Command::DuplicateSelfXY(ref x, ref y) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let pos = mode.resolve_xy(x, y, counters, context, RelativePart::First);
-
-            if pos != board.player_pos {
+            if pos.0 < board.width as u16 && pos.1 < board.height as u16 && pos != board.player_pos {
                 let new_id = robots.duplicate_self(robot_id, pos).to_param().unwrap();
                 let robot = robots.get(robot_id);
-                let &(thing, color, _param) = board.level_at(&robot.position);
+                let &(thing, color, _param) = board.level_at(&robot.position).unwrap();
                 put_at(
                     board,
                     &pos,
@@ -1607,7 +1611,7 @@ fn run_one_command(
                     if coord != board.player_pos {
                         let new_id = robots.duplicate_self(robot_id, coord).to_param().unwrap();
                         let robot = robots.get(robot_id);
-                        let &(thing, color, _param) = board.level_at(&robot.position);
+                        let &(thing, color, _param) = board.level_at(&robot.position).unwrap();
                         put_at(
                             board,
                             &coord,
@@ -1625,9 +1629,10 @@ fn run_one_command(
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let pos = mode.resolve_xy(x, y, counters, context, RelativePart::First);
 
-            let &(thing, _color, param) = board.level_at(&pos);
-            if Thing::from_u8(thing).unwrap().is_robot() {
-                copy_robot(RobotId::from(param), robot_id, robots, board);
+            if let Some(&(thing, _color, param)) = board.level_at(&pos) {
+                if Thing::from_u8(thing).unwrap().is_robot() {
+                    copy_robot(RobotId::from(param), robot_id, robots, board);
+                }
             }
         }
 
@@ -1637,7 +1642,7 @@ fn run_one_command(
             if let Some(dir) = dir_to_cardinal_dir_rel(basis, d) {
                 let adjusted = adjust_coordinate(robot.position, board, dir);
                 if let Some(pos) = adjusted {
-                    let &(thing, _color, param) = board.level_at(&pos);
+                    let &(thing, _color, param) = board.level_at(&pos).unwrap();
                     if Thing::from_u8(thing).unwrap().is_robot() {
                         copy_robot(RobotId::from(param), robot_id, robots, board);
                     }
@@ -1786,7 +1791,7 @@ fn run_one_command(
             let mut is_blocked = new_pos.is_none();
             if let Some(new_pos) = new_pos {
                 // FIXME: handle pushable by pushing
-                let thing = board.thing_at(&new_pos);
+                let thing = board.thing_at(&new_pos).unwrap();
                 if thing.is_solid() {
                     is_blocked = true;
                 } else {
@@ -1967,7 +1972,7 @@ fn run_one_command(
                 let bullet_pos = adjust_coordinate(robot.position, board, dir);
                 if let Some(ref bullet_pos) = bullet_pos {
                     // FIXME: shoot the solid thing
-                    if !board.thing_at(bullet_pos).is_solid() {
+                    if !board.thing_at(bullet_pos).unwrap().is_solid() {
                         put_at(
                             board,
                             bullet_pos,

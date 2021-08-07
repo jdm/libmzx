@@ -135,20 +135,12 @@ pub fn render<R: Renderer>(
                 &w.idchars,
                 board_x
                     .checked_sub(1)
-                    .map(|x| board.thing_at(&Coordinate(x, board_y))),
-                if (board_x as usize) < board.width - 1 {
-                    Some(board.thing_at(&Coordinate(board_x + 1, board_y)))
-                } else {
-                    None
-                },
+                    .and_then(|x| board.thing_at(&Coordinate(x, board_y))),
+                board.thing_at(&Coordinate(board_x + 1, board_y)),
                 board_y
                     .checked_sub(1)
-                    .map(|y| board.thing_at(&Coordinate(board_x, y))),
-                if (board_y as usize) < board.height - 1 {
-                    Some(board.thing_at(&Coordinate(board_x, board_y + 1)))
-                } else {
-                    None
-                },
+                    .and_then(|y| board.thing_at(&Coordinate(board_x, y))),
+                board.thing_at(&Coordinate(board_x, board_y + 1)),
                 w.player_face_dir,
             )
         } else {
@@ -223,20 +215,12 @@ pub fn render<R: Renderer>(
                         &w.idchars,
                         x
                             .checked_sub(1)
-                            .map(|x| board.thing_at(&Coordinate(x as u16, y as u16))),
-                        if (x as usize) < board.width - 1 {
-                            Some(board.thing_at(&Coordinate(x as u16 + 1, y as u16)))
-                        } else {
-                            None
-                        },
+                            .and_then(|x| board.thing_at(&Coordinate(x as u16, y as u16))),
+                        board.thing_at(&Coordinate(x as u16 + 1, y as u16)),
                         y
                             .checked_sub(1)
-                            .map(|y| board.thing_at(&Coordinate(x as u16, y as u16))),
-                        if (y as usize) < board.height - 1 {
-                            Some(board.thing_at(&Coordinate(x as u16, y as u16 + 1)))
-                        } else {
-                            None
-                        },
+                            .and_then(|y| board.thing_at(&Coordinate(x as u16, y as u16))),
+                        board.thing_at(&Coordinate(x as u16, y as u16 + 1)),
                         w.player_face_dir,
                     );
                     (ch, color)  

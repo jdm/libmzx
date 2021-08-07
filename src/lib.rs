@@ -353,32 +353,32 @@ impl Board {
         None
     }
 
-    pub fn thing_at(&self, pos: &Coordinate<u16>) -> Thing {
-        Thing::from_u8(self.level_at(pos).0).expect("invalid thing value")
+    pub fn thing_at(&self, pos: &Coordinate<u16>) -> Option<Thing> {
+        self.level_at(pos).map(|(t, _, _)| Thing::from_u8(*t).expect("invalid thing value"))
     }
 
-    pub fn under_thing_at(&self, pos: &Coordinate<u16>) -> Thing {
-        Thing::from_u8(self.under_at(pos).0).expect("invalid thing value")
+    pub fn under_thing_at(&self, pos: &Coordinate<u16>) -> Option<Thing> {
+        self.under_at(pos).map(|(t, _, _)| Thing::from_u8(*t).expect("invalid thing value"))
     }
 
-    pub fn level_at(&self, pos: &Coordinate<u16>) -> &(u8, u8, u8) {
+    pub fn level_at(&self, pos: &Coordinate<u16>) -> Option<&(u8, u8, u8)> {
         let idx = self.width * pos.1 as usize + pos.0 as usize;
-        &self.level[idx]
+        self.level.get(idx)
     }
 
-    pub fn level_at_mut(&mut self, pos: &Coordinate<u16>) -> &mut (u8, u8, u8) {
+    pub fn level_at_mut(&mut self, pos: &Coordinate<u16>) -> Option<&mut (u8, u8, u8)> {
         let idx = self.width * pos.1 as usize + pos.0 as usize;
-        &mut self.level[idx]
+        self.level.get_mut(idx)
     }
 
-    pub fn under_at(&self, pos: &Coordinate<u16>) -> &(u8, u8, u8) {
+    pub fn under_at(&self, pos: &Coordinate<u16>) -> Option<&(u8, u8, u8)> {
         let idx = self.width * pos.1 as usize + pos.0 as usize;
-        &self.under[idx]
+        self.under.get(idx)
     }
 
-    pub fn under_at_mut(&mut self, pos: &Coordinate<u16>) -> &mut (u8, u8, u8) {
+    pub fn under_at_mut(&mut self, pos: &Coordinate<u16>) -> Option<&mut (u8, u8, u8)> {
         let idx = self.width * pos.1 as usize + pos.0 as usize;
-        &mut self.under[idx]
+        self.under.get_mut(idx)
     }
 
     pub fn copy(
@@ -411,14 +411,15 @@ impl Board {
                     continue;
                 }
 
-                let src = *self.level_at(&src_coord);
-                *self.level_at_mut(&dest_coord) = src;
-                if self.thing_at(&dest_coord).is_robot() {
+                // We've already validated the coordinates are within bounds.
+                let src = *self.level_at(&src_coord).unwrap();
+                *self.level_at_mut(&dest_coord).unwrap() = src;
+                if self.thing_at(&dest_coord).unwrap().is_robot() {
                     let new_id = robots.duplicate_self(RobotId::from(src.2), dest_coord);
-                    self.level_at_mut(&dest_coord).2 = new_id.to_param().unwrap();
+                    self.level_at_mut(&dest_coord).unwrap().2 = new_id.to_param().unwrap();
                 }
-                let src = *self.under_at(&src_coord);
-                *self.under_at_mut(&dest_coord) = src;
+                let src = *self.under_at(&src_coord).unwrap();
+                *self.under_at_mut(&dest_coord).unwrap() = src;
             }
         }
     }
@@ -464,7 +465,7 @@ impl Board {
         pos: &Coordinate<u16>,
         xdiff: i8,
         ydiff: i8,
-    ) {
+    ) -> Result<(), ()> {
         self.move_level_to(
             robots,
             pos,
@@ -472,7 +473,7 @@ impl Board {
                 (pos.0 as i16 + xdiff as i16) as u16,
                 (pos.1 as i16 + ydiff as i16) as u16,
             ),
-        );
+        )
     }
 
     pub fn move_level_to(
@@ -480,40 +481,61 @@ impl Board {
         robots: &mut [Robot],
         pos: &Coordinate<u16>,
         new_pos: &Coordinate<u16>,
-    ) {
-        let thing = Thing::from_u8(self.level_at(pos).0).unwrap();
+    ) -> Result<(), ()> {
+        let cur_level = match self.level_at(pos) {
+            Some(l) => *l,
+            None => return Err(()),
+        };
+        let (old_thing, old_param) = match self.level_at(new_pos) {
+            Some(&(old_thing, _, old_param)) => (old_thing, old_param),
+            None => return Err(()),
+        };
+
+        // We've now validated that the old and new positions are in range.
+        let thing = Thing::from_u8(cur_level.0).unwrap();
         if thing.is_robot() {
-            let id = self.level_at(pos).2;
+            let id = cur_level.2;
             // FIXME: don't do this calculation directly.
             robots[id as usize - 1].position = *new_pos;
         } else if thing == Thing::Player {
             self.player_pos = *new_pos;
         }
-        let (old_thing, _, old_param) = self.level_at(new_pos);
-        let old_thing = Thing::from_u8(*old_thing).unwrap();
+
+        let old_thing = Thing::from_u8(old_thing).unwrap();
         let old_idx = (pos.1 * self.width as u16 + pos.0) as usize;
         let new_idx = (new_pos.1 * self.width as u16 + new_pos.0) as usize;
         if old_thing.can_go_under() {
             self.under[new_idx] = self.level[new_idx];
         } else if old_thing.is_robot() {
             // FIXME: don't do this calculation directly.
-            robots[*old_param as usize - 1].alive = false;
+            robots[old_param as usize - 1].alive = false;
         }
         self.level[new_idx] = self.level[old_idx];
         self.level[old_idx] = self.under[old_idx];
+        Ok(())
     }
 
-    pub fn put_at(&mut self, pos: &Coordinate<u16>, thing: u8, color: u8, param: u8) {
+    pub fn put_at(&mut self, pos: &Coordinate<u16>, thing: u8, color: u8, param: u8) -> Result<(), ()> {
+        if pos.0 >= self.width as u16 || pos.1 >= self.height as u16 {
+            return Err(());
+        }
+
         let idx = (pos.1 * self.width as u16 + pos.0) as usize;
-        if self.thing_at(pos).can_go_under() {
+        if self.thing_at(pos).unwrap().can_go_under() {
             self.under[idx] = self.level[idx];
         }
         self.level[idx] = (thing, color, param);
+        Ok(())
     }
 
-    pub fn remove_thing_at(&mut self, pos: &Coordinate<u16>) {
+    pub fn remove_thing_at(&mut self, pos: &Coordinate<u16>) -> Result<(), ()> {
+        if pos.0 >= self.width as u16 || pos.1 >= self.height as u16 {
+            return Err(());
+        }
+        
         let idx = (pos.1 * self.width as u16 + pos.0) as usize;
         self.level[idx] = self.under[idx];
+        Ok(())
     }
 
     pub fn write_overlay(&mut self, pos: &Coordinate<u16>, s: &ByteString, color: u8) {
@@ -596,7 +618,7 @@ impl<'a> CounterContext<'a> {
             LocalCounter::ThisX => self.robot.position.0 as i32,
             LocalCounter::ThisY => self.robot.position.1 as i32,
             LocalCounter::BulletType => self.robot.bullet_type,
-            LocalCounter::ThisColor => self.board.level_at(&self.robot.position).1 as i32,
+            LocalCounter::ThisColor => self.board.level_at(&self.robot.position).unwrap().1 as i32,
             LocalCounter::ThisChar => self.robot.ch as i32,
         }
     }
@@ -693,7 +715,17 @@ impl Counters {
 
     pub fn set(&mut self, name: ByteString, context: &mut dyn CounterContextMutExt, value: i32) {
         if name.is_string_name() {
-            error!("Setting counter {:?} to integer value", name);
+            //TODO: move this into a helper that set_string and set can call.
+            /*if let Some(idx) = name.iter().find(b'.') {
+                let index: u16 = str::parse(name[idx+1..]);
+                if let Ok(index) = index {
+                    if let Some(b) = 
+                } else {
+                    error!("Couldn't handle setting {:?} to integer value", name);
+                }
+            } else {*/
+                error!("Setting counter {:?} to integer value", name);
+            //}
         }
         let name = ByteString(
             name.as_bytes()
@@ -1992,7 +2024,7 @@ impl Robot {
     pub fn is(&self, condition: &Condition, board: &Board, key: Option<KeyPress>, coord: Option<Coordinate<u16>>) -> bool {
         match condition {
             Condition::Walking => self.walk.is_some(),
-            Condition::Swimming => match board.under_thing_at(&self.position) {
+            Condition::Swimming => match board.under_thing_at(&self.position).unwrap_or(Thing::Space) {
                 Thing::StillWater
                 | Thing::NWater
                 | Thing::SWater
@@ -2000,11 +2032,11 @@ impl Robot {
                 | Thing::WWater => true,
                 _ => false,
             },
-            Condition::Firewalking => board.under_thing_at(&self.position) == Thing::Fire,
+            Condition::Firewalking => board.under_thing_at(&self.position) == Some(Thing::Fire),
             Condition::Touching(ref dir) => {
                 let is_touching_dir = |d: &CardinalDirection| {
                     let adjusted = adjust_coordinate(self.position, board, *d);
-                    adjusted.map_or(false, |pos| board.thing_at(&pos) == Thing::Player)
+                    adjusted.map_or(false, |pos| board.thing_at(&pos) == Some(Thing::Player))
                 };
                 match dir_to_cardinal_dir(self, dir) {
                     Some(dir) => is_touching_dir(&dir),
@@ -2028,7 +2060,9 @@ impl Robot {
                 let position = coord.unwrap_or(self.position);
                 let is_blocked_dir = |d: &CardinalDirection| {
                     let adjusted = adjust_coordinate(position, board, *d);
-                    adjusted.map_or(false, |pos| board.thing_at(&pos).is_solid())
+                    adjusted
+                        .and_then(|pos| board.thing_at(&pos))
+                        .map_or(false, |t| t.is_solid())
                 };
                 match dir_to_cardinal_dir_from(position, self, dir) {
                     Some(dir) => is_blocked_dir(&dir),

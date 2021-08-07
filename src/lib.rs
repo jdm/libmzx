@@ -720,9 +720,6 @@ impl Counters {
 
     pub fn get(&self, name: &ByteString, context: &dyn CounterContextExt) -> i32 {
         debug!("getting counter value for {}", name.to_string());
-        if name.is_string_name() {
-            error!("Getting string {:?} as integer value", name);
-        }
         let name = ByteString(
             name.as_bytes()
                 .iter()
@@ -743,6 +740,15 @@ impl Counters {
         } else if let Some(counter) = NumericCounter::from(&result, self, context) {
             debug!("getting special counter {:?}", counter);
             context.numeric_counter(counter)
+        } else if result.is_string_name() {
+            debug!("getting string counter {:?}", result);
+            if result.ends_with(b".length") {
+                let string_name = result.len() - b".length".len();
+                self.strings.get(&result[0..string_name].into()).map_or(0, |s| s.len() as i32)
+            } else {
+                error!("Getting string {:?} as integer value", name);
+                0
+            }
         } else {
             *self.counters.get(&result).unwrap_or(&0)
         };
@@ -882,6 +888,10 @@ impl ByteString {
         self.as_bytes().first() == Some(&b'$')
     }
 
+    pub fn is_unmodified_string_name(&self) -> bool {
+        self.is_string_name() && !self.as_bytes().contains(&b'.')
+    }
+
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_ref()
     }
@@ -929,7 +939,7 @@ impl ByteString {
         if let Some(name) = StringCounter::from(&result) {
             return context.string_counter(name);
         }
-        if result.is_string_name() {
+        if result.is_unmodified_string_name() {
             return counters.get_string(&result, context);
         }
         result
@@ -971,7 +981,7 @@ impl ByteString {
             if c == b'&' {
                 if let Some(start_idx) = start {
                     let name = ByteString(bytes[start_idx..idx].to_owned());
-                    let value = if name.is_string_name() {
+                    let value = if name.is_unmodified_string_name() {
                         counters.get_string(&name, context).into()
                     } else {
                         counters.get(&name, context).to_string().into_bytes()

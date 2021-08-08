@@ -43,7 +43,7 @@ pub fn enter_board(
             &old_pos,
             &player_pos,
             &mut *state.update_done,
-        );
+        ).unwrap();
     }
     board.player_pos = player_pos;
     reset_view(board);
@@ -107,7 +107,7 @@ pub(crate) fn put_thing(
         return;
     }
 
-    put_at(board, &pos, color, thing, param, update_done);
+    put_at(board, &pos, color, thing, param, update_done).unwrap();
 }
 
 pub fn put_at(
@@ -244,7 +244,7 @@ pub fn update_board(
                                         Thing::Explosion,
                                         explosion.to_param(),
                                         &mut *state.update_done,
-                                    );
+                                    ).unwrap();
                                 } else if thing.is_robot() {
                                     let robot_id = RobotId::from(board.level_at(&coord).unwrap().2);
 
@@ -263,7 +263,7 @@ pub fn update_board(
                             ExplosionResult::Ash => (Thing::Floor, 0x08),
                             ExplosionResult::Fire => (Thing::Fire, 0x0C),
                         };
-                        put_at(board, &coord, color, thing, 0x00, &mut *state.update_done);
+                        put_at(board, &coord, color, thing, 0x00, &mut *state.update_done).unwrap();
                     } else {
                         explosion.stage += 1;
                         board.level_at_mut(&coord).unwrap().2 = explosion.to_param();
@@ -290,7 +290,7 @@ pub fn update_board(
                                 Thing::Floor,
                                 0x00,
                                 &mut *state.update_done,
-                            );
+                            ).unwrap();
                         }
 
                         let dirs = [
@@ -327,7 +327,7 @@ pub fn update_board(
                                     Thing::Fire,
                                     0x00,
                                     &mut *state.update_done,
-                                );
+                                ).unwrap();
                             }
                         }
                     }
@@ -378,7 +378,7 @@ pub fn update_board(
                                 door_move.0,
                                 door_move.1,
                                 &mut *state.update_done,
-                            );
+                            ).unwrap();
                         }
                     } else {
                         board.level_at_mut(&coord).unwrap().2 = param + 0x20;
@@ -393,9 +393,9 @@ pub fn update_board(
                         // TODO: shot behaviour
                         let dest_thing = board.thing_at(new_pos).unwrap();
                         if dest_thing.is_solid() {
-                            board.remove_thing_at(&coord);
+                            board.remove_thing_at(&coord).unwrap();
                             match dest_thing {
-                                Thing::Bullet => { board.remove_thing_at(&new_pos); }
+                                Thing::Bullet => { board.remove_thing_at(&new_pos).unwrap(); }
                                 Thing::Robot | Thing::RobotPushable => {
                                     let robot_id = RobotId::from(board.level_at(&new_pos).unwrap().2);
                                     let mut robots = Robots::new(all_robots, global_robot);
@@ -431,7 +431,7 @@ pub fn update_board(
                             Thing::Explosion,
                             explosion.to_param(),
                             &mut *state.update_done,
-                        );
+                        ).unwrap();
                     } else {
                         board.level_at_mut(&coord).unwrap().2 = param + 1;
                     }

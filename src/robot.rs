@@ -79,7 +79,7 @@ fn move_robot(
             if thing.is_pushable() {
                 let adjusted = adjust_coordinate(new_pos, board, dir);
                 if let Some(pushed_pos) = adjusted {
-                    move_level_to(board, robots.robots, &new_pos, &pushed_pos, update_done);
+                    move_level_to(board, robots.robots, &new_pos, &pushed_pos, update_done).unwrap();
                 } else {
                     return Move::Blocked;
                 }
@@ -90,7 +90,7 @@ fn move_robot(
                 return Move::Blocked;
             }
 
-            move_level_to(board, robots.robots, &robot_pos, &new_pos, update_done);
+            move_level_to(board, robots.robots, &robot_pos, &new_pos, update_done).unwrap();
             let robot = robots.get_mut(robot_id);
             robot.position = new_pos;
             Move::Moved
@@ -113,7 +113,7 @@ fn move_robot_to(
     if thing == Thing::Player || robot_pos == pos {
         return Err(());
     }
-    move_level_to(board, robots.robots, &robot_pos, &pos, update_done);
+    move_level_to(board, robots.robots, &robot_pos, &pos, update_done).unwrap();
     assert_eq!(robots.get(robot_id).position, pos);
     Ok(())
 }
@@ -573,7 +573,7 @@ fn run_one_command(
         Command::Die(as_item) => {
             let robot = robots.get_mut(robot_id);
             if !robot_id.is_global() {
-                board.remove_thing_at(&robot.position);
+                board.remove_thing_at(&robot.position).unwrap();
             }
             robot.alive = false;
             if as_item && !robot_id.is_global() {
@@ -585,7 +585,7 @@ fn run_one_command(
                     &player_pos,
                     &robot_pos,
                     &mut *state.update_done,
-                );
+                ).unwrap();
             }
         }
 
@@ -1598,7 +1598,7 @@ fn run_one_command(
                     Thing::from_u8(thing).unwrap(),
                     new_id,
                     &mut *state.update_done,
-                );
+                ).unwrap();
             }
         }
 
@@ -1619,7 +1619,7 @@ fn run_one_command(
                             Thing::from_u8(thing).unwrap(),
                             new_id,
                             &mut *state.update_done,
-                        );
+                        ).unwrap();
                     }
                 }
             }
@@ -1771,14 +1771,15 @@ fn run_one_command(
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let pos = mode.resolve_xy(x, y, counters, context, RelativePart::First);
             let old_player_pos = board.player_pos;
-            move_level_to(
+            if move_level_to(
                 board,
                 robots.robots,
                 &old_player_pos,
                 &pos,
                 &mut *state.update_done,
-            );
-            board.player_pos = pos;
+            ).is_ok() {
+                board.player_pos = pos;
+            }
         }
 
         Command::MovePlayerDir(ref dir, ref blocked) => {
@@ -1802,7 +1803,7 @@ fn run_one_command(
                         &player_pos,
                         &new_pos,
                         &mut *state.update_done,
-                    );
+                    ).unwrap();
                     board.player_pos = new_pos;
                 }
             }
@@ -1973,7 +1974,7 @@ fn run_one_command(
                 if let Some(ref bullet_pos) = bullet_pos {
                     // FIXME: shoot the solid thing
                     if !board.thing_at(bullet_pos).unwrap().is_solid() {
-                        put_at(
+                        let _ = put_at(
                             board,
                             bullet_pos,
                             0x07,
@@ -2015,7 +2016,7 @@ fn run_one_command(
                 ExtendedParam::Any => 0x00, //XXXjdm proper defaults
             };
             if !robot_id.is_global() {
-                put_at(
+                let _ = put_at(
                     board,
                     &robot.position,
                     color,

@@ -667,7 +667,7 @@ pub enum Command {
     IfInput(ByteString, ByteString, bool),
     IfInputMatches(ByteString, ByteString),
     PlayerChar(Character),
-    MoveAll(ExtendedColor, Thing, ModifiedDirection),
+    MoveAll(ExtendedColor, Thing, Param, ModifiedDirection),
     Copy(SignedNumeric, SignedNumeric, SignedNumeric, SignedNumeric),
     SetEdgeColor(Color),
     Board(ModifiedDirection, Option<ByteString>),
@@ -1319,7 +1319,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
             let (param1, _buffer) = get_robotic_parameter(buffer);
             Command::MessageBoxLine(param1.into(), MessageBoxLineType::Center)
         }
-        CommandOp::MoveAll => three_args(buffer, Command::MoveAll),
+        CommandOp::MoveAll => four_args(buffer, Command::MoveAll),
         CommandOp::Copy => four_args(buffer, Command::Copy),
         CommandOp::SetEdgeColor => one_arg(buffer, Command::SetEdgeColor),
         CommandOp::Board | CommandOp::BoardIsNone => {

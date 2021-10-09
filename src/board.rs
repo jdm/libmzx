@@ -29,6 +29,7 @@ pub fn enter_board(
     player_pos: Coordinate<u16>,
     robots: &mut Vec<Robot>,
     global_robot: &mut Robot,
+    first_load: bool,
 ) {
     reset_update_done(board, &mut state.update_done);
 
@@ -50,6 +51,11 @@ pub fn enter_board(
     state.scroll_locked = false;
 
     Robots::new(robots, global_robot).foreach(|robot, _id| {
+        if first_load {
+            if send_robot_to_label(robot, BuiltInLabel::JustLoaded) {
+                return;
+            }
+        }
         send_robot_to_label(robot, BuiltInLabel::JustEntered);
     })
 }

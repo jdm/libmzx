@@ -220,6 +220,7 @@ pub enum BuiltInLabel {
     Edge,
     Bombed,
     JustEntered,
+    JustLoaded,
     Touch,
     Shot,
 }
@@ -231,6 +232,7 @@ impl Into<EvaluatedByteString> for BuiltInLabel {
             BuiltInLabel::Edge => "edge",
             BuiltInLabel::Bombed => "bombed",
             BuiltInLabel::JustEntered => "justentered",
+            BuiltInLabel::JustLoaded => "justloaded",
             BuiltInLabel::Touch => "touch",
             BuiltInLabel::Shot => "shot",
         }))

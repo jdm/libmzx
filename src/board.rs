@@ -3,7 +3,7 @@ use crate::robot::{send_robot_to_label, update_robot, BuiltInLabel, RobotId, Rob
 use crate::{
     adjust_coordinate, bullet_from_param, Board, ByteString, CardinalDirection, Coordinate,
     Counters, Explosion, ExplosionResult, ExtendedColorValue, ExtendedParam, KeyPress,
-    MessageBoxLine, Robot, RunStatus, Thing, WorldState,
+    MessageBoxLine, Robot, RunStatus, Thing, WorldState, World
 };
 use crate::sprite::Sprite;
 use num_traits::ToPrimitive;
@@ -73,6 +73,71 @@ pub fn reset_view(board: &mut Board) {
         .min(board.height as u16 - vheight);
 
     board.scroll_offset = Coordinate(xpos, ypos);
+}
+
+pub enum ExternalStateChange {
+    MessageBox(Vec<MessageBoxLine>, ByteString, Option<RobotId>),
+}
+
+pub fn run_board_update(
+    world: &mut World,
+    audio: &dyn AudioEngine,
+    world_path: &Path,
+    counters: &mut Counters,
+    boards: &[ByteString],
+    board_id: &mut usize,
+    key: Option<KeyPress>,
+) -> Option<ExternalStateChange> {
+    let (ref mut board, ref mut robots) = world.boards[*board_id];
+    let orig_player_pos = board.player_pos;
+    let change = update_board(
+        &mut world.state,
+        audio,
+        key,
+        world_path,
+        counters,
+        boards,
+        board,
+        *board_id,
+        robots,
+        &mut world.global_robot,
+    );
+
+    // A robot could have moved the player.
+    if board.player_pos != orig_player_pos &&
+        !world.state.scroll_locked
+    {
+        reset_view(board);
+    }
+
+    if let Some(change) = change {
+        let new_board = match change {
+            GameStateChange::Teleport(board, coord) => {
+                let id = world.boards.iter().position(|(b, _)| b.title == board);
+                if let Some(id) = id {
+                    Some((id, coord))
+                } else {
+                    warn!("Couldn't find board {:?}", board);
+                    None
+                }
+            }
+
+            GameStateChange::Restore(id, coord) => {
+                Some((id, coord))
+            }
+
+            GameStateChange::MessageBox(lines, title, rid) => {
+                return Some(ExternalStateChange::MessageBox(lines, title, rid));
+            }
+        };
+        if let Some((id, coord)) = new_board {
+            *board_id = id;
+            let (ref mut board, ref mut robots) = world.boards[id];
+            enter_board(&mut world.state, audio, board, coord, robots, &mut world.global_robot, false);
+        }
+    }
+
+    None
 }
 
 pub fn reset_update_done(board: &Board, update_done: &mut Vec<bool>) {

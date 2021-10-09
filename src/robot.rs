@@ -926,6 +926,22 @@ fn run_one_command(
             counters.set(s, &mut context, initial.wrapping_add(val));
         }
 
+        Command::Double(ref s) => {
+            let context = CounterContext::from(board, robots.get(robot_id), state);
+            let s = s.evaluate_for_name(counters, &context);
+            let initial = counters.get(&s, &context);
+            let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
+            counters.set(s, &mut context, initial.wrapping_mul(2));
+        }
+
+        Command::Half(ref s) => {
+            let context = CounterContext::from(board, robots.get(robot_id), state);
+            let s = s.evaluate_for_name(counters, &context);
+            let initial = counters.get(&s, &context);
+            let mut context = CounterContextMut::from(board, robots.get_mut(robot_id), state);
+            counters.set(s, &mut context, initial.checked_div(2).unwrap_or(initial));
+        }
+
         Command::Multiply(ref s, ref n) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let s = s.evaluate_for_name(counters, &context);

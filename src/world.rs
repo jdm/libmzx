@@ -2,7 +2,7 @@ use crate::robotic::{parse_program, Command};
 use crate::{
     get_bool, get_byte, get_dword, get_null_terminated_string, get_word, load_palette, Board,
     BoardId, ByteString, ColorValue, OverlayMode, Robot, World, WorldError, CHARSET_BUFFER_SIZE,
-    LEGACY_BOARD_NAME_SIZE, LEGACY_ROBOT_NAME_SIZE,
+    LEGACY_BOARD_NAME_SIZE, LEGACY_ROBOT_NAME_SIZE, Scroll, Sensor,
 };
 use itertools::Zip;
 use std::io::{Cursor, Read, Seek};
@@ -12,8 +12,8 @@ enum PropFile {
     World,
     Board(u8),
     BoardRobot(u8, u8),
-    /*BoardScroll(u8, u8),
-    BoardSensor(u8, u8),*/
+    BoardScroll(u8, u8),
+    BoardSensor(u8, u8),
 }
 
 impl PropFile {
@@ -22,8 +22,8 @@ impl PropFile {
             PropFile::World => "world".to_owned(),
             PropFile::Board(bid) => format!("b{:02X}", bid),
             PropFile::BoardRobot(bid, rid) => format!("b{:02X}r{:02X}", bid, rid),
-            /*PropFile::BoardScroll(bid, sid) => format!("b{:02x}sc{:02X}", bid, sid),
-            PropFile::BoardSensor(bid, sid) => format!("b{:02x}se{:02X}", bid, sid),*/
+            PropFile::BoardScroll(bid, sid) => format!("b{:02x}sc{:02X}", bid, sid),
+            PropFile::BoardSensor(bid, sid) => format!("b{:02x}se{:02X}", bid, sid),
         }
     }
 }
@@ -173,6 +173,38 @@ pub(crate) fn load_zip_world(buffer: &[u8]) -> Result<World, WorldError> {
             robots.push(robot);
         }
 
+        let mut scrolls = vec![];
+        for r in 0..board.num_scrolls {
+            let scroll_props = match zip
+                .read_known_file(WorldFile::Properties(PropFile::BoardScroll(i, r as u8 + 1)))
+            {
+                Ok(r) => r,
+                Err(_) => {
+                    scrolls.push(Scroll::default());
+                    continue;
+                }
+            };
+            let robot = load_scroll(&scroll_props).unwrap();
+            scrolls.push(robot);
+        }
+        board.scrolls = scrolls;
+
+        let mut sensors = vec![];
+        for r in 0..board.num_sensors {
+            let sensor_props = match zip
+                .read_known_file(WorldFile::Properties(PropFile::BoardSensor(i, r as u8 + 1)))
+            {
+                Ok(r) => r,
+                Err(_) => {
+                    sensors.push(Sensor::default());
+                    continue;
+                }
+            };
+            let sensor = load_sensor(&sensor_props).unwrap();
+            sensors.push(sensor);
+        }
+        board.sensors = sensors;
+
         board.init(&mut robots);
         world.boards[i as usize] = (board, robots);
     }
@@ -239,6 +271,9 @@ fn next_prop<T>(
     loop {
         let (id, tmp_buffer) = get_word(buffer);
         if id == END_PROP {
+            return Ok((None, tmp_buffer));
+        }
+        if tmp_buffer.len() < 4 {
             return Ok((None, tmp_buffer));
         }
         let (size, tmp_buffer) = get_dword(tmp_buffer);
@@ -312,6 +347,70 @@ fn load_world_info(mut buffer: &[u8]) -> Result<World, ()> {
 }
 
 #[derive(Debug)]
+enum ScrollProp {
+    Lines(u16),
+    Text(ByteString),
+}
+
+impl ScrollProp {
+    const LINES: u16 = 0x0001;
+    const TEXT: u16 = 0x0002;
+
+    fn read(id: u16, buffer: &[u8]) -> Result<ScrollProp, ()> {
+        Ok(match id {
+            ScrollProp::LINES => ScrollProp::Lines(get_word(buffer).0),
+            ScrollProp::TEXT => {
+                ScrollProp::Text(get_null_terminated_string(buffer, usize::MAX).0)
+            }
+            _ => return Err(()),
+        })
+    }
+
+    fn apply(self, scroll: &mut Scroll) {
+        scroll.used = true;
+        match self {
+            ScrollProp::Lines(lines) => scroll.num_lines = lines,
+            ScrollProp::Text(bytes) => scroll.text = bytes,
+        }
+    }
+}
+
+#[derive(Debug)]
+enum SensorProp {
+    Name(ByteString),
+    Char(u8),
+    Robot(ByteString),
+}
+
+impl SensorProp {
+    const NAME: u16 = 0x0001;
+    const CHAR: u16 = 0x0002;
+    const ROBOT: u16 = 0x0003;
+
+    fn read(id: u16, buffer: &[u8]) -> Result<SensorProp, ()> {
+        Ok(match id {
+            SensorProp::NAME => {
+                SensorProp::Name(get_null_terminated_string(buffer, LEGACY_ROBOT_NAME_SIZE).0)
+            }
+            SensorProp::CHAR => SensorProp::Char(get_byte(buffer).0),
+            SensorProp::ROBOT => {
+                SensorProp::Robot(get_null_terminated_string(buffer, LEGACY_ROBOT_NAME_SIZE).0)
+            }
+            _ => return Err(()),
+        })
+    }
+
+    fn apply(self, sensor: &mut Sensor) {
+        sensor.used = true;
+        match self {
+            SensorProp::Name(name) => sensor.name = name,
+            SensorProp::Char(ch) => sensor.ch = ch,
+            SensorProp::Robot(robot) => sensor.target = robot,
+        }
+    }
+}
+
+#[derive(Debug)]
 enum RobotProp {
     Name(ByteString),
     Char(u8),
@@ -351,6 +450,40 @@ impl RobotProp {
     }
 }
 
+fn load_scroll(mut buffer: &[u8]) -> Result<Scroll, ()> {
+    let mut scroll = Scroll::default();
+    loop {
+        let (prop, tmp_buffer) = next_prop(buffer, ScrollProp::read).unwrap();
+        match prop {
+            Some(prop) => {
+                println!("{:?}", prop);
+                prop.apply(&mut scroll);
+            }
+            None => break,
+        }
+        buffer = tmp_buffer;
+    }
+
+    Ok(scroll)
+}
+
+fn load_sensor(mut buffer: &[u8]) -> Result<Sensor, ()> {
+    let mut sensor = Sensor::default();
+    loop {
+        let (prop, tmp_buffer) = next_prop(buffer, SensorProp::read).unwrap();
+        match prop {
+            Some(prop) => {
+                println!("{:?}", prop);
+                prop.apply(&mut sensor);
+            }
+            None => break,
+        }
+        buffer = tmp_buffer;
+    }
+
+    Ok(sensor)
+}
+
 fn load_robot(mut buffer: &[u8]) -> Result<Robot, ()> {
     let mut robot = Robot::default();
     loop {
@@ -375,9 +508,9 @@ enum BoardProp {
     Height(u16),
     Overlay(u8),
     Robots(u8),
-    /*Scrolls(u8),
+    Scrolls(u8),
     Sensors(u8),
-    FileVersion(u16),*/
+    //FileVersion(u16),
     Mod(ByteString),
     ViewX(u8),
     ViewY(u8),
@@ -414,6 +547,8 @@ impl BoardProp {
     const HEIGHT: u16 = 0x0003;
     const OVERLAY: u16 = 0x0004;
     const ROBOT_COUNT: u16 = 0x0005;
+    const SCROLL_COUNT: u16 = 0x006;
+    const SENSOR_COUNT: u16 = 0x007;
     const MOD: u16 = 0x0010;
     const VIEWPORT_X: u16 = 0x0011;
     const VIEWPORT_Y: u16 = 0x0012;
@@ -434,6 +569,8 @@ impl BoardProp {
             BoardProp::HEIGHT => BoardProp::Height(get_word(buffer).0),
             BoardProp::OVERLAY => BoardProp::Overlay(get_byte(buffer).0),
             BoardProp::ROBOT_COUNT => BoardProp::Robots(get_byte(buffer).0),
+            BoardProp::SCROLL_COUNT => BoardProp::Scrolls(get_byte(buffer).0),
+            BoardProp::SENSOR_COUNT => BoardProp::Sensors(get_byte(buffer).0),
             BoardProp::MOD => BoardProp::Mod(ByteString::from(buffer)),
             BoardProp::VIEWPORT_X => BoardProp::ViewX(get_byte(buffer).0),
             BoardProp::VIEWPORT_Y => BoardProp::ViewY(get_byte(buffer).0),
@@ -460,6 +597,12 @@ impl BoardProp {
             }
             BoardProp::Robots(count) => {
                 board.num_robots = count as usize;
+            }
+            BoardProp::Scrolls(count) => {
+                board.num_scrolls = count as usize;
+            }
+            BoardProp::Sensors(count) => {
+                board.num_sensors = count as usize;
             }
             BoardProp::Mod(file) => board.mod_file = file.into_string(),
             BoardProp::ViewX(x) => board.upper_left_viewport.0 = x,

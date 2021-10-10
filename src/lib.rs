@@ -223,6 +223,8 @@ pub struct Board {
     pub player_locked_ew: bool,
     pub player_locked_attack: bool,
     pub num_robots: usize,
+    pub num_scrolls: usize,
+    pub num_sensors: usize,
 }
 
 impl Default for Board {
@@ -263,6 +265,8 @@ impl Default for Board {
             player_locked_ew: false,
             player_locked_attack: false,
             num_robots: 0,
+            num_scrolls: 0,
+            num_sensors: 0,
         }
     }
 }
@@ -809,12 +813,14 @@ impl Counters {
     }
 }
 
+#[derive(Default)]
 pub struct Scroll {
     pub num_lines: u16,
     pub text: ByteString,
     pub used: bool,
 }
 
+#[derive(Default)]
 pub struct Sensor {
     pub name: ByteString,
     pub ch: u8,
@@ -2954,10 +2960,15 @@ fn get_string_with_length(buffer: &[u8], length: u16) -> (ByteString, &[u8]) {
 }
 
 fn get_null_terminated_string(buffer: &[u8], max_length: usize) -> (ByteString, &[u8]) {
-    let (s, buffer) = buffer.split_at(max_length);
-    assert_eq!(s.len(), max_length);
-    let end = s.iter().position(|b| *b == 0);
-    (ByteString(s[0..end.unwrap_or(max_length)].to_vec()), buffer)
+    if max_length == usize::MAX {
+        let end = buffer.iter().position(|b| *b == 0).unwrap_or(buffer.len());
+        (ByteString(buffer[0..end].to_vec()), &buffer[end+1..])
+    } else {
+        let (s, buffer) = buffer.split_at(max_length);
+        assert_eq!(s.len(), max_length);
+        let end = s.iter().position(|b| *b == 0);
+        (ByteString(s[0..end.unwrap_or(max_length)].to_vec()), buffer)
+    }
 }
 
 fn get_bool(buffer: &[u8]) -> (bool, &[u8]) {
@@ -3306,8 +3317,6 @@ fn load_board(
             exits: (north_board, south_board, east_board, west_board),
             restart_when_zapped: restart_when_zapped,
             time_limit: time_limit,
-            scrolls: scrolls,
-            sensors: sensors,
             player_pos: Coordinate(0, 0),
             scroll_offset: Coordinate(scroll_x, scroll_y),
             message_line: current_message,
@@ -3322,6 +3331,10 @@ fn load_board(
             player_locked_ew,
             player_locked_attack,
             num_robots: robots.len(),
+            num_scrolls: scrolls.len(),
+            num_sensors: sensors.len(),
+            scrolls: scrolls,
+            sensors: sensors,
         },
         robots,
     ))

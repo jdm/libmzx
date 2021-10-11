@@ -576,11 +576,11 @@ pub fn draw_messagebox<R: Renderer>(
     let y_start = DIALOG_Y + 3 + CONTENT_H / 2 - pos.min(CONTENT_H / 2);
 
     for (y_off, line) in lines[start..end].iter().enumerate() {
-        // FIXME: limit maximum line characters
         const START_X: usize = DIALOG_X + 3;
         const LIMIT: usize = DIALOG_W - 4;
         match line {
             MessageBoxLine::Text(ref s, MessageBoxLineType::Plain) => {
+                let s = &s[0..s.len().min(LIMIT)];
                 for (x, ch) in s.iter().enumerate() {
                     draw_char(
                         *ch,
@@ -647,15 +647,20 @@ fn draw_fancy_message_box_line<R: Renderer>(
         draw_char(0x10, 0x0E, 0x08, x, y, charset, palette, renderer);
     }
 
+    let total_len = text
+        .color_text()
+        .fold(0, |acc, (chars, _bg, _fg)| acc + chars.len());
+
+    let mut remaining = total_len.min(limit);
     if center {
-        let len = text
-            .color_text()
-            .fold(0, |acc, (chars, _bg, _fg)| acc + chars.len());
-        x_off += (limit - len) / 2;
+        x_off += (limit - total_len) / 2;
     }
 
     for (chars, bg, fg) in text.color_text() {
         for &c in chars {
+            if remaining == 0 {
+                return
+            }
             draw_char(
                 c,
                 fg.unwrap_or(0x0F),
@@ -667,6 +672,7 @@ fn draw_fancy_message_box_line<R: Renderer>(
                 renderer,
             );
             x_off += 1;
+            remaining -= 1;
         }
     }
 }

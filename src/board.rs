@@ -164,7 +164,7 @@ pub(crate) fn put_thing(
     param: ExtendedParam,
     pos: Coordinate<u16>,
     update_done: &mut [bool],
-) {
+) -> Result<(), ()> {
     let color = match color {
         ExtendedColorValue::Known(c) => c.0,
         // TODO: have a table of default foreground colors for things,
@@ -184,10 +184,10 @@ pub(crate) fn put_thing(
     if thing == Thing::Sprite {
         sprites[param as usize].enabled = true;
         sprites[param as usize].pos = Coordinate(pos.0 as i32, pos.1 as i32);
-        return;
+        return Ok(());
     }
 
-    put_at(board, &pos, color, thing, param, update_done).unwrap();
+    put_at(board, &pos, color, thing, param, update_done)
 }
 
 pub fn put_at(

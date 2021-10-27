@@ -37,6 +37,7 @@ pub fn enter_board(
     robots: &mut Vec<Robot>,
     global_robot: &mut Robot,
     label_action: LabelAction,
+    reenter: bool,
 ) {
     reset_update_done(board, &mut state.update_done);
 
@@ -58,6 +59,12 @@ pub fn enter_board(
     state.scroll_locked = false;
 
     Robots::new(robots, global_robot).foreach(|robot, _id| {
+        if reenter {
+            // XXX: This feels hacky.
+            robot.current_loc = 0;
+            robot.current_line = 0;
+        }
+
         if label_action == LabelAction::RunJustLoadedAndJustEntered {
             if send_robot_to_label(robot, BuiltInLabel::JustLoaded) {
                 return;
@@ -142,7 +149,7 @@ pub fn run_board_update(
         if let Some((id, coord)) = new_board {
             *board_id = id;
             let (ref mut board, ref mut robots) = world.boards[id];
-            enter_board(&mut world.state, audio, board, coord, robots, &mut world.global_robot, LabelAction::RunJustEntered);
+            enter_board(&mut world.state, audio, board, coord, robots, &mut world.global_robot, LabelAction::RunJustEntered, false);
         }
     }
 

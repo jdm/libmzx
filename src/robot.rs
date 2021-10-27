@@ -518,6 +518,7 @@ pub fn update_robot(
                 }
             }
             CommandResult::NoAdvance => {
+                mode = Relative::None;
                 if cmd.is_cycle_ending() {
                     if matches!(cmd, Command::End | Command::Wait(..)) && first_cmd {
                         robots.get_mut(robot_id).status = RunStatus::FinishedWithoutRunning;

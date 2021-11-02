@@ -883,7 +883,10 @@ pub(crate) fn char_from_id(
         Thing::Whirlpool2 => CharId::Whirlpool2,
         Thing::Whirlpool3 => CharId::Whirlpool3,
         Thing::Whirlpool4 => CharId::Whirlpool4,
-        Thing::InvisibleWall => CharId::InvisibleWall,
+        Thing::InvisibleWall => match param {
+            0 => CharId::Space,
+            _ => CharId::InvisibleWall,
+        },
         Thing::RicochetPanel => match param {
             0 => CharId::RicochetPanel1,
             1 => CharId::RicochetPanel2,

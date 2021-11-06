@@ -3065,12 +3065,13 @@ fn load_robot(buffer: &[u8]) -> (Robot, &[u8]) {
     let (last_shot, buffer) = get_direction(buffer);
     let (x_pos, buffer) = get_word(buffer);
     let (y_pos, buffer) = get_word(buffer);
-    let (_reserved, buffer) = buffer.split_at(3);
+    let (_reserved, buffer) = buffer.split_at(2);
+    let (used, buffer) = get_bool(buffer);
     let (onscreen, buffer) = get_bool(buffer);
     let (loop_count, buffer) = get_word(buffer);
     let (program, buffer) = buffer.split_at(program_length as usize);
     assert_eq!(program.len(), program_length as usize);
-    let program = parse_program(&program);
+    let program = parse_program(&program, used);
 
     let robot = Robot {
         name: name,

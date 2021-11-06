@@ -434,7 +434,7 @@ impl RobotProp {
             RobotProp::CHAR => RobotProp::Char(get_byte(buffer).0),
             RobotProp::X_ID => RobotProp::X(get_word(buffer).0 as i16),
             RobotProp::Y_ID => RobotProp::Y(get_word(buffer).0 as i16),
-            RobotProp::PROGRAM => RobotProp::Program(parse_program(buffer)),
+            RobotProp::PROGRAM => RobotProp::Program(parse_program(buffer, true)),
             _ => return Err(()),
         })
     }

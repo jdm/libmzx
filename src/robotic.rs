@@ -1575,7 +1575,7 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
     Some(cmd)
 }
 
-pub(crate) fn parse_program(buffer: &[u8]) -> Vec<Command> {
+pub(crate) fn parse_program(buffer: &[u8], used: bool) -> Vec<Command> {
     let mut commands = vec![];
     if buffer.is_empty() {
         return commands;
@@ -1602,7 +1602,11 @@ pub(crate) fn parse_program(buffer: &[u8]) -> Vec<Command> {
             commands.push(cmd)
         }
         let (total_dup, new_buffer) = get_byte(&new_buffer[total - 1..]);
-        assert_eq!(total, total_dup as usize);
+        if used {
+            assert_eq!(total, total_dup as usize);
+        } else if total != total_dup as usize {
+            break
+        }
         buffer = new_buffer;
     }
     commands

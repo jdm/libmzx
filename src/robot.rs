@@ -694,17 +694,7 @@ fn run_one_command(
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let c = c.evaluate(counters, &context);
             //TODO: handle partial charset offsets correctly.
-            let path = world_path.join(c.to_string());
-            match File::open(&path) {
-                Ok(mut file) => {
-                    let mut v = vec![];
-                    file.read_to_end(&mut v).unwrap();
-                    state.charset.data[0..v.len()].copy_from_slice(&v);
-                }
-                Err(e) => {
-                    info!("Error opening charset {} ({})", path.display(), e);
-                }
-            }
+            load_charset(&c.to_string(), world_path, state)
         }
 
         Command::ColorFadeOut => {
@@ -754,22 +744,7 @@ fn run_one_command(
         Command::LoadPalette(ref p) => {
             let context = CounterContext::from(board, robots.get(robot_id), state);
             let p = p.evaluate(counters, &context);
-            let path = world_path.join(p.to_string());
-            match File::open(&path) {
-                Ok(mut file) => {
-                    let mut v = vec![];
-                    file.read_to_end(&mut v).unwrap();
-                    for (new, (ref mut old, _)) in v.chunks(3).zip(state.palette.colors.iter_mut())
-                    {
-                        old.r = new[0];
-                        old.g = new[1];
-                        old.b = new[2];
-                    }
-                }
-                Err(e) => {
-                    info!("Error opening palette {} ({})", path.display(), e);
-                }
-            }
+            load_palette(&p.to_string(), world_path, state)
         }
 
         Command::ViewportSize(ref w, ref h) => {
@@ -2099,5 +2074,38 @@ pub fn jump_robot_to_label<S: Into<EvaluatedByteString>>(robot: &mut Robot, labe
         true
     } else {
         false
+    }
+}
+
+pub fn load_palette(filename: &str, world_path: &Path, state: &mut WorldState) {
+    let path = world_path.join(filename);
+    match File::open(&path) {
+        Ok(mut file) => {
+            let mut v = vec![];
+            file.read_to_end(&mut v).unwrap();
+            for (new, (ref mut old, _)) in v.chunks(3).zip(state.palette.colors.iter_mut())
+            {
+                old.r = new[0];
+                old.g = new[1];
+                old.b = new[2];
+            }
+        }
+        Err(e) => {
+            info!("Error opening palette {} ({})", path.display(), e);
+        }
+    }
+}
+
+pub fn load_charset(filename: &str, world_path: &Path, state: &mut WorldState) {
+    let path = world_path.join(filename);
+    match File::open(&path) {
+        Ok(mut file) => {
+            let mut v = vec![];
+            file.read_to_end(&mut v).unwrap();
+            state.charset.data[0..v.len()].copy_from_slice(&v);
+        }
+        Err(e) => {
+            info!("Error opening charset {} ({})", path.display(), e);
+        }
     }
 }

@@ -1167,6 +1167,10 @@ fn parse_opcode(buffer: &[u8], op: CommandOp) -> Option<Command> {
         CommandOp::Take | CommandOp::TakeOr => {
             let (param1, buffer) = get_robotic_parameter(buffer);
             let (param2, buffer) = get_robotic_parameter(buffer);
+            // XXXjdm: Work around an invalid program in dansaga.mzx
+            if Item::from_u16(param2.as_word()).is_none() {
+                return None
+            }
             let param3 = if op == CommandOp::TakeOr {
                 let (param, _buffer) = get_robotic_parameter(buffer);
                 Some(param)

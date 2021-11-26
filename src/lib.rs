@@ -2133,7 +2133,14 @@ pub enum StringCounter {
 
 impl StringCounter {
     fn from(name: &ByteString) -> Option<StringCounter> {
-        Some(match &**name {
+        let name = ByteString(
+            name.as_bytes()
+                .iter()
+                .map(|c| c.to_ascii_lowercase())
+                .collect(),
+        );
+
+        Some(match &*name {
             b"board_name" => StringCounter::BoardName,
             b"robot_name" => StringCounter::RobotName,
             b"mod_name" => StringCounter::ModName,

@@ -431,7 +431,7 @@ pub fn update_robot(
 
     debug!("executing {:?} ({:?})", robot.name, robot_id);
 
-    let mut lines_run = 0;
+    let mut lines_run = 0u32;
     let mut mode = Relative::None;
     let mut message_box_lines = vec![];
     let mut first_cmd = true;
@@ -456,7 +456,7 @@ pub fn update_robot(
             }
         }
 
-        if lines_run >= state.commands || !robot.alive {
+        if lines_run >= state.commands as u32 || !robot.alive {
             break None;
         }
         let cmd = robot.program.get(robot.current_line as usize).cloned();

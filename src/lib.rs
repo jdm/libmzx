@@ -778,12 +778,27 @@ impl Counters {
             context.numeric_counter(counter)
         } else if result.is_string_name() {
             debug!("getting string counter {:?}", result);
-            if result.ends_with(b".length") {
-                let string_name = result.len() - b".length".len();
-                self.strings.get(&result[0..string_name].into()).map_or(0, |s| s.len() as i32)
-            } else {
-                error!("Getting string {:?} as integer value", name);
-                0
+            let mut parts = result.0.split(|&b| b == b'.');
+            let string_name: ByteString = parts.next().unwrap().into();
+            match parts.next() {
+                Some(b"length") => {
+                    self.strings.get(&string_name).map_or(0, |s| s.len() as i32)
+                }
+                Some(part) if part.iter().all(|&b| b >= b'0' && b <= b'9') => {
+                    let s = str::from_utf8(part).ok();
+                    match s.and_then(|s| s.parse::<usize>().ok()) {
+                        Some(index) =>
+                            self.strings.get(&string_name)
+                            .and_then(|s| s.0.get(index))
+                            .map(|v| *v as i32)
+                            .unwrap_or(0),
+                        None => 0,
+                    }
+                }
+                _ => {
+                    error!("Getting string {:?} as integer value", name);
+                    0
+                }
             }
         } else {
             *self.counters.get(&result).unwrap_or(&0)
@@ -3688,6 +3703,15 @@ mod tests {
         c.set_string("$a".into(), &mut TestLocalCounters, bytes.clone());
         let s: ByteString = "&$a&".into();
         assert_eq!(s.evaluate(&c, &TestLocalCounters), bytes);
+    }
+
+    #[test]
+    fn string_counter_index() {
+        let mut c = Counters::new();
+        let bytes: ByteString = "test string".into();
+        c.set_string("$a".into(), &mut TestLocalCounters, bytes.clone());
+        let s: ByteString = "&$a.0&".into();
+        assert_eq!(s.evaluate(&c, &TestLocalCounters), &*(bytes.0[0] as i32).to_string());
     }
 
     #[test]

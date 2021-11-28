@@ -12,6 +12,7 @@ extern crate rand;
 pub mod audio;
 pub mod board;
 mod expression;
+pub mod keyboard;
 mod render;
 pub mod robot;
 mod robotic;
@@ -85,7 +86,7 @@ pub struct WorldState {
     pub message_edge: bool,
     pub message_color: u8,
     pub player_face_dir: i32,
-    pub key_pressed: i32,
+    pub key_pressed: Option<keyboard::Key>,
     pub health: i32,
     pub lives: i32,
     pub keys: u32,
@@ -119,7 +120,7 @@ impl Default for WorldState {
             message_edge: true,
             message_color: 0,
             player_face_dir: 1,
-            key_pressed: 0,
+            key_pressed: None,
             health: 100,
             lives: 3,
             keys: 0,
@@ -2918,14 +2919,18 @@ pub enum MiscCounter {
 impl MiscCounter {
     fn from(name: &ByteString) -> Option<Self> {
         Some(match &**name {
-            b"keypressed" => Self::KeyPressed,
+            b"key_pressed" => Self::KeyPressed,
             _ => return None,
         })
     }
 
     fn eval(&self, context: &CounterContext) -> i32 {
         match self {
-            MiscCounter::KeyPressed => context.state.key_pressed,
+            MiscCounter::KeyPressed => context
+                .state
+                .key_pressed
+                .as_ref()
+                .map_or(0, |k| k.key_pressed()),
         }
     }
 
@@ -3697,7 +3702,7 @@ pub fn load_world(buffer: &[u8]) -> Result<World, WorldError> {
             message_edge: true,
             message_color: 0x01,
             player_face_dir: 1,
-            key_pressed: 0,
+            key_pressed: None,
             lives: starting_lives as i32,
             health: starting_health as i32,
             ammo: 0,

@@ -2424,8 +2424,8 @@ impl RobotCounter {
 
 #[derive(Debug)]
 pub enum BoardCounter {
-    //BoardId,
-    //BoardParam,
+    BoardId,
+    BoardParam,
     BoardW,
     BoardH,
     //Time,
@@ -2436,10 +2436,10 @@ pub enum BoardCounter {
     BoardY,
     BoardChar,
     BoardColor,
-    //Bch(i32, i32),
-    //Bco(i32, i32),
-    //Bid(i32, i32),
-    //Bpr(i32, i32),
+    /*Bch(i32, i32),
+    Bco(i32, i32),
+    Bid(i32, i32),
+    Bpr(i32, i32),*/
     //Uch(i32, i32),
     //Uco(i32, i32),
     //Uid(i32, i32),
@@ -2470,6 +2470,8 @@ impl BoardCounter {
             b"board_y" => BoardCounter::BoardY,
             b"board_char" => BoardCounter::BoardChar,
             b"board_color" => BoardCounter::BoardColor,
+            b"board_param" => BoardCounter::BoardParam,
+            b"board_id" => BoardCounter::BoardId,
             _ => return None,
         })
     }
@@ -2483,9 +2485,11 @@ impl BoardCounter {
             BoardCounter::BoardX => context.state.board_x,
             BoardCounter::BoardY => context.state.board_y,
             BoardCounter::BoardChar => {
-                let (id, _color, param) = context.board.level[
-                    context.state.board_y as usize * context.board.width + context.state.board_x as usize
-                ];
+                let coord = Coordinate(context.state.board_x as u16, context.state.board_y as u16);
+                let (id, param) = match context.board.level_at(&coord) {
+                    Some(v) => (v.0, v.2),
+                    None => return 0,
+                };
                 char_from_id(
                     id,
                     param,
@@ -2501,10 +2505,28 @@ impl BoardCounter {
             }
             BoardCounter::BoardColor => {
                 // FIXME: hack
-                let (_id, color, _param) = context.board.level[
-                    context.state.board_y as usize * context.board.width as usize + context.state.board_x as usize
-                ];
+                let coord = Coordinate(context.state.board_x as u16, context.state.board_y as u16);
+                let color = match context.board.level_at(&coord) {
+                    Some(v) => v.1,
+                    None => return 0,
+                };
                 color as i32
+            }
+            BoardCounter::BoardId => {
+                let coord = Coordinate(context.state.board_x as u16, context.state.board_y as u16);
+                let id = match context.board.level_at(&coord) {
+                    Some(v) => v.0,
+                    None => return 0,
+                };
+                id as i32
+            }
+            BoardCounter::BoardParam => {
+                let coord = Coordinate(context.state.board_x as u16, context.state.board_y as u16);
+                let param = match context.board.level_at(&coord) {
+                    Some(v) => v.2,
+                    None => return 0,
+                };
+                param as i32
             }
         }
     }
@@ -2515,6 +2537,8 @@ impl BoardCounter {
             BoardCounter::BoardY => Some(&mut context.state.board_y),
             BoardCounter::BoardColor => None, //TODO
             BoardCounter::BoardChar => None, //TODO
+            BoardCounter::BoardId => None, //TODO
+            BoardCounter::BoardParam => None, //TODO
             BoardCounter::BoardW |
             BoardCounter::BoardH |
             BoardCounter::ScrolledX |

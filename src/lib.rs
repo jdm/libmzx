@@ -2436,10 +2436,10 @@ pub enum BoardCounter {
     BoardY,
     BoardChar,
     BoardColor,
-    /*Bch(i32, i32),
+    Bch(i32, i32),
     Bco(i32, i32),
     Bid(i32, i32),
-    Bpr(i32, i32),*/
+    Bpr(i32, i32),
     //Uch(i32, i32),
     //Uco(i32, i32),
     //Uid(i32, i32),
@@ -2472,8 +2472,67 @@ impl BoardCounter {
             b"board_color" => BoardCounter::BoardColor,
             b"board_param" => BoardCounter::BoardParam,
             b"board_id" => BoardCounter::BoardId,
-            _ => return None,
+            _ => {
+                if name.len() < 3 {
+                    return None
+                }
+                let rest = str::from_utf8(&name[3..]).ok()?;
+                let mut parts = rest.split(',');
+                let first = parts.next()?.parse::<i32>().ok()?;
+                let second = parts.next()?.parse::<i32>().ok()?;
+                match &name[0..3] {
+                    b"bch" => BoardCounter::Bch(first, second),
+                    b"bco" => BoardCounter::Bco(first, second),
+                    b"bid" => BoardCounter::Bid(first, second),
+                    b"bpr" => BoardCounter::Bpr(first, second),
+                    _ => return None,
+                }
+            }
         })
+    }
+
+    fn board_char_for(coord: &Coordinate<u16>, context: &CounterContext) -> i32 {
+        let (id, param) = match context.board.level_at(&coord) {
+            Some(v) => (v.0, v.2),
+            None => return 0,
+        };
+        char_from_id(
+            id,
+            param,
+            &[], // FIXME: robots
+            &[], // FIXME: sensors
+            &context.state.idchars,
+            None, // FIXME: left
+            None, // FIXME: top
+            None, // FIXME: right
+            None, // FIXME: bottom,
+            context.state.player_face_dir,
+        ) as i32
+    }
+
+    fn board_color_for(coord: &Coordinate<u16>, context: &CounterContext) -> i32 {
+        // FIXME: hack
+        let color = match context.board.level_at(&coord) {
+            Some(v) => v.1,
+            None => return 0,
+        };
+        color as i32
+    }
+
+    fn board_param_for(coord: &Coordinate<u16>, context: &CounterContext) -> i32 {
+        let param = match context.board.level_at(&coord) {
+            Some(v) => v.2,
+            None => return 0,
+        };
+        param as i32
+    }
+
+    fn board_id_for(coord: &Coordinate<u16>, context: &CounterContext) -> i32 {
+        let id = match context.board.level_at(&coord) {
+            Some(v) => v.0,
+            None => return 0,
+        };
+        id as i32
     }
 
     fn eval(&self, context: &CounterContext) -> i32 {
@@ -2486,47 +2545,35 @@ impl BoardCounter {
             BoardCounter::BoardY => context.state.board_y,
             BoardCounter::BoardChar => {
                 let coord = Coordinate(context.state.board_x as u16, context.state.board_y as u16);
-                let (id, param) = match context.board.level_at(&coord) {
-                    Some(v) => (v.0, v.2),
-                    None => return 0,
-                };
-                char_from_id(
-                    id,
-                    param,
-                    &[], // FIXME: robots
-                    &[], // FIXME: sensors
-                    &context.state.idchars,
-                    None, // FIXME: left
-                    None, // FIXME: top
-                    None, // FIXME: right
-                    None, // FIXME: bottom,
-                    context.state.player_face_dir,
-                ) as i32
+                Self::board_char_for(&coord, context)
+            }
+            BoardCounter::Bch(x, y) => {
+                let coord = Coordinate(*x as u16, *y as u16);
+                Self::board_char_for(&coord, context)
             }
             BoardCounter::BoardColor => {
-                // FIXME: hack
                 let coord = Coordinate(context.state.board_x as u16, context.state.board_y as u16);
-                let color = match context.board.level_at(&coord) {
-                    Some(v) => v.1,
-                    None => return 0,
-                };
-                color as i32
+                Self::board_color_for(&coord, context)
+            }
+            BoardCounter::Bco(x, y) => {
+                let coord = Coordinate(*x as u16, *y as u16);
+                Self::board_color_for(&coord, context)
             }
             BoardCounter::BoardId => {
                 let coord = Coordinate(context.state.board_x as u16, context.state.board_y as u16);
-                let id = match context.board.level_at(&coord) {
-                    Some(v) => v.0,
-                    None => return 0,
-                };
-                id as i32
+                Self::board_id_for(&coord, context)
+            }
+            BoardCounter::Bid(x, y) => {
+                let coord = Coordinate(*x as u16, *y as u16);
+                Self::board_id_for(&coord, context)
             }
             BoardCounter::BoardParam => {
                 let coord = Coordinate(context.state.board_x as u16, context.state.board_y as u16);
-                let param = match context.board.level_at(&coord) {
-                    Some(v) => v.2,
-                    None => return 0,
-                };
-                param as i32
+                Self::board_param_for(&coord, context)
+            }
+            BoardCounter::Bpr(x, y) => {
+                let coord = Coordinate(*x as u16, *y as u16);
+                Self::board_param_for(&coord, context)
             }
         }
     }
@@ -2535,12 +2582,16 @@ impl BoardCounter {
         match self {
             BoardCounter::BoardX => Some(&mut context.state.board_x),
             BoardCounter::BoardY => Some(&mut context.state.board_y),
-            BoardCounter::BoardColor => None, //TODO
-            BoardCounter::BoardChar => None, //TODO
             BoardCounter::BoardId => None, //TODO
             BoardCounter::BoardParam => None, //TODO
+            BoardCounter::Bid(..) => None, //TODO
+            BoardCounter::Bpr(..) => None, //TODO
             BoardCounter::BoardW |
             BoardCounter::BoardH |
+            BoardCounter::BoardColor |
+            BoardCounter::BoardChar |
+            BoardCounter::Bch(..) |
+            BoardCounter::Bco(..) |
             BoardCounter::ScrolledX |
             BoardCounter::ScrolledY => None
         }

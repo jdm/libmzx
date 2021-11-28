@@ -521,6 +521,9 @@ pub(crate) mod test {
         fn local_counter_mut(&mut self, _counter: LocalCounter) -> Option<&mut i32> {
             unimplemented!()
         }
+        fn numeric_counter_mut(&mut self, _counter: NumericCounter) -> Option<&mut i32> {
+            unimplemented!()
+        }
     }
 
     #[test]
